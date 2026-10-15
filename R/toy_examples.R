@@ -584,7 +584,10 @@
 # area_code is the one the spatialize-country-grid pin assigns to that cell
 # (whep#686): 79 Germany, 21 Brazil, 114 Kenya, 203 Spain.
 .example_water_balance <- function() {
-  label <- "aet:components|drain:seepage|bg:cft_native"
+  label <- paste0(
+    "aet:components|drain:seepage|runoff:total_minus_seepage|",
+    "bg:cft_native"
+  )
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~water_input_mm, ~prec_mm, ~irrig_mm,
     ~pet_mm, ~aet_mm, ~aet_blue_mm, ~aet_green_mm, ~blue_consump_mm,

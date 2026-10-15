@@ -6,8 +6,9 @@
 \usage{
 read_lpjml_hydrology(
   var = c("drainage", "transp", "evap", "interc", "aet", "prec", "rain", "irrig",
-    "runoff", "discharge", "swc", "pet", "soiltemp1", "soiltemp2", "stand_frac",
-    "cft_nir", "cft_airrig_month", "cft_consump_water_b", "cft_consump_water_g"),
+    "runoff", "runoff_surf", "runoff_lat", "discharge", "swc", "pet", "soiltemp1",
+    "soiltemp2", "stand_frac", "cft_nir", "cft_airrig_month", "cft_consump_water_b",
+    "cft_consump_water_g"),
   run_dir = NULL,
   years = NULL,
   first_year = NULL,
@@ -20,7 +21,10 @@ read_lpjml_hydrology(
 }
 \arguments{
 \item{var}{Logical variable name, one of \code{"drainage"}, \code{"transp"},
-\code{"evap"}, \code{"interc"}, \code{"aet"}, \code{"prec"}, \code{"rain"}, \code{"irrig"}, \code{"runoff"},
+\code{"evap"}, \code{"interc"}, \code{"aet"}, \code{"prec"}, \code{"rain"}, \code{"irrig"}, \code{"runoff"}
+(total runoff, which already contains the groundwater outflow the
+\code{"drainage"} seepage feeds), \code{"runoff_surf"} and \code{"runoff_lat"} (surface
+and lateral soil runoff, which do not),
 \code{"discharge"}, \code{"swc"}, \code{"pet"} (potential evapotranspiration),
 \code{"soiltemp1"} and \code{"soiltemp2"} (soil temperature by layer),
 \code{"stand_frac"} (per-CFT stand area fraction, from \code{cftfrac.nc}: the
