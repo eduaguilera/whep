@@ -1,12 +1,12 @@
 ipcc_crop,rs_default,rs_low_n,rs_high_n,rs_irrigated,rs_rainfed,bg_ref_dm_t_ha,source
-Wheat,0.23,0.29,0.2,0.2,0.27,2.03,IPCC 2019 Tab.11.1A; Bolinder 2007
+Wheat,0.24,0.29,0.2,0.2,0.27,2.03,IPCC 2006 Tab.11.2 (wheat); Bolinder 2007
 Barley,0.22,0.26,0.18,0.18,0.25,1.54,IPCC 2006; Bolinder 2007
 Maize,0.22,0.26,0.18,0.18,0.25,2,IPCC 2006; Bolinder 2007
 Rice,0.16,0.19,0.13,0.13,0.18,1.5,IPCC 2006; Bolinder 2007
 Oats,0.25,0.3,0.21,0.21,0.28,1.5,IPCC 2006; Bolinder 2007
-Millet,0.22,0.26,0.18,0.18,0.25,1.5,IPCC 2006
-Sorghum,0.19,0.23,0.16,0.16,0.21,1.5,IPCC 2006
-Rye,0.22,0.26,0.18,0.18,0.25,2,IPCC 2006
+Millet,0.22,0.26,0.18,0.18,0.25,1.5,"rs_default fill: IPCC 2019 Tab.11.1a generic grains (no millet value; note e); other columns from afsetools, unverified"
+Sorghum,0.22,0.26,0.18,0.18,0.25,1.5,"rs_default fill: IPCC 2019 Tab.11.1a generic grains (no sorghum value; note e); other columns from afsetools, unverified"
+Rye,0.22,0.26,0.18,0.18,0.25,2,"rs_default fill: IPCC 2019 Tab.11.1a generic grains (no rye value; note e); other columns from afsetools, unverified"
 Other_cereals,0.24,0.29,0.2,0.2,0.27,2,IPCC 2006 (wheat proxy)
 Soybeans,0.19,0.19,0.13,0.13,0.18,1.2,IPCC 2019 Tab.11.1A; Bolinder 2007
 Dry_beans,0.19,0.23,0.16,0.16,0.21,1.5,IPCC 2019 Tab.11.1A
