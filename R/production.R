@@ -172,8 +172,11 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' on all 427,584 rows where both exist. Where that rate is 0 (fodder crops
 #' in seven of the eight regions; roots and tubers, cassava, sugar beet and
 #' dry beans in West Europe and in North America and Oceania) the
-#' pin holds 0 and the gross residue cannot be recovered from it, so those
-#' crops carry no residue here, as before.
+#' pin holds 0 and the gross residue cannot be recovered from it. Fodder
+#' crops and sugar beet carry no residue there, as before; roots and tubers,
+#' cassava and dry beans are estimated from yield (see "Non-cereal residue")
+#' and so carry the residue they produce, of which the recovery rate of 0
+#' downstream recovers nothing.
 #'
 #' The ratio behind the pin's gross residue is the fresh-matter
 #' residue:product ratio of [biomass_coefs], scaled by the region's
@@ -238,6 +241,59 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' directly: residue dry matter is grain dry matter times the ratio of the
 #' area's Wirsenius region.
 #'
+#' @section Non-cereal residue:
+#' The West Europe anchor is not right for non-cereals either, and the error
+#' runs both ways (whep#1518). Against the line IPCC (2006) Table 11.2 gives
+#' each crop (Vol. 4, Ch. 11, pp. 11.17-11.18), the pin's ratio put world
+#' residue dry matter in 2010 at 1.42 times the line for soybean, 1.36 for
+#' potato, 1.95 for cassava and 1.88 for sweet potato, but 0.53 for dry
+#' beans, 0.41 for the other pulses and 0.34 for chickpeas. Applying Wirsenius
+#' (2000) Table 3.16 directly does not cure it: soybean would fall to 0.86 of
+#' the line.
+#'
+#' So the crops that Table 11.2 gives a line of their own are estimated from
+#' the pin's production and harvested area exactly as cereals are, with
+#' [calculate_crop_residues()] and its modern-variety correction:
+#'
+#' | crops | Table 11.2 row | slope | intercept, t DM/ha |
+#' |---|---|--:|--:|
+#' | soybean | Soyabean | 0.93 | 1.35 |
+#' | groundnut (with shell) | Peanut (w/pod) | 1.07 | 1.54 |
+#' | dry beans, broad beans | Dry bean | 0.36 | 0.68 |
+#' | peas, chickpeas, lentils, other pulses | Beans & pulses | 1.13 | 0.85 |
+#' | potato | Potato | 0.10 | 1.06 |
+#' | cassava, sweet potato, yams, other roots | Tubers | 0.10 | 1.06 |
+#'
+#' The 2019 Refinement's Table 11.2 (updated, p. 11.19) repeats these
+#' values. "Tubers" is IPCC's own crop class, "modelled after potatoes"; the
+#' crops reach it through `ipcc_crop_mapping.csv`, as in the soil carbon and
+#' nitrogen chain. The other non-cereal lines in `ipcc_residue_coefs.csv`
+#' (rapeseed, sunflower, sugar beet, sugar cane, cotton) are not in Table 11.2,
+#' so those crops, tree crops and vegetables keep the pin's ratio, as does
+#' every crop under `non_cereal_residue = "pin"`.
+#'
+#' World residue dry matter of the crops estimated from yield, Tg, the pin's
+#' ratio against `"ipcc"` (the default):
+#'
+#' | | 1961 | 2010 | 2020 |
+#' |---|--:|--:|--:|
+#' | soybean | 51 -> 63 | 500 -> 385 | 673 -> 494 |
+#' | groundnut | 33 -> 48 | 90 -> 93 | 112 -> 110 |
+#' | dry beans | 7 -> 23 | 14 -> 34 | 15 -> 37 |
+#' | peas | 8 -> 17 | 14 -> 17 | 20 -> 22 |
+#' | other pulses | 18 -> 57 | 31 -> 79 | 40 -> 97 |
+#' | potato | 26 -> 35 | 36 -> 28 | 42 -> 27 |
+#' | cassava | 19 -> 16 | 65 -> 37 | 79 -> 46 |
+#' | sweet potato | 24 -> 20 | 20 -> 12 | 19 -> 11 |
+#' | all non-cereal residue | 533 -> 625 | 2159 -> 2070 | 2755 -> 2595 |
+#' | all residue | 2672 -> 2764 | 5492 -> 5402 | 6622 -> 6462 |
+#'
+#' Soybean, groundnut and potato then sit at 1.05-1.11 of their IPCC line in
+#' 2010 and 2020 (`validation/residue_base_dm.R`): the modern-variety
+#' correction and the product dry-matter content of `bio_coefs`. No published
+#' global non-cereal series exists to check them against independently
+#' (whep#1399).
+#'
 #' @section Oil palm residue:
 #' Oil palm residue is replaced rather than taken from the pin (whep#1424).
 #' Read as gross residue, the pin's oil palm residue is far above an oil palm
@@ -285,11 +341,11 @@ get_primary_residues <- function(
   # turns back into the residue produced (#1195). See the pin-batch section
   # above for the measurement, and note that this is where the predecessor's
   # production series enters the commodity balance (#1054).
-  # `.residue_ratio_corrected()` then corrects that model's ratio (#1448,
-  # #1518), and `.residue_oil_palm_anchored()` replaces oil palm's outright
-  # (#1424). Cereal residue, and that of the non-cereals with an IPCC line, is
-  # recomputed from the pin's `Product` rows, so both kinds of row resolve
-  # their area here, once.
+  # `.residue_ratio_corrected()` then corrects that model's ratio (see
+  # issues 1448 and 1518), and `.residue_oil_palm_anchored()` replaces oil
+  # palm's outright (#1424). Cereal residue, and that of the non-cereals with
+  # an IPCC line, is recomputed from the pin's `Product` rows, so both kinds
+  # of row resolve their area here, once.
   pin <- "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
