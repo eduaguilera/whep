@@ -248,7 +248,13 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' recovery rate has been undone and the ratio re-keyed; neither touches it.
 #' The anchored dry matter is converted to fresh mass with the oil palm
 #' `Residue_kgDM_kgFM` of [biomass_coefs], so `value_dm` is the anchor
-#' exactly.
+#' exactly. That coefficient is 0.396, the dry matter of fresh oil palm fronds
+#' (39.6% as fed, n = 3) in Heuzé, Tran, Sauvant & Lebas (2015), *Oil palm
+#' fronds and oil palm crop residues*, Feedipedia,
+#' <https://www.feedipedia.org/node/6916> (whep#1516). Fronds are 46 of the
+#' 60 Mt; trunks, whose sap is 75-80% of their weight, are wetter, so the
+#' fresh mass is if anything understated. It sets the fresh mass booked to
+#' `Firewood`, not the dry matter.
 #'
 #' @inheritSection whep_read_file The batch pin on the build path
 #'
