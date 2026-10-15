@@ -651,7 +651,10 @@ test_that("every year-free territorial grouping is classified", {
   # 148 with whep#1448, on top of whep#1195's 146: one region row per area and
   # one ratio lookup per (crop, area) pair. Re-derived by running
   # `sum(.territorial_grouping_baseline()$n)`.
-  expect_lte(sum(full$n), 148L)
+  # 149 with whep#1514, on top of whep#1448's 148: `.sjr_warn_untraded_food()`
+  # totals the dropped food per area for its warning (`diagnostic`).
+  # Re-derived by running `sum(.territorial_grouping_baseline()$n)`.
+  expect_lte(sum(full$n), 149L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
