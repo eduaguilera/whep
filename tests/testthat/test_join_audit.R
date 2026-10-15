@@ -366,7 +366,10 @@ test_that("the enumerated baseline can only shrink", {
   # Wirsenius (2000) Table 3.16 ratios and region membership per (crop, area),
   # and the HANPP region of each cereal area. Re-derived by running
   # `sum(.territorial_join_baseline()$n)`.
-  expect_lte(sum(baseline$n), 118L)
+  # 117 with whep#1002: the manure crop layer is spread by the crop
+  # allocation, which is year-keyed, so its year-free crop-pattern join left
+  # the ledger.
+  expect_lte(sum(baseline$n), 117L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting

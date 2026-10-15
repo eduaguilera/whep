@@ -144,8 +144,9 @@ territory. Recorded in \code{method_deposition_scope}.
 \code{lat}, \code{area_code}, \code{year}, \code{item_cbs_code}, with \code{land_use}
 (\code{"cropland"} or \code{"grassland"}) and positive \code{area_ha}. Optional: when
 absent it is derived natively by \code{\link[=build_ag_land_support]{build_ag_land_support()}} from
-\code{cell_polity}, \code{type_cropland} and \code{crop_patterns} (plus \code{states} or
-\code{grassland_ha} for the grassland side). Supply it to override that
+\code{cell_polity}, \code{type_cropland}, the crop allocation and
+\code{harvested_area} (plus \code{states} or \code{grassland_ha} for the grassland
+side). Supply it to override that
 derivation with a better land surface. Cropland rows identify crop CBS
 items; all pasture/rangeland rows use CBS 3000.
 \item \code{grassland_source}, \code{gridded_pasture}, \code{grassland_ha}, \code{states}:
@@ -178,11 +179,17 @@ output (\code{lon}, \code{lat}, \code{area_code}, \code{land_use}, \code{year}, 
 is never computed here. The \code{"som_mineralization"} term keeps the
 cropland rows with \code{son_change_kgn_ha > 0} and takes
 \code{son_change_kgn_ha} times \code{area_ha}, divided by 1000, as \code{n_input_t}.
-\item \code{primary_prod}, \code{fertilizer}, \code{crop_patterns}, \code{type_cropland},
-\code{cell_polity}: the synthetic-fertiliser assembly (country total from
-\code{fertilizer}, the \code{faostat-fertilizer-nutrients} pin, split to crops
-by the chosen crop-share method, then to cells by
-\code{crop_patterns}/\code{type_cropland}). From \code{fertilizer} it reads the
+\item \code{crop_allocation}: the crop allocation every gridded crop term is
+placed by, the one \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} places the same crops
+by (a list of \code{weights} and \code{fallback}; see
+\code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}}). Built once from the pinned
+spatialization inputs on \code{cell_polity} when absent and \code{years} is
+given; \code{gridded_crops}, \code{engine_inputs} and \code{fodder_patterns} replace
+its pinned inputs.
+\item \code{primary_prod}, \code{fertilizer}, \code{cell_polity}: the synthetic-fertiliser
+assembly (country total from \code{fertilizer}, the
+\code{faostat-fertilizer-nutrients} pin, split to crops by the chosen
+crop-share method, then to cells by the crop allocation). From \code{fertilizer} it reads the
 raw FAOSTAT columns \code{Element} (\code{"Agricultural Use"}), \code{Item}
 (\code{"Nutrient nitrogen N (total)"}), \code{Year}, \verb{Area Code} and \code{Value};
 \code{Value} becomes the country total \code{synthetic_n_t}, passed on as the

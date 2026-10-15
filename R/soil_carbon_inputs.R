@@ -409,7 +409,10 @@ build_soil_carbon_inputs <- function(
   support <- .normalize_carbon_support(country_grid) |>
     dplyr::select("lon", "lat", "area_code", "cell_area_frac")
   build_gridded_landuse(
-    country_areas = .sci_areas_to_bucket(inputs$country_areas),
+    country_areas = .sci_areas_to_bucket(
+      inputs$country_areas,
+      unique(support$area_code)
+    ),
     crop_patterns = inputs$crop_patterns,
     gridded_cropland = inputs$gridded_cropland,
     country_grid = support,
@@ -424,11 +427,14 @@ build_soil_carbon_inputs <- function(
 # spatialized crops at all -- measured at 2010, 16.6 Tg C of Sudan's cropland
 # carbon then had no cell to land on. Folding the national side with the same
 # lookup keeps the two vocabularies one, and summing within the bucket moves
-# no hectare.
-.sci_areas_to_bucket <- function(country_areas) {
+# no hectare. A code the support itself carries is kept: a support keyed on
+# Sudan's and South Sudan's own codes (the nitrogen chain's year-aware
+# support) must meet their own areas, not the bucket's.
+.sci_areas_to_bucket <- function(country_areas, support_codes = NULL) {
   lookup <- .cell_polity_bucket_lookup()
   code <- as.integer(country_areas$area_code)
   bucket <- lookup$polity_area_code[match(code, lookup$area_code)]
+  bucket[code %in% support_codes] <- NA_integer_
   country_areas$area_code <- dplyr::coalesce(bucket, code)
   value_cols <- intersect(
     c("harvested_area_ha", "irrigated_area_ha"),

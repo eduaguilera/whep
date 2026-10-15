@@ -43,7 +43,6 @@
 #   WHEP_POLYCELL_SUPPORT_PATH  a parquet written by build_polycell_support().
 #                               REQUIRED.
 #   WHEP_POLITY_FRACTION_PATH   cell_polity_fraction.parquet. REQUIRED.
-#   WHEP_CROP_PATTERNS_PATH     crop_patterns.parquet. REQUIRED.
 #   WHEP_TYPE_CROPLAND_PATH     type_cropland.parquet. REQUIRED.
 #   WHEP_MSN_PRIMARY_PROD       primary production csv/parquet carrying year,
 #                               area_code, item_cbs_code, unit, value. Optional;
@@ -75,7 +74,6 @@ msn_fingerprint <- function() {
   vars <- c(
     "WHEP_POLYCELL_SUPPORT_PATH",
     "WHEP_POLITY_FRACTION_PATH",
-    "WHEP_CROP_PATTERNS_PATH",
     "WHEP_TYPE_CROPLAND_PATH",
     "WHEP_MSN_PRIMARY_PROD",
     "WHEP_MSN_YEAR"
@@ -521,8 +519,11 @@ msn_main <- function() {
   # `type_cropland` is ~27.5M rows; it is filtered to the reference year here,
   # which is exactly what `.n_read_type_cropland()` does immediately after
   # reading, so the three runs share one copy instead of three.
+  # Crops are placed by the crop allocation (whep#1002), built from the
+  # pinned spatialization inputs on each support compared.
   data <- list(
-    crop_patterns = whep:::.n_read_parquet_env("WHEP_CROP_PATTERNS_PATH"),
+    engine_inputs = whep:::.sci_read_engine_inputs(),
+    fodder_patterns = whep:::.sci_read_fodder_patterns(),
     type_cropland = whep:::.n_read_parquet_env("WHEP_TYPE_CROPLAND_PATH") |>
       dplyr::filter(.data$year == msn_year())
   )

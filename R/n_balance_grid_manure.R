@@ -11,8 +11,9 @@
 #
 # At grid resolution both are therefore placed on ONE cell support,
 # `country_grid`, which the caller passes in: the livestock head shares and
-# the grass ceiling (.local_spatial_inputs()) and the crop layer
-# (.sci_grid_weights()) all read their cell-polity shares from it, so a border
+# the grass ceiling (.local_spatial_inputs()) and the crop layer (the crop
+# allocation, R/crop_allocation.R) all read their cell-polity shares from it,
+# so a border
 # cell's animals and the hectares their manure lands on cannot be split
 # between polities differently. At polity resolution nothing is placed on
 # cells and the national grain is kept.
@@ -65,17 +66,19 @@
 # with `manure_n_receptivity` equal to the harvested area and `crop_area_ha`
 # for the fixed-ceiling cap.
 #
-# Grid: each polity-crop's area is spread to cells by .sci_grid_weights(), the
-# per-cell share of the polity-crop's crop-pattern area on `country_grid` --
-# the same weights the nitrogen driver grids crop NPP by. Cell areas sum back
-# to the national one wherever the polity-crop has a cell; the rest is
-# reported, not absorbed.
+# Grid: each polity-crop's area is spread to cells by the crop allocation
+# (R/crop_allocation.R, whep#1002) on `country_grid`, the weights the soil
+# carbon inputs place the same crop's carbon and manure by
+# (.sci_manure_cell_area()). Cell areas sum back to the national one wherever
+# the allocation places the polity-crop; the rest is reported, not absorbed,
+# as the carbon manure layer leaves it out too. `allocation` supplies the
+# allocation pre-built (.crop_allocation()'s list).
 # Polity: the national layer unchanged.
 .n_manure_crop_layer <- function(
   resolution,
   production,
   country_grid = NULL,
-  crop_patterns = NULL
+  allocation = NULL
 ) {
   resolution <- rlang::arg_match0(resolution, c("grid", "polity"))
   national <- .sci_manure_crop_layer(production)
@@ -83,12 +86,18 @@
     return(national)
   }
   .n_check_cell_support(country_grid)
-  weights <- .sci_grid_weights(
+  years <- sort(unique(as.integer(national$year)))
+  weights <- .crop_allocation(
+    years,
     country_grid,
-    crop_patterns %||% .sci_read_crop_patterns()
-  )
+    list(crop_allocation = allocation)
+  )$weights
   gridded <- national |>
-    dplyr::mutate(area_code = as.integer(.data$territory)) |>
+    dplyr::mutate(
+      area_code = as.integer(.data$territory),
+      .crop_int = .as_integer_quiet(.data$crop),
+      year = as.integer(.data$year)
+    ) |>
     dplyr::inner_join(
       dplyr::select(
         weights,
@@ -96,9 +105,10 @@
         "lat",
         "area_code",
         "item_prod_code",
+        "year",
         "area_weight"
       ),
-      by = c("area_code", crop = "item_prod_code"),
+      by = c("area_code", .crop_int = "item_prod_code", "year"),
       relationship = "many-to-many"
     ) |>
     dplyr::transmute(

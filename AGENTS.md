@@ -312,8 +312,12 @@ Three distinct mechanisms, and picking the wrong one is a design error:
   local disk and are read via env vars: `WHEP_CRU_DIR`,
   `WHEP_LPJML_RUN_DIR`, `WHEP_HYDE_DIR`, `WHEP_HANI_DIR`, `WHEP_WIND_DIR`,
   `WHEP_LUH2_DIR`, `WHEP_HWSD_DIR`, `WHEP_CRITICAL_N_DIR`, plus the gridded
-  land surfaces (`WHEP_TYPE_CROPLAND_PATH`, `WHEP_CROP_PATTERNS_PATH`,
-  `WHEP_GRIDDED_PASTURE_PATH`). The readers
+  land surfaces (`WHEP_TYPE_CROPLAND_PATH`, `WHEP_GRIDDED_PASTURE_PATH`).
+  The crop patterns are not one of them: every gridded crop term of the
+  nitrogen balance is placed by the crop allocation (`R/crop_allocation.R`),
+  which reads the `spatialize-crop-patterns` pin through the spatialization
+  engine, as the soil carbon inputs do, and nothing reads
+  `WHEP_CROP_PATTERNS_PATH` (#1002). The readers
   **abort with an instruction** when unset. `WHEP_POLITY_FRACTION_PATH` is
   **not** one of them any more: the cell-polity crosswalk is WHEP-built, so it
   is the `spatialize-cell-polity-fraction` pin and the env var is only an

@@ -40,8 +40,7 @@ and receives no nitrogen.}
 
 \item{resolution}{Which resolution(s) to return: \code{"polity_crop"} (default,
 \code{year}/\code{area_code}/\code{item_cbs_code} totals only) or \code{"grid"} (also
-distributes to \code{lon}/\code{lat} grid cells; requires \code{crop_patterns} and
-\code{type_cropland} in \code{data}).}
+distributes to \code{lon}/\code{lat} grid cells by the crop allocation).}
 
 \item{split}{Which polity share of the cell weights each grid cell:
 \code{"auto"} (default) takes \code{land_area_ha} when the support carries it and
@@ -63,15 +62,16 @@ See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports t
 already-built table.}
 
 \item{data}{Optional named list of pre-loaded grid inputs, used only when
-\code{resolution = "grid"}: \code{crop_patterns} (\code{lon}, \code{lat}, \code{item_prod_code},
-\code{harvest_fraction}) and \code{type_cropland} (\code{lon}, \code{lat}, \code{year},
-\code{luh2_type}, \code{type_ha}). When absent, each is read from the
-\code{spatialize-crop-patterns} / \code{spatialize-type-cropland} pin, or from the
-local parquet at \code{WHEP_CROP_PATTERNS_PATH} / \code{WHEP_TYPE_CROPLAND_PATH}
-when that override is set. \code{item_cbs_code} in
-\code{crop_shares}/\code{country_totals} is matched to the \code{item_prod_code} column
-of \code{crop_patterns} via \link{items_prod_full} (the same crosswalk
-\code{\link[=build_crop_land_extension]{build_crop_land_extension()}} uses).}
+\code{resolution = "grid"}: \code{crop_allocation}, the crop allocation built once
+(a list of \code{weights}, with \code{lon}, \code{lat}, \code{area_code}, \code{item_prod_code},
+\code{year}, \code{crop_area_ha}, \code{area_weight}, and \code{fallback}, with \code{lon}, \code{lat},
+\code{area_code}, \code{year}, \code{cropland_weight}); else \code{gridded_crops} (a
+\code{\link[=build_gridded_landuse]{build_gridded_landuse()}} crop-level output), \code{engine_inputs} (its
+\code{country_areas}, \code{crop_patterns} and \code{gridded_cropland} inputs) and
+\code{fodder_patterns} (the fodder layer), each read from its pin when
+absent. \code{item_cbs_code} in \code{crop_shares}/\code{country_totals} is matched to
+the allocation's \code{item_prod_code} via \link{items_prod_full} (the same
+crosswalk \code{\link[=build_crop_land_extension]{build_crop_land_extension()}} uses).}
 }
 \value{
 A tibble. For \code{resolution = "polity_crop"}: \code{year}, \code{area_code},
@@ -87,35 +87,37 @@ Promotes a single polity-total nitrogen input (one row per \code{year},
 harvested-area-share logic used by
 \code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}} (\code{year}/\code{area_code}-matched, weighted by
 each crop's share of harvested cropland area), then optionally further to
-the grid level by distributing each polity-crop total across cells in
-proportion to the cell's share of that polity-crop's total crop-pattern
-area (\code{type_ha * harvest_fraction}, summed over LUH2 cropland classes;
-the exact formula used by \code{\link[=make_lpjml_covariate]{make_lpjml_covariate()}}'s \code{crop_pattern}
-weighting). A polity-crop with no crop-pattern hectares (crop absent from
-the static pattern raster, or its pattern area sums to zero in the polity)
-is instead spread uniformly across the polity's cropland cells, weighted by
-each cell's cropland area, so the grid output still re-aggregates to the
-polity total. Such reallocations emit a warning naming the affected crops
-and the reallocated nitrogen.
+the grid level by the crop allocation the soil carbon inputs place the same
+crop by (\code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}}'s default \code{method_crop_weights = "spatialized"}): each cell's share of the polity-crop's area as the
+spatialization engine (\code{\link[=build_gridded_landuse]{build_gridded_landuse()}}) places it that year, a
+fodder crop the engine leaves out on the fodder layer, the production
+items of a commodity balance item pooled by their placed hectares. A
+polity-crop the allocation does not place is spread over the polity's
+cropland cells, each weighted by its share of the polity's placed crop
+area, so the grid output still re-aggregates to the polity total. Such
+reallocations emit a warning naming the affected crops and the reallocated
+nitrogen. One allocation for nitrogen and carbon means the nitrogen a crop
+receives in a cell and the carbon it returns there are spread alike
+(whep#1002).
 
-Both grid weights carry a polity share of the cell, because a border cell's
-cropland belongs to more than one polity. That share is a polycell's
-\code{land_area_ha} over the cell's total \code{land_area_ha}, the share of the cell's
-land \code{\link[=build_polycell_support]{build_polycell_support()}} measures geodesically. The transitional
+The allocation is built on the cell support with the polity's share of
+each cell as its \code{cell_area_frac}, because a border cell's cropland belongs
+to more than one polity. That share is a polycell's \code{land_area_ha} over the
+cell's total \code{land_area_ha}, the share of the cell's land
+\code{\link[=build_polycell_support]{build_polycell_support()}} measures geodesically. The transitional
 alternative is \code{polity_frac}, the subcell-count share \code{\link[=build_cell_polity]{build_cell_polity()}}
 carries, which is quantised to 1/36 of a cell.
 
 The share is of the cell's \strong{land}, never \code{land_area_ha / cell_area_ha}:
-what it splits is already land-only (LUH2 cropland hectares), so dividing by
-the whole cell would remove the inland water and ice a second time. And it
-is a \strong{share}, never an absolute area: \code{crop_pattern_ha * land_area_ha}
-would weight every cell a second time by its own size and is no partition of
-the cell at all.
+what it splits is already land-only, so dividing by the whole cell would
+remove the inland water and ice a second time. And it is a \strong{share}, never
+an absolute area.
 
 Because the cell weights are renormalised within each polity-crop-year,
 either key redistributes the polity total and neither can change it.
 Swapping the key moves \strong{where} the nitrogen lands, never how much of it
-there is.
+there is. A pre-built \code{data$crop_allocation} is used as supplied, on the
+support it was built on.
 }
 \examples{
 spatialize_country_n_to_crops(

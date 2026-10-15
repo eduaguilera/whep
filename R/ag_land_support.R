@@ -10,11 +10,14 @@
 # - CROPLAND: type_cropland.parquet gives each cell's PHYSICAL cropland hectares
 #   per year (type_ha summed over the five LUH2 cropland classes; the parquet
 #   carries crop classes only, never pasture -- see prepare_spatialize_all.R
-#   Section 4). crop_patterns.parquet gives the static per-cell crop
-#   composition. The composition is normalised to sum to 1 within a cell and
-#   then multiplied by the physical hectares, so the cell's cropland area is
-#   split among its crops and NEVER inflated: harvest_fraction is a harvested
-#   basis and can sum above 1 under multicropping, which would over-credit
+#   Section 4). The crop composition of each polycell and year is the crop
+#   allocation the nitrogen inputs and the soil carbon inputs place every
+#   crop by (R/crop_allocation.R, whep#1002): each crop's harvested hectares
+#   in the polycell, its allocation weight times its national FAOSTAT
+#   harvested area. The composition is normalised to sum to 1 within the
+#   polycell and then multiplied by the physical hectares, so the cropland
+#   area is split among its crops and NEVER inflated: harvested area can sum
+#   above the physical area under multicropping, which would over-credit
 #   deposition if used as an area directly.
 # - GRASSLAND: gridded_pasture.parquet's pasture_ha + rangeland_ha, the same
 #   contract spatialize_livestock() already consumes, all carried on CBS 3000.
@@ -40,9 +43,11 @@
 #' allocates its non-crop-specific nitrogen terms over: per grid cell, polity,
 #' year and CBS item, the hectares of agricultural land available to receive
 #' nitrogen. Cropland hectares come from the LUH2-derived `type_cropland`
-#' surface, split among crops by the static `crop_patterns` composition
-#' (normalised within each cell, so the cell's physical cropland area is
-#' apportioned rather than inflated by multicropping). Grassland hectares come
+#' surface, split among crops by the harvested-area composition of the crop
+#' allocation the nitrogen and soil carbon inputs share (the spatialization
+#' engine's placement of each crop, whep#1002), normalised within each
+#' polycell, so the physical cropland area is apportioned rather than
+#' inflated by multicropping. Grassland hectares come
 #' from [read_luh2_landuse()]'s gridded grassland class and are all carried on
 #' CBS 3000, with no intensive/extensive split inferred. Both sides are split
 #' across border polities by the same `cell_polity` crosswalk.
@@ -63,8 +68,11 @@
 #' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
 #'   `cell_polity` (the [build_cell_polity()] crosswalk), `type_cropland`
-#'   (`lon`, `lat`, `year`, `luh2_type`, `type_ha`), `crop_patterns` (`lon`,
-#'   `lat`, `item_prod_code`, `harvest_fraction`), `gridded_pasture` (`lon`,
+#'   (`lon`, `lat`, `year`, `luh2_type`, `type_ha`), `crop_allocation` (the
+#'   shared crop allocation: a list of `weights` and `fallback`, built from
+#'   the pinned spatialization inputs when absent), `harvested_area`
+#'   (`area_code`, `item_prod_code`, `year`, `faostat_area_ha`; from
+#'   [get_primary_production()] when absent), `gridded_pasture` (`lon`,
 #'   `lat`, `year`, `pasture_ha`, `rangeland_ha`), `states`
 #'   ([read_luh2_landuse()]'s raw LUH2 states) and `grassland_ha` (`lon`,
 #'   `lat`, `area_code`, `year`, `area_ha`, bypassing the grassland read
@@ -95,6 +103,7 @@ build_ag_land_support <- function(
       polity_validity
     ))
   }
+  .crop_alloc_refuse_patterns(data, "build_ag_land_support")
   cell_polity <- data$cell_polity %||% build_cell_polity()
   .check_columns(
     cell_polity,
@@ -111,22 +120,28 @@ build_ag_land_support <- function(
 
 # ---- Cropland support ------------------------------------------------------
 
-# Physical cropland hectares per cell-year, apportioned among the cell's crops
-# by the normalised static crop composition and across border polities by
-# polity_frac.
+# Physical cropland hectares per cell-year, split across border polities by
+# polity_frac and apportioned among each polycell's crops by the crop
+# allocation's harvested-area composition.
 .als_cropland_support <- function(data, cell_polity, years) {
   cropland_ha <- .als_type_cropland(data, years)
-  composition <- .als_crop_composition(data)
-  .als_warn_uncovered(cropland_ha, composition)
-  cropland_ha |>
-    dplyr::inner_join(
-      composition,
-      by = c("lon", "lat"),
-      relationship = "many-to-many"
-    ) |>
+  composition <- .als_crop_composition(
+    data,
+    cell_polity,
+    sort(unique(cropland_ha$year))
+  )
+  polycells <- cropland_ha |>
     dplyr::inner_join(
       dplyr::select(cell_polity, "lon", "lat", "area_code", "polity_frac"),
       by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(area_code = as.integer(.data$area_code))
+  .als_warn_uncovered(polycells, composition)
+  polycells |>
+    dplyr::inner_join(
+      composition,
+      by = c("lon", "lat", "area_code", "year"),
       relationship = "many-to-many"
     ) |>
     dplyr::transmute(
@@ -162,27 +177,95 @@ build_ag_land_support <- function(
     dplyr::filter(is.finite(.data$type_ha), .data$type_ha > 0)
 }
 
-# Each cell's crop composition as shares summing to 1. harvest_fraction is a
-# HARVESTED basis (it can sum above 1 under multicropping), so it is used only
-# to apportion the physical hectares, never as an area itself.
-.als_crop_composition <- function(data) {
-  codes <- .als_crop_item_codes()
-  .n_read_crop_patterns(data$crop_patterns, codes$item_prod_code) |>
-    dplyr::inner_join(codes, by = "item_prod_code") |>
+# Each polycell's crop composition as shares summing to 1 per year: the
+# harvested hectares the crop allocation puts there (its weight times the
+# polity-crop's national harvested area; a crop the allocation does not place
+# spread over the polity's cropland by the fallback weight), pooled to
+# commodity balance items. Harvested hectares are used only to apportion the
+# physical hectares, never as an area themselves.
+.als_crop_composition <- function(data, cell_polity, years) {
+  allocation <- .crop_allocation(
+    years,
+    .normalize_carbon_support(cell_polity, "cell_polity"),
+    data
+  )
+  national <- .als_harvested_area(data, years)
+  placed <- allocation$weights |>
+    dplyr::inner_join(
+      national,
+      by = c("area_code", "item_prod_code", "year")
+    ) |>
+    dplyr::transmute(
+      .data$lon,
+      .data$lat,
+      .data$area_code,
+      .data$item_prod_code,
+      .data$year,
+      harvested_ha = .data$area_weight * .data$faostat_area_ha
+    )
+  moved <- national |>
+    dplyr::anti_join(
+      allocation$weights,
+      by = c("area_code", "item_prod_code", "year")
+    ) |>
+    dplyr::inner_join(
+      allocation$fallback,
+      by = c("area_code", "year"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      .data$lon,
+      .data$lat,
+      .data$area_code,
+      .data$item_prod_code,
+      .data$year,
+      harvested_ha = .data$cropland_weight * .data$faostat_area_ha
+    )
+  dplyr::bind_rows(placed, moved) |>
+    dplyr::inner_join(.als_crop_item_codes(), by = "item_prod_code") |>
     dplyr::summarise(
-      harvest_fraction = sum(.data$harvest_fraction, na.rm = TRUE),
-      .by = c(lon, lat, item_cbs_code)
+      harvested_ha = sum(.data$harvested_ha),
+      .by = c("lon", "lat", "area_code", "year", "item_cbs_code")
+    ) |>
+    dplyr::filter(is.finite(.data$harvested_ha), .data$harvested_ha > 0) |>
+    dplyr::mutate(
+      crop_frac = .data$harvested_ha / sum(.data$harvested_ha),
+      .by = c("lon", "lat", "area_code", "year")
+    ) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "year",
+      "item_cbs_code",
+      "crop_frac"
+    )
+}
+
+# The FAOSTAT national harvested area per polity, production item and year,
+# the area every allocation weight is scaled to (.sci_harvested_area()).
+.als_harvested_area <- function(data, years) {
+  raw <- data$harvested_area %||%
+    .sci_harvested_area(
+      data$primary_prod %||% get_primary_production(years = years)
+    )
+  .check_columns(
+    raw,
+    c("area_code", "item_prod_code", "year", "faostat_area_ha"),
+    "harvested_area"
+  )
+  tibble::as_tibble(raw) |>
+    dplyr::transmute(
+      area_code = as.integer(.data$area_code),
+      item_prod_code = .as_integer_quiet(.data$item_prod_code),
+      year = as.integer(.data$year),
+      faostat_area_ha = as.numeric(.data$faostat_area_ha)
     ) |>
     dplyr::filter(
-      is.finite(.data$harvest_fraction),
-      .data$harvest_fraction > 0
-    ) |>
-    dplyr::mutate(
-      pattern_total = sum(.data$harvest_fraction),
-      .by = c(lon, lat)
-    ) |>
-    dplyr::mutate(crop_frac = .data$harvest_fraction / .data$pattern_total) |>
-    dplyr::select("lon", "lat", "item_cbs_code", "crop_frac")
+      .data$year %in% years,
+      is.finite(.data$faostat_area_ha),
+      .data$faostat_area_ha > 0
+    )
 }
 
 # Every CBS-mapped crop production code, via the same items_prod_full crosswalk
@@ -203,25 +286,27 @@ build_ag_land_support <- function(
     dplyr::distinct(.data$item_prod_code, .data$item_cbs_code)
 }
 
-# Cells carrying cropland hectares that the static pattern raster cannot resolve
-# into crops. Their nitrogen cannot be attributed, so they are named rather than
+# Polycells carrying cropland hectares that the crop allocation places no crop
+# in. Their nitrogen cannot be attributed, so they are named rather than
 # dropped in silence.
 .als_warn_uncovered <- function(cropland_ha, composition) {
+  key <- c("lon", "lat", "area_code", "year")
   uncovered <- dplyr::anti_join(
     cropland_ha,
-    dplyr::distinct(composition, .data$lon, .data$lat),
-    by = c("lon", "lat")
+    dplyr::distinct(composition, dplyr::pick(dplyr::all_of(key))),
+    by = key
   )
   if (nrow(uncovered) == 0L) {
     return(invisible(NULL))
   }
   cli::cli_warn(c(
-    "!" = "{nrow(uncovered)} cell-year{?s} ({round(sum(uncovered$type_ha), 1)}
-           ha) have cropland but no crop-pattern composition; they carry no
+    "!" = "{nrow(uncovered)} polycell-year{?s}
+           ({round(sum(uncovered$type_ha * uncovered$polity_frac), 1)} ha)
+           have cropland but no crop in the crop allocation; they carry no
            cropland support.",
-    "i" = "Supply {.field data$crop_patterns} covering {.field lon}/{.field lat}
-           {unique(uncovered$lon)[1]}/{unique(uncovered$lat)[1]} and similar
-           cells, or {.field data$ag_land_support} directly."
+    "i" = "Supply {.field data$crop_allocation} covering {.field lon}/{.field
+           lat} {unique(uncovered$lon)[1]}/{unique(uncovered$lat)[1]} and
+           similar cells, or {.field data$ag_land_support} directly."
   ))
   invisible(NULL)
 }

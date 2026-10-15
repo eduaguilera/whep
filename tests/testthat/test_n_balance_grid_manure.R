@@ -47,6 +47,22 @@
   )
 }
 
+# A crop allocation (R/crop_allocation.R) whose weights are each cell's
+# pattern area times the polity's share of the cell, for the year given: the
+# allocation the crop layer is handed, so these tests check how it is
+# applied, not how it is built (test_crop_allocation.R does that).
+.gm_allocation <- function(support, patterns = .gm_crop_patterns(), year) {
+  weights <- whep:::.sci_grid_weights(support, patterns)
+  list(
+    weights = dplyr::mutate(
+      weights,
+      item_prod_code = as.integer(.data$item_prod_code),
+      year = year
+    ),
+    fallback = dplyr::mutate(whep:::.sci_cropland_weights(weights), year = year)
+  )
+}
+
 .gm_cells <- function() {
   c(whep:::.cell_id(10.25, 50.25), whep:::.cell_id(10.75, 50.25))
 }
@@ -162,7 +178,7 @@ test_that("grid crop layer spreads harvested area onto the support's cells", {
     "grid",
     .gm_production(area),
     .gm_support(area),
-    crop_patterns = .gm_crop_patterns()
+    .gm_allocation(.gm_support(area), year = 2010L)
   )
 
   expect_setequal(crops$sub_territory, .gm_cells())
@@ -194,7 +210,7 @@ test_that("grid crop layer reports harvested area with no cell", {
       "grid",
       production,
       .gm_support(area),
-      crop_patterns = .gm_crop_patterns()
+      .gm_allocation(.gm_support(area), year = 2010L)
     ),
     class = "whep_manure_crop_area_unplaced"
   )
@@ -230,7 +246,7 @@ test_that("grid n_inputs carries every manure term on cells", {
     "grid",
     .gm_production(area),
     support,
-    crop_patterns = .gm_crop_patterns()
+    .gm_allocation(support, year = 2010L)
   )
 
   out <- suppressMessages(.gm_n_inputs(intake, crops, area))
@@ -399,7 +415,7 @@ test_that("a dissolved union's crop area is placed on the year-aware support", {
     "grid",
     production,
     .gm_year_aware(),
-    crop_patterns = patterns
+    .gm_allocation(.gm_year_aware(), patterns, year = 1970L)
   )
 
   expect_equal(sum(crops$crop_area_ha), 2e4)
