@@ -155,9 +155,16 @@ calculate_soil_n2o <- function(
 #' ([subsoil_no3_reduction]) and a carbon-to-nitrogen leaching attenuation,
 #' then re-derives `denitrification_n_t` as the residual of `n_surplus_t`
 #' minus the computed `no3_n_t` (the raw denitrification share is only an
-#' intermediate; see Details). `"ipcc_fracleach"` is a much simpler global
-#' fallback using the flat `FracLEACH = 0.24` constant already documented
-#' in [build_crop_soil_n2o_extension()].
+#' intermediate; see Details). `"ipcc_fracleach"` is the much simpler IPCC
+#' Tier 1 global method, with the flat `FracLEACH-(H) = 0.24` constant
+#' already documented in [build_crop_soil_n2o_extension()]. IPCC 2019
+#' Refinement Vol 4 Ch 11 Eq. 11.10 and Table 11.3 define that fraction per kg
+#' of N added (`F_SN + F_ON + F_PRP + F_CR + F_SOM`), so it is applied to
+#' `n_input_for_n2o_t`, the same input set that prices direct N2O in
+#' [build_nitrogen_balance()], not to the surplus. `"fracleach_surplus"`
+#' applies the same 0.24 to `n_surplus_t` instead, the form before whep#1535:
+#' a surplus-based deviation from the IPCC definition, kept selectable for
+#' comparison.
 #'
 #' @details
 #' For `method = "meisinger_drainage"`, `denitrification_n_t` is computed
@@ -172,21 +179,33 @@ calculate_soil_n2o <- function(
 #' bin and aborts via the unmatched-row check (the source drops it),
 #' rather than being pulled into an adjacent or ceiling bin.
 #'
+#' For `method = "ipcc_fracleach"`, leaching is capped at `n_surplus_t`, so
+#' it never exceeds the nitrogen left after crop uptake and
+#' `no3_n_t + denitrification_n_t == n_surplus_t` holds on every row. IPCC
+#' Tier 1 has no such cap; rows where it binds are stamped
+#' `"ipcc_fracleach_capped_surplus"` rather than `"ipcc_fracleach"`. A
+#' missing `n_input_for_n2o_t` column, or a missing value in it, aborts
+#' (`whep_missing_n_added`, `whep_n_added_na`): read as zero it would leach
+#' nothing while the partition still closed.
+#'
 #' Manure/organic rows (`fert_cat == "Manure"`, i.e. every `fert_type`
 #' other than `"Synthetic"`) always join the Meisinger table's
 #' `tillage == "Not_specified"` row regardless of `x$tillage`. Synthetic
 #' rows join on `x$tillage`, but only `"Tillage"` exists in the source's
 #' synthetic block: a synthetic row with `tillage == "No_tillage"` aborts.
 #'
-#' @param x A tibble with `n_surplus_t`, `fert_type`, `climate`,
-#'   `irrig_cat`, `land_use`, `cn_input` (may be `NA`), `tillage` (checked
-#'   only for synthetic rows) and `som_share`.
+#' @param x A tibble with `n_surplus_t`. `method = "meisinger_drainage"`
+#'   also requires `fert_type`, `climate`, `irrig_cat`, `land_use`,
+#'   `cn_input` (may be `NA`), `tillage` (checked only for synthetic rows)
+#'   and `som_share`; `method = "ipcc_fracleach"` requires
+#'   `n_input_for_n2o_t`, the N added in IPCC Eq. 11.10.
 #' @param drainage_mm A numeric vector aligned to `x`'s rows giving annual
 #'   drainage (mm), or a single string naming a column of `x` to use
 #'   instead. Kept as a separate argument (rather than a static `x` column)
 #'   because in the full pipeline it flows in from Module A's gridded water
 #'   balance.
-#' @param method `"meisinger_drainage"` (default) or `"ipcc_fracleach"`.
+#' @param method `"meisinger_drainage"` (default), `"ipcc_fracleach"` or
+#'   `"fracleach_surplus"`.
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `no3_n_t`, `denitrification_n_t`,
@@ -197,15 +216,17 @@ calculate_soil_n2o <- function(
 calculate_n_leaching <- function(
   x,
   drainage_mm = NULL,
-  method = c("meisinger_drainage", "ipcc_fracleach"),
+  method = c("meisinger_drainage", "ipcc_fracleach", "fracleach_surplus"),
   example = FALSE
 ) {
-  method <- match.arg(method)
+  method <- rlang::arg_match(method)
   if (isTRUE(example)) {
     return(.example_n_leaching())
   }
   if (method == "ipcc_fracleach") {
     .leaching_ipcc_fracleach(x)
+  } else if (method == "fracleach_surplus") {
+    .leaching_fracleach_surplus(x)
   } else {
     .leaching_meisinger(x, .leaching_drainage_values(x, drainage_mm))
   }
@@ -628,18 +649,72 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   }
 }
 
-# ipcc_fracleach: the flat FracLEACH constant from
-# build_crop_soil_n2o_extension(), reused rather than re-derived.
+# ipcc_fracleach: the flat FracLEACH-(H) constant from
+# build_crop_soil_n2o_extension(), reused rather than re-derived, applied as
+# IPCC 2019 Vol 4 Ch 11 Eq. 11.10 defines it: per kg of N added. The N added
+# is n_input_for_n2o_t, the Eq. 11.1 input set (synthetic, organic, grazing
+# excreta, crop residue, SOM mineralisation; no BNF, no deposition). It is
+# also the basis WHEP's other FracLEACH sites use (crop_soil_n2o_extension.R,
+# livestock_manure.R). The cap at the surplus keeps leaching inside the mass
+# balance; IPCC has no cap, so the rows where it binds say so.
 .leaching_ipcc_fracleach <- function(x) {
-  frac_leach <- 0.24
+  .leaching_check_n_added(x)
+  ef5 <- .n_constant("ef5_no3_to_n2o")
+  ipcc_no3 <- x$n_input_for_n2o_t * .leaching_frac_leach()
+  capped <- ipcc_no3 > x$n_surplus_t
+  x |>
+    dplyr::mutate(
+      no3_n_t = pmin(.env$ipcc_no3, .data$n_surplus_t),
+      denitrification_n_t = .data$n_surplus_t - .data$no3_n_t,
+      n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
+      method_leaching = dplyr::if_else(
+        .env$capped,
+        "ipcc_fracleach_capped_surplus",
+        "ipcc_fracleach"
+      )
+    )
+}
+
+# fracleach_surplus: the same constant on the surplus, the form before
+# whep#1535. Not the IPCC definition; kept selectable for comparison.
+.leaching_fracleach_surplus <- function(x) {
   ef5 <- .n_constant("ef5_no3_to_n2o")
   x |>
     dplyr::mutate(
-      no3_n_t = .data$n_surplus_t * frac_leach,
+      no3_n_t = .data$n_surplus_t * .leaching_frac_leach(),
       denitrification_n_t = .data$n_surplus_t - .data$no3_n_t,
       n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
-      method_leaching = "ipcc_fracleach"
+      method_leaching = "fracleach_surplus"
     )
+}
+
+# FracLEACH-(H), IPCC 2019 Refinement Vol 4 Ch 11 Table 11.3 (as in
+# build_crop_soil_n2o_extension()).
+.leaching_frac_leach <- function() {
+  0.24
+}
+
+# The N added is an external quantity: read as zero it would leach nothing
+# while surplus = leached + denitrified still held, so it must be supplied.
+.leaching_check_n_added <- function(x) {
+  if (!rlang::has_name(x, "n_input_for_n2o_t")) {
+    cli::cli_abort(
+      c(
+        "{.arg x} has no {.field n_input_for_n2o_t}.",
+        i = "{.code method = \"ipcc_fracleach\"} applies FracLEACH-(H) to
+             the N added (IPCC 2019 Eq. 11.10); supply it, or use
+             {.code method = \"fracleach_surplus\"}."
+      ),
+      class = c("whep_missing_n_added", "whep_absent_input")
+    )
+  }
+  n_na <- sum(is.na(x$n_input_for_n2o_t))
+  if (n_na > 0L) {
+    cli::cli_abort(
+      "{n_na} row{?s} of {.arg x} {?has/have} no {.field n_input_for_n2o_t}.",
+      class = c("whep_n_added_na", "whep_absent_input")
+    )
+  }
 }
 
 # meisinger_drainage: bin drainage + SOM, look up the topsoil

@@ -557,27 +557,82 @@ testthat::test_that("calculate_n_leaching(meisinger_drainage) drops a value exac
   )
 })
 
-testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") uses the 0.24 FracLEACH constant", {
-  x <- tibble::tribble(~n_surplus_t, 100)
+testthat::test_that("ipcc_fracleach applies FracLEACH-(H) to the N added, not the surplus", {
+  # IPCC 2019 Eq. 11.10: N leached = (F_SN + F_ON + F_PRP + F_CR + F_SOM) *
+  # FracLEACH-(H). 0.24 of 100 t added is 24 t, below the 60 t surplus.
+  x <- tibble::tribble(~n_surplus_t, ~n_input_for_n2o_t, 60, 100)
   out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")
 
   testthat::expect_equal(out$no3_n_t, 100 * 0.24, tolerance = 1e-9)
-  testthat::expect_equal(
-    out$denitrification_n_t,
-    100 - 100 * 0.24,
-    tolerance = 1e-9
-  )
-  testthat::expect_equal(
-    out$no3_n_t + out$denitrification_n_t,
-    out$n_surplus_t,
-    tolerance = 1e-9
-  )
+  testthat::expect_equal(out$denitrification_n_t, 60 - 24, tolerance = 1e-9)
   testthat::expect_equal(
     out$n2o_indirect_no3_n_t,
     100 * 0.24 * 0.011,
     tolerance = 1e-9
   )
   testthat::expect_equal(out$method_leaching, "ipcc_fracleach")
+})
+
+testthat::test_that("ipcc_fracleach caps leaching at the surplus and says so", {
+  x <- tibble::tribble(
+    ~n_surplus_t, ~n_input_for_n2o_t,
+    10, 100,
+    0, 50,
+    30, 100
+  )
+  out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")
+
+  testthat::expect_equal(out$no3_n_t, c(10, 0, 24), tolerance = 1e-9)
+  testthat::expect_true(all(out$denitrification_n_t >= 0))
+  testthat::expect_equal(
+    out$no3_n_t + out$denitrification_n_t,
+    out$n_surplus_t,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    out$method_leaching,
+    c(
+      "ipcc_fracleach_capped_surplus",
+      "ipcc_fracleach_capped_surplus",
+      "ipcc_fracleach"
+    )
+  )
+})
+
+testthat::test_that("ipcc_fracleach refuses to run without the N added", {
+  x <- tibble::tribble(~n_surplus_t, 100)
+  testthat::expect_error(
+    whep::calculate_n_leaching(x, method = "ipcc_fracleach"),
+    class = "whep_missing_n_added"
+  )
+  # Read as zero, a missing N added leaches nothing and the partition still
+  # closes (100 = 0 leached + 100 denitrified), so the identity cannot see it.
+  vacuous <- tibble::tribble(~n_surplus_t, ~n_input_for_n2o_t, 100, 0) |>
+    whep::calculate_n_leaching(method = "ipcc_fracleach")
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      vacuous$no3_n_t + vacuous$denitrification_n_t,
+      vacuous$n_surplus_t
+    )),
+    guard = whep::calculate_n_leaching(
+      tibble::tribble(~n_surplus_t, ~n_input_for_n2o_t, 100, NA_real_),
+      method = "ipcc_fracleach"
+    )
+  )
+})
+
+testthat::test_that("fracleach_surplus keeps the surplus basis selectable", {
+  x <- tibble::tribble(~n_surplus_t, ~n_input_for_n2o_t, 100, 500)
+  out <- whep::calculate_n_leaching(x, method = "fracleach_surplus")
+
+  testthat::expect_equal(out$no3_n_t, 100 * 0.24, tolerance = 1e-9)
+  testthat::expect_equal(out$denitrification_n_t, 76, tolerance = 1e-9)
+  testthat::expect_equal(
+    out$n2o_indirect_no3_n_t,
+    100 * 0.24 * 0.011,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(out$method_leaching, "fracleach_surplus")
 })
 
 testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
