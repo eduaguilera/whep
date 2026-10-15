@@ -17,7 +17,10 @@ build_water_balance(
 \item{method}{Named list selecting the estimation method for each term:
 \code{aet} (\code{"components"}, the only method), \code{drainage} (\code{"seepage"} default,
 LPJmL native seepage, or \code{"residual"}, a seepage reconstruction from the
-budget residual usable only when the seepage file is absent) and
+budget residual usable only when the seepage file is absent), \code{runoff}
+(\code{"total_minus_seepage"} default, LPJmL total runoff less the seepage it
+already contains, or \code{"surface_lateral"}, the sum of LPJmL's surface and
+lateral runoff outputs; see \emph{Runoff} below) and
 \code{blue_green} (\code{"cft_native"} default, per-crop blue/green consumptive
 water, or \code{"irrig_share"}, the irrigation share of water input). Members
 left out take their default. \code{"cft_native"} warns when the per-CFT cubes
@@ -34,7 +37,26 @@ short sums; \code{"drop"} excludes the incomplete cell-years, so the year is
 absent rather than wrong. It is stamped into \code{method_water} as
 \verb{partial:<choice>} only when it is not the default, because \code{"abort"} and
 \code{"warn"} return byte-identical numbers and only \code{"drop"} removes rows a
-reader could not otherwise account for.}
+reader could not otherwise account for.
+
+\emph{Runoff.} The two \code{runoff} methods are two ways of removing the seepage
+from LPJmL's total runoff, and they differ in what else they keep.
+\code{"total_minus_seepage"} keeps every other runoff component LPJmL routes
+(surface, lateral, snow, TOPMODEL baseflow and the lateral-water
+overflow), and treats this year's seepage as this year's groundwater
+outflow. Where groundwater storage changes within the year that
+difference lands in \code{runoff_mm}, which can then be negative (2.1\% of
+cells in 2009 and 2.2\% in 2010 on the LPJmL 6.1.1 run). \code{"surface_lateral"}
+reads \code{mrunoff_surf.nc} and \code{mrunoff_lat.nc}, never negative, but LPJmL
+does not write its baseflow or overflow, so they fall out of the budget.
+On that run, summed over 58,795 cells, the budget residual is +3.6\% (2009)
+and +1.3\% (2010) of water input with \code{"total_minus_seepage"}, and +6.8\%
+and +4.2\% with \code{"surface_lateral"}, against -19.2\% and -21.4\% when the
+seepage was counted twice. \code{drainage = "residual"} requires
+\code{"surface_lateral"}: \code{"total_minus_seepage"} needs the seepage that the
+residual method exists to do without. Because it then also absorbs the
+baseflow and overflow, the residual exceeds seepage (by 30\% in 2009 and
+19\% in 2010 on that run).}
 
 \item{resolution}{\code{"grid"} (per cell, default) or \code{"polity"} (aggregated to
 \code{year} and \code{area_code}).}
@@ -52,7 +74,9 @@ already-built table.}
 
 \item{data}{Optional named list of pre-loaded inputs to avoid NetCDF reads:
 hydrology tibbles \code{transp}, \code{evap}, \code{interc}, \code{prec}, \code{irrig}, \code{runoff}
-and \code{seepage} (each \code{lon}, \code{lat}, \code{year}, \code{value}; annual-summed
+(LPJmL total runoff), \code{runoff_surf} and \code{runoff_lat} (read only for
+\code{runoff = "surface_lateral"}) and \code{seepage} (each \code{lon}, \code{lat}, \code{year},
+\code{value}; annual-summed
 automatically when a \code{month} column is present), \code{swc} (\code{lon}, \code{lat},
 \code{year}, \code{month}, \code{layer}, \code{value} fractional saturation), optional
 per-crop consumptive water \code{cft_consump_water_b} and \code{cft_consump_water_g}
@@ -117,14 +141,18 @@ balance that closes as \code{water_input_mm = aet_mm + runoff_mm + drainage_mm +
 transpiration, evaporation and interception components (LPJmL has no direct
 AET, PET or temperature output). Water input is precipitation plus
 irrigation. \code{drainage_mm} is LPJmL deep seepage, the leaching driver
-downstream; \code{runoff_mm} is LPJmL total runoff (surface plus lateral), which
-leaves the cell laterally and is not a leaching term but must appear in the
-budget. Drainage defaults to native seepage; the \code{"residual"} method instead
-reconstructs seepage as \code{water_input - aet - runoff - soil_water_change}, for
-use only when the seepage file is absent (it equals seepage when the balance
-closes). Evapotranspiration is split into a blue (irrigation-sourced) and
-green (rain-sourced) part. The result is returned per grid cell, or
-aggregated to polity totals when \code{resolution = "polity"}.
+downstream; \code{runoff_mm} is the runoff that does not pass through that
+seepage, which leaves the cell laterally and is not a leaching term but must
+appear in the budget. LPJmL's own total runoff (\code{mrunoff.nc}) is not used as
+\code{runoff_mm} directly, because it already contains the seepage: the seepage
+recharges groundwater and LPJmL adds the groundwater outflow to runoff, so
+adding seepage on top of it books that water twice. Drainage defaults to
+native seepage; the \code{"residual"} method instead reconstructs it as
+\code{water_input - aet - runoff - soil_water_change}, for use only when the
+seepage file is absent. Evapotranspiration is split into a blue
+(irrigation-sourced) and green (rain-sourced) part. The result is
+returned per grid cell, or aggregated to polity totals when
+\code{resolution = "polity"}.
 
 The output also exposes the footprint-relevant terms folded into the budget:
 \code{prec_mm} (precipitation) and \code{irrig_mm} (applied irrigation, the gross

@@ -62,23 +62,25 @@ testthat::test_that("build_water_balance closes the water budget exactly", {
   )
 })
 
-testthat::test_that("method_water records the aet, drainage and bg methods", {
+testthat::test_that("method_water records every method member", {
   wb <- whep::build_water_balance(example = TRUE)
   testthat::expect_true(all(
-    wb$method_water == "aet:components|drain:seepage|bg:cft_native"
+    wb$method_water ==
+      "aet:components|drain:seepage|runoff:total_minus_seepage|bg:cft_native"
   ))
 })
 
 testthat::test_that("residual drainage still closes the 4-term budget", {
   wb <- whep::build_water_balance(
-    method = list(drainage = "residual"),
+    method = list(drainage = "residual", runoff = "surface_lateral"),
     example = TRUE
   )
   resid <- wb$water_input_mm -
     (wb$aet_mm + wb$runoff_mm + wb$drainage_mm + wb$soil_water_change_mm)
   testthat::expect_true(all(abs(resid) < 1e-6))
   testthat::expect_true(all(
-    wb$method_water == "aet:components|drain:residual|bg:cft_native"
+    wb$method_water ==
+      "aet:components|drain:residual|runoff:surface_lateral|bg:cft_native"
   ))
 })
 
@@ -433,6 +435,33 @@ testthat::test_that("an invalid drainage method is rejected", {
   )
 })
 
+testthat::test_that("an invalid runoff method is rejected", {
+  testthat::expect_error(
+    whep::build_water_balance(method = list(runoff = "total")),
+    "runoff"
+  )
+})
+
+# Residual drainage stands in for an absent seepage file; total_minus_seepage
+# subtracts that file. The pair cannot be computed, and silently swapping the
+# runoff method would be a fallback, so it aborts -- on the example path too.
+testthat::test_that("residual drainage refuses total_minus_seepage runoff", {
+  testthat::expect_error(
+    whep::build_water_balance(
+      method = list(drainage = "residual"),
+      example = TRUE
+    ),
+    class = "whep_wb_runoff_drainage"
+  )
+  testthat::expect_error(
+    whep::build_water_balance(
+      method = list(drainage = "residual", runoff = "total_minus_seepage"),
+      data = .wb_synthetic_monthly()$inputs
+    ),
+    class = "whep_wb_runoff_drainage"
+  )
+})
+
 # ---- Real-path closure test (exercises read -> compute -> blue_green ->
 # finalise on synthetic per-cell MONTHLY inputs; NOT the fixture). The synthetic
 # inputs are constructed so the 4-term budget closes exactly, i.e. precipitation
@@ -451,6 +480,63 @@ testthat::test_that("real-path 4-term budget closes within 1% (runoff included)"
   pointblank::expect_col_exists(wb, c("runoff_mm", "drainage_mm"))
 })
 
+# whep#1530: LPJmL's total runoff already carries the groundwater outflow that
+# seepage feeds, so adding seepage on top of it books the same water twice.
+# The fixture's total runoff includes the seepage, as LPJmL's does; the budget
+# must close with seepage counted once, as drainage, and runoff_mm must be the
+# runoff that is not seepage.
+testthat::test_that("seepage is counted once, not in runoff and drainage", {
+  syn <- .wb_synthetic_monthly()
+  wb <- suppressWarnings(
+    whep::build_water_balance(data = syn$inputs, example = FALSE)
+  )
+
+  resid <- wb$water_input_mm -
+    (wb$aet_mm + wb$runoff_mm + wb$drainage_mm + wb$soil_water_change_mm)
+  testthat::expect_equal(resid, rep(0, nrow(wb)), tolerance = 1e-9)
+  testthat::expect_equal(wb$drainage_mm, rep(syn$seepage_annual, nrow(wb)))
+  testthat::expect_equal(
+    wb$runoff_mm,
+    rep(syn$surface_lateral_annual, nrow(wb))
+  )
+})
+
+testthat::test_that("surface_lateral runoff also counts seepage once", {
+  syn <- .wb_synthetic_monthly()
+  inputs <- syn$inputs
+  # Only the surface and lateral outputs may be read: poison the total so a
+  # read of it would move runoff_mm.
+  inputs$runoff <- dplyr::mutate(inputs$runoff, value = NA_real_)
+  wb <- suppressWarnings(whep::build_water_balance(
+    method = list(runoff = "surface_lateral"),
+    data = inputs
+  ))
+
+  resid <- wb$water_input_mm -
+    (wb$aet_mm + wb$runoff_mm + wb$drainage_mm + wb$soil_water_change_mm)
+  testthat::expect_equal(resid, rep(0, nrow(wb)), tolerance = 1e-9)
+  testthat::expect_equal(
+    wb$runoff_mm,
+    rep(syn$surface_lateral_annual, nrow(wb))
+  )
+  testthat::expect_true(all(stringr::str_detect(
+    wb$method_water,
+    "runoff:surface_lateral"
+  )))
+})
+
+# total_minus_seepage nets this year's seepage out of this year's runoff, so a
+# cell whose groundwater store is draining (outflow above seepage) keeps the
+# excess in runoff_mm, and one that is filling can go negative. That is the
+# method's documented behaviour, not an error; the guard is that it is returned
+# as computed, not floored to zero, which would reopen the budget.
+testthat::test_that("total_minus_seepage keeps a negative runoff as computed", {
+  inputs <- .wb_synthetic_monthly()$inputs
+  inputs$runoff <- dplyr::mutate(inputs$runoff, value = 0)
+  wb <- suppressWarnings(whep::build_water_balance(data = inputs))
+  testthat::expect_equal(wb$runoff_mm, rep(-120, nrow(wb)))
+})
+
 testthat::test_that("residual drainage does not read an absent seepage file", {
   inputs <- .wb_synthetic_monthly()$inputs
   inputs$seepage <- NULL
@@ -462,11 +548,16 @@ testthat::test_that("residual drainage does not read an absent seepage file", {
   )
 
   wb <- suppressWarnings(whep::build_water_balance(
-    method = list(drainage = "residual"),
+    method = list(drainage = "residual", runoff = "surface_lateral"),
     data = inputs
   ))
 
   testthat::expect_true(all(is.finite(wb$drainage_mm)))
+  # The fixture has no baseflow or overflow, so the residual is the seepage.
+  testthat::expect_equal(
+    wb$drainage_mm,
+    rep(.wb_synthetic_monthly()$seepage_annual, nrow(wb))
+  )
   testthat::expect_true(all(stringr::str_detect(
     wb$method_water,
     "drain:residual"
@@ -1586,7 +1677,11 @@ testthat::test_that("an injected eleven-month flux aborts, budget or no", {
     # to say about it, so no identity in this file notices.
     well_formed = {
       wb <- suppressWarnings(whep::build_water_balance(
-        method = list(drainage = "residual", partial_year = "warn"),
+        method = list(
+          drainage = "residual",
+          runoff = "surface_lateral",
+          partial_year = "warn"
+        ),
         data = short
       ))
       nrow(wb) == 2L && .wb_budget_closes(wb) && !anyNA(wb$water_input_mm)
@@ -1609,7 +1704,7 @@ testthat::test_that("the injected-flux abort names the cell-month", {
 
 testthat::test_that("a short flux shifts the annual total it is summed to", {
   # The magnitude the guard exists to stop: an absent month of runoff is a
-  # twelfth of the year's runoff, and the annual number simply comes out
+  # month of the year's runoff, and the annual number simply comes out
   # smaller with nothing to mark it.
   syn <- .wb_synthetic_monthly()
   full <- suppressWarnings(whep::build_water_balance(data = syn$inputs))
@@ -1618,8 +1713,8 @@ testthat::test_that("a short flux shifts the annual total it is summed to", {
     data = .wb_drop_month(syn$inputs, "runoff", 3L)
   ))
   testthat::expect_equal(
-    unique(short$runoff_mm),
-    unique(full$runoff_mm) * 11 / 12
+    unique(full$runoff_mm) - unique(short$runoff_mm),
+    unique(syn$inputs$runoff$value)
   )
 })
 

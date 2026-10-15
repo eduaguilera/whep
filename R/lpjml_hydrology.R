@@ -23,6 +23,17 @@
 #       output)
 #     mprec.nc -> "prec", mrain.nc -> "rain", mirrig.nc -> "irrig",
 #       mrunoff.nc -> "runoff", mdischarge.nc -> "discharge"
+#     mrunoff.nc is TOTAL runoff, and it already contains the seepage:
+#       src/soil/infil_perc.c books SEEPAGE into the groundwater store
+#       (ground_st, ground_st_am) and src/lpj/update_daily_cell.c adds that
+#       store's outflow (gw_out_total) to drunoff before writing RUNOFF. On
+#       the 6.1.1 run, runoff minus surface, lateral and snow runoff
+#       correlates 0.97 with seepage cell by cell (2009, 2010; whep#1530).
+#     mrunoff_surf.nc -> "runoff_surf" and mrunoff_lat.nc -> "runoff_lat"
+#       (surface and lateral soil runoff, mm/month). Neither holds seepage,
+#       TOPMODEL baseflow (rsub_top), snow runoff or the lateral-water
+#       overflow, all of which mrunoff.nc does hold. Same names in 5.9.7 and
+#       6.1.1.
 #     mswc.nc -> "SWC" (4-D lon x lat x layer[6] x time, fractional saturation
 #       0-1; layers at 200/500/1000/2000/3000/13000 mm).
 #     cft_nir.nc -> "nir" (net irrigation requirement, mm/yr, per-CFT band
@@ -59,7 +70,10 @@
 #' components (transpiration, evaporation, interception).
 #'
 #' @param var Logical variable name, one of `"drainage"`, `"transp"`,
-#'   `"evap"`, `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
+#'   `"evap"`, `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`
+#'   (total runoff, which already contains the groundwater outflow the
+#'   `"drainage"` seepage feeds), `"runoff_surf"` and `"runoff_lat"` (surface
+#'   and lateral soil runoff, which do not),
 #'   `"discharge"`, `"swc"`, `"pet"` (potential evapotranspiration),
 #'   `"soiltemp1"` and `"soiltemp2"` (soil temperature by layer),
 #'   `"stand_frac"` (per-CFT stand area fraction, from `cftfrac.nc`: the
@@ -163,6 +177,8 @@ read_lpjml_hydrology <- function(
     "rain",
     "irrig",
     "runoff",
+    "runoff_surf",
+    "runoff_lat",
     "discharge",
     "swc",
     "pet",
@@ -244,6 +260,8 @@ read_lpjml_hydrology <- function(
     "rain", "mrain.nc", "rain", 12L,
     "irrig", "mirrig.nc", "irrig", 12L,
     "runoff", "mrunoff.nc", "runoff", 12L,
+    "runoff_surf", "mrunoff_surf.nc", "runoff_surf", 12L,
+    "runoff_lat", "mrunoff_lat.nc", "runoff_lat", 12L,
     "discharge", "mdischarge.nc", "discharge", 12L,
     "swc", "mswc.nc", "SWC", 12L,
     "pet", "pet.nc", "PET", 12L,
