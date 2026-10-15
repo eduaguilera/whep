@@ -46,6 +46,12 @@
 # The old vintage is then scaled to the corrected new one by the forward
 # scaling, as for every other item, so 1961-2009 follows.
 #
+# Measured on the pins at 2010, world imports fall from 13.57 to 6.88 Mt
+# against exports of 6.37 Mt (1.08x; 1.01x at 2016) and food from 19.47 to
+# 14.11 Mt, under the 14.09 Mt of production. FBS's own protein over that food
+# is 62.9 g/kg, against FAO's in-shell basket of 64.7 (`build_food_supply()`,
+# whep#1453) and the old vintage's 66.2; over the published food it was 45.6.
+#
 # The same import-side excess shows in other items of the new vintage (milk
 # excluding butter 1.93x, pineapples 1.75x, olives 2.53x at 2010). Each is its
 # own call and none is listed here.
@@ -118,7 +124,8 @@
 ) {
   dt <- data.table::as.data.table(fbs)
   dt <- dt[
-    item_cbs_code %in% .fbs_rebase_items() &
+    item_cbs_code %in%
+      .fbs_rebase_items() &
       element %in% elements &
       year %in% years &
       !is.na(value)
@@ -155,12 +162,17 @@
 # and, as the `rebased_keys` attribute, the (year, area_code, item_cbs_code,
 # element) keys whose value moved, so their selected rows can be labelled.
 .rebase_fbs_trade <- function(fbs_new, factors) {
-  dt <- data.table::as.data.table(fbs_new)
   if (is.null(factors) || nrow(factors) == 0L) {
-    return(dt)
+    return(fbs_new)
   }
+  # A copy: the frame can be the `.cb_extracts` attribute of the caller's
+  # `primary_all`, which a by-reference update would rewrite.
+  dt <- data.table::copy(data.table::as.data.table(fbs_new))
   moved <- .fbs_rebase_corrections(dt, factors)
-  dt[, `:=`(area_int = as.integer(area_code), item_int = as.integer(item_cbs_code))]
+  dt[, `:=`(
+    area_int = as.integer(area_code),
+    item_int = as.integer(item_cbs_code)
+  )]
   dt[
     moved,
     value := i.value,
@@ -258,7 +270,10 @@
   if (is.null(rebased) || nrow(rebased) == 0L) {
     return(wide)
   }
-  wide[, `:=`(area_int = as.integer(area_code), item_int = as.integer(item_cbs_code))]
+  wide[, `:=`(
+    area_int = as.integer(area_code),
+    item_int = as.integer(item_cbs_code)
+  )]
   wide[
     rebased,
     is_rebased := TRUE,
