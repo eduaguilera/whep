@@ -177,53 +177,16 @@ test_that("the region_UN_sub gap costs nothing at today's coefficients", {
   testthat::expect_equal(fractions[3], fractions[1])
 })
 
-test_that("region_labour_mech carries two labels from the wrong vocabulary", {
-  # region_labour_mech is a mechanised/not-mechanised split, but two cells hold
-  # a sub-region name instead: Angola (7) took its own region_labour value
-  # "Middle Africa" and Northern Mariana Islands (163) took "Micronesia". Both
-  # look like a column shift in the spreadsheet the table came from. Which of
-  # mech/no_mech each belongs in is not recoverable from anything shipped here,
-  # so the defect is pinned rather than guessed at -- repairing it must update
-  # this test. The column has no consumer, so nothing computes on the bad cells.
-  vocabulary <- c("mech", "no_mech", "RoW")
-  offenders <- whep::regions_full |>
-    dplyr::filter(
-      !is.na(.data$region_labour_mech),
-      !.data$region_labour_mech %in% vocabulary
-    )
-
-  testthat::expect_equal(offenders$code, c(7, 163))
-  testthat::expect_equal(
-    offenders$region_labour_mech,
-    c("Middle Africa", "Micronesia")
-  )
-})
-
-test_that("polities_cats inherits the Angola region_labour_mech cell", {
-  # polities_cats takes every column value from regions_full, so it ships the
-  # same bad cell. Angola is the only one of the two that reaches it: code 163
-  # (Northern Mariana Islands) is not a polity, so the 198-code table has no
-  # row to inherit "Micronesia" into. Pinned on this table too, so a repair
-  # that touches only regions_full.csv leaves a visible failure here rather
-  # than two tables disagreeing about Angola (whep#855).
-  offenders <- whep::polities_cats |>
-    dplyr::filter(
-      !is.na(.data$region_labour_mech),
-      !.data$region_labour_mech %in% c("mech", "no_mech", "RoW")
-    )
-
-  testthat::expect_equal(offenders$code, 7)
-  testthat::expect_equal(offenders$region_labour_mech, "Middle Africa")
-  testthat::expect_false(163 %in% whep::polities_cats$code)
-})
-
-test_that("region_labour_agg carries one label from the wrong vocabulary", {
-  # The shift that produced the region_labour_mech cells is two columns wide at
-  # code 163: region_labour_agg holds "Micronesia" as well, which is a
-  # region_UN_sub value, not one of this column's nine aggregates. Angola's
-  # region_labour_agg is fine ("SAA"), so the two rows are damaged differently
-  # and repairing 163 means editing two cells, not one (whep#855).
-  vocabulary <- c(
+test_that("the region_labour columns hold only their own vocabulary", {
+  # Two rows used to carry a region name in a class column: Angola (7)
+  # region_labour_mech "Middle Africa", and Northern Mariana Islands (163)
+  # "Micronesia" in both region_labour_agg and region_labour_mech. The source
+  # spreadsheet (General/input/Codes_coefs.xlsx, sheet regions_full) has the
+  # same typed-in values, so the cells were repaired by hand (whep#855).
+  # Asserted on polities_cats too, which inherits every value from
+  # regions_full.
+  mech_vocabulary <- c("mech", "no_mech", "RoW")
+  agg_vocabulary <- c(
     "SAA",
     "LACA",
     "Europe",
@@ -234,60 +197,39 @@ test_that("region_labour_agg carries one label from the wrong vocabulary", {
     "NAME",
     "RoW"
   )
-  offenders <- whep::regions_full |>
-    dplyr::filter(
-      !is.na(.data$region_labour_agg),
-      !.data$region_labour_agg %in% vocabulary
-    )
+  labels <- dplyr::bind_rows(whep::regions_full, whep::polities_cats)
+  mech <- labels$region_labour_mech
+  agg <- labels$region_labour_agg
 
-  testthat::expect_equal(offenders$code, 163)
-  testthat::expect_equal(offenders$region_labour_agg, "Micronesia")
-  testthat::expect_equal(
-    offenders$region_UN_sub,
-    offenders$region_labour_agg
-  )
-
-  # polities_cats does not inherit this one either, for the same reason.
-  testthat::expect_true(all(
-    whep::polities_cats$region_labour_agg[
-      !is.na(whep::polities_cats$region_labour_agg)
-    ] %in%
-      vocabulary
-  ))
+  testthat::expect_true(all(mech[!is.na(mech)] %in% mech_vocabulary))
+  testthat::expect_true(all(agg[!is.na(agg)] %in% agg_vocabulary))
 })
 
-test_that("neither bad cell is deducible from its own region group", {
-  # Why #855 is not closed by inference. The name suggests a region-level
-  # attribute, and both damaged rows sit in a group whose other members agree:
-  # the eight other region_labour == "Middle Africa" rows are all "no_mech",
-  # and the eight other region_UN_sub == "Micronesia" rows are all "mech". But
-  # region_labour_mech is demonstrably not a function of either grouping --
-  # region_labour "Pacific", "FSU" and "South America - South Cone" each split
-  # across mech and no_mech -- so group agreement is suggestive, not
-  # deductive, and picking a class would still be inventing one.
-  labour_split <- whep::regions_full |>
-    dplyr::filter(
-      !is.na(.data$region_labour_mech),
-      .data$region_labour_mech %in% c("mech", "no_mech")
-    ) |>
-    dplyr::summarise(
-      classes = dplyr::n_distinct(.data$region_labour_mech),
-      .by = "region_labour"
-    )
-  testthat::expect_setequal(
-    labour_split$region_labour[labour_split$classes > 1L],
-    c("FSU", "Pacific", "South America - South Cone")
-  )
+test_that("the repaired region_labour cells follow their region", {
+  # Each damaged cell held the UN M49 region of its row, as if the lookup key
+  # had been pasted where its result belonged. They were filled with the class
+  # every other member of that region carries: the other eight Middle Africa
+  # countries are all no_mech, and the other Micronesia rows are all mech and,
+  # except the US Minor Outlying Islands (NAME), all AUS (whep#855).
+  repaired <- whep::regions_full |>
+    dplyr::filter(.data$code %in% c(7, 163)) |>
+    dplyr::arrange(.data$code)
+
+  testthat::expect_equal(repaired$region_labour_mech, c("no_mech", "mech"))
+  testthat::expect_equal(repaired$region_labour_agg, c("SAA", "AUS"))
 
   middle_africa <- whep::regions_full |>
-    dplyr::filter(.data$region_labour == "Middle Africa", .data$code != 7) |>
+    dplyr::filter(.data$region_labour == "Middle Africa") |>
     dplyr::pull(.data$region_labour_mech)
   testthat::expect_equal(unique(middle_africa), "no_mech")
-  testthat::expect_equal(length(middle_africa), 8L)
 
   micronesia <- whep::regions_full |>
-    dplyr::filter(.data$region_UN_sub == "Micronesia", .data$code != 163) |>
+    dplyr::filter(.data$region_UN_sub == "Micronesia") |>
     dplyr::pull(.data$region_labour_mech)
   testthat::expect_equal(unique(micronesia), "mech")
-  testthat::expect_equal(length(micronesia), 8L)
+
+  angola <- whep::polities_cats |>
+    dplyr::filter(.data$code == 7) |>
+    dplyr::pull(.data$region_labour_mech)
+  testthat::expect_equal(angola, "no_mech")
 })
