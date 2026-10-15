@@ -404,7 +404,7 @@ read_lpjml_hydrology <- function(
 }
 
 # A requested year the pin does not carry would otherwise vanish from the
-# result without a word, so it aborts naming the pin's coverage, as
+# result without a word, so it aborts naming the missing years, as
 # .hydro_check_coverage() does for a run.
 .hydro_check_pin_coverage <- function(pin, years) {
   outside <- setdiff(as.integer(years), unique(as.integer(pin$year)))
@@ -412,17 +412,12 @@ read_lpjml_hydrology <- function(
     return(invisible(NULL))
   }
   alias <- .hydro_seepage_alias()
-  span <- if (nrow(pin) == 0L) {
-    "no years"
-  } else {
-    paste(range(pin$year), collapse = "-")
-  }
   cli::cli_abort(
     c(
       "{cli::qty(length(outside))}{length(outside)} requested year{?s} outside
        the pinned deep seepage's coverage.",
-      i = "{.val {alias}} covers {span}.",
-      i = "Outside: {.val {outside}}.",
+      i = "{.val {alias}} has no rows for {.val {outside}}. It starts in 1850,
+           where WHEP's series start.",
       i = "Pass {.arg run_dir} (or set {.envvar WHEP_LPJML_RUN_DIR}) to read
            a run that covers them."
     ),
