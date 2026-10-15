@@ -7,14 +7,16 @@
 calculate_n_leaching(
   x,
   drainage_mm = NULL,
-  method = c("meisinger_drainage", "ipcc_fracleach"),
+  method = c("meisinger_drainage", "ipcc_fracleach", "fracleach_surplus"),
   example = FALSE
 )
 }
 \arguments{
-\item{x}{A tibble with \code{n_surplus_t}, \code{fert_type}, \code{climate},
-\code{irrig_cat}, \code{land_use}, \code{cn_input} (may be \code{NA}), \code{tillage} (checked
-only for synthetic rows) and \code{som_share}.}
+\item{x}{A tibble with \code{n_surplus_t}. \code{method = "meisinger_drainage"}
+also requires \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use},
+\code{cn_input} (may be \code{NA}), \code{tillage} (checked only for synthetic rows)
+and \code{som_share}; \code{method = "ipcc_fracleach"} requires
+\code{n_input_for_n2o_t}, the N added in IPCC Eq. 11.10.}
 
 \item{drainage_mm}{A numeric vector aligned to \code{x}'s rows giving annual
 drainage (mm), or a single string naming a column of \code{x} to use
@@ -22,7 +24,8 @@ instead. Kept as a separate argument (rather than a static \code{x} column)
 because in the full pipeline it flows in from Module A's gridded water
 balance.}
 
-\item{method}{\code{"meisinger_drainage"} (default) or \code{"ipcc_fracleach"}.}
+\item{method}{\code{"meisinger_drainage"} (default), \code{"ipcc_fracleach"} or
+\code{"fracleach_surplus"}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from \code{x}. Defaults to \code{FALSE}.}
@@ -40,9 +43,16 @@ from \link{meisinger_denitrification}, applies subsoil NO3 reduction
 (\link{subsoil_no3_reduction}) and a carbon-to-nitrogen leaching attenuation,
 then re-derives \code{denitrification_n_t} as the residual of \code{n_surplus_t}
 minus the computed \code{no3_n_t} (the raw denitrification share is only an
-intermediate; see Details). \code{"ipcc_fracleach"} is a much simpler global
-fallback using the flat \code{FracLEACH = 0.24} constant already documented
-in \code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}}.
+intermediate; see Details). \code{"ipcc_fracleach"} is the much simpler IPCC
+Tier 1 global method, with the flat \code{FracLEACH-(H) = 0.24} constant
+already documented in \code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}}. IPCC 2019
+Refinement Vol 4 Ch 11 Eq. 11.10 and Table 11.3 define that fraction per kg
+of N added (\code{F_SN + F_ON + F_PRP + F_CR + F_SOM}), so it is applied to
+\code{n_input_for_n2o_t}, the same input set that prices direct N2O in
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}}, not to the surplus. \code{"fracleach_surplus"}
+applies the same 0.24 to \code{n_surplus_t} instead, the form before whep#1535:
+a surplus-based deviation from the IPCC definition, kept selectable for
+comparison.
 }
 \details{
 For \code{method = "meisinger_drainage"}, \code{denitrification_n_t} is computed
@@ -56,6 +66,15 @@ strictly-open \verb{s_min < s < s_max} filter: a value
 exactly on a shared bin edge, or outside the covered range, matches no
 bin and aborts via the unmatched-row check (the source drops it),
 rather than being pulled into an adjacent or ceiling bin.
+
+For \code{method = "ipcc_fracleach"}, leaching is capped at \code{n_surplus_t}, so
+it never exceeds the nitrogen left after crop uptake and
+\code{no3_n_t + denitrification_n_t == n_surplus_t} holds on every row. IPCC
+Tier 1 has no such cap; rows where it binds are stamped
+\code{"ipcc_fracleach_capped_surplus"} rather than \code{"ipcc_fracleach"}. A
+missing \code{n_input_for_n2o_t} column, or a missing value in it, aborts
+(\code{whep_missing_n_added}, \code{whep_n_added_na}): read as zero it would leach
+nothing while the partition still closed.
 
 Manure/organic rows (\code{fert_cat == "Manure"}, i.e. every \code{fert_type}
 other than \code{"Synthetic"}) always join the Meisinger table's

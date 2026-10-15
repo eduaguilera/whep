@@ -276,7 +276,7 @@ build_nitrogen_balance <- function(
     n2o = rlang::arg_match(n2o, c("ipcc2019", "aguilera", "ipcc2006")),
     leaching = rlang::arg_match(
       leaching,
-      c("meisinger_drainage", "ipcc_fracleach")
+      c("meisinger_drainage", "ipcc_fracleach", "fracleach_surplus")
     ),
     regime = rlang::arg_match(
       regime,
@@ -871,8 +871,9 @@ build_nitrogen_balance <- function(
   } else {
     data$drainage_mm
   }
-  calculate_n_leaching(joined, drainage_mm = drainage, method = m$leaching) |>
-    dplyr::mutate(method_leaching = m$leaching)
+  # calculate_n_leaching() stamps each row with what it did (for
+  # ipcc_fracleach, whether the cap at the surplus bound), so the stamp is kept.
+  calculate_n_leaching(joined, drainage_mm = drainage, method = m$leaching)
 }
 
 # n_balance_leaching_drivers is caller-supplied and documented as one row per

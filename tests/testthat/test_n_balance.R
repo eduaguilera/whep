@@ -864,7 +864,22 @@ testthat::test_that("method_nh3/method_soil_n2o/method_leaching are stamped", {
   out <- .nb_run()
   testthat::expect_true(all(out$method_nh3 == "ipcc"))
   testthat::expect_true(all(out$method_soil_n2o == "ipcc2019"))
-  testthat::expect_true(all(out$method_leaching == "ipcc_fracleach"))
+  testthat::expect_true(all(
+    out$method_leaching %in%
+      c("ipcc_fracleach", "ipcc_fracleach_capped_surplus")
+  ))
+})
+
+testthat::test_that("ipcc_fracleach leaches 0.24 of the N added, capped at the surplus", {
+  out <- .nb_run()
+  expected <- pmin(out$n_input_for_n2o_t * 0.24, out$surplus_t)
+  testthat::expect_equal(out$no3_n_t, expected, tolerance = 1e-9)
+  testthat::expect_true(any(out$no3_n_t > 0))
+  testthat::expect_equal(
+    out$no3_n_t + out$denitrification_n_t,
+    out$surplus_t,
+    tolerance = 1e-9
+  )
 })
 
 testthat::test_that("resolution argument is validated", {
@@ -1532,7 +1547,18 @@ testthat::test_that("the default manure source reproduces the pre-option balance
   data$methods <- list(losses = list(ef3_source = "as_shipped"))
   data$residue_feed_share <- "legacy"
   data$residue_bedding <- "fraction"
-  out <- suppressMessages(.nb_run(data))
+  # And at the surplus-basis FracLEACH it was written under (whep#1535).
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = list(
+      nh3 = "ipcc",
+      n2o = "ipcc2019",
+      leaching = "fracleach_surplus",
+      regime = "none"
+    ),
+    resolution = "grid",
+    data = data
+  )) |>
+    dplyr::mutate(method_leaching = "ipcc_fracleach")
   testthat::expect_identical(
     dplyr::select(out, -"method_manure"),
     golden$balance_grid
