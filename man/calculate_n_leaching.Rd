@@ -12,7 +12,7 @@ p. 11.25 (\code{FracLEACH-(H)}) and Table 11.3 (Updated), p. 11.26 (\code{EF5}).
 calculate_n_leaching(
   x,
   drainage_mm = NULL,
-  method = c("meisinger_drainage", "ipcc_fracleach"),
+  method = c("meisinger_drainage", "ipcc_fracleach", "fracleach_surplus"),
   example = FALSE
 )
 }
@@ -21,8 +21,9 @@ calculate_n_leaching(
 requires \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use}, \code{cn_input}
 (may be \code{NA}), \code{tillage} (checked only for synthetic rows) and
 \code{som_share}; \code{method = "ipcc_fracleach"} requires \code{moisture_regime}
-(\code{"wet"} or \code{"dry"}) and, on dry rows, \code{water_regime} (\code{"rainfed"} or
-\code{"irrigated"}).}
+(\code{"wet"} or \code{"dry"}), on dry rows \code{water_regime} (\code{"rainfed"} or
+\code{"irrigated"}), and \code{n_input_for_n2o_t}, the N added in IPCC Eq. 11.10;
+\code{"fracleach_surplus"} requires the first two.}
 
 \item{drainage_mm}{A numeric vector aligned to \code{x}'s rows giving annual
 drainage (mm), or a single string naming a column of \code{x} to use
@@ -30,7 +31,8 @@ instead. Kept as a separate argument (rather than a static \code{x} column)
 because in the full pipeline it flows in from Module A's gridded water
 balance.}
 
-\item{method}{\code{"meisinger_drainage"} (default) or \code{"ipcc_fracleach"}.}
+\item{method}{\code{"meisinger_drainage"} (default), \code{"ipcc_fracleach"} or
+\code{"fracleach_surplus"}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from \code{x}. Defaults to \code{FALSE}.}
@@ -65,7 +67,14 @@ as \code{retained_profile_n_t}, nitrogen left in the soil profile, and
 \code{denitrification_n_t} is 0: FracLEACH says that surplus does not leach,
 not that it denitrifies, and no method here estimates its fate. Each row
 is stamped \code{"ipcc_fracleach_wet"}, \code{"ipcc_fracleach_dry_irrigated"} or
-\code{"ipcc_fracleach_dry_rainfed_retained"}. Under either method
+\code{"ipcc_fracleach_dry_rainfed_retained"}. Eq. 11.10 and Table 11.3 define
+\code{FracLEACH-(H)} per kg of N added (\code{F_SN + F_ON + F_PRP + F_CR + F_SOM}),
+so it multiplies \code{n_input_for_n2o_t}, the same input set that prices
+direct N2O in \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}}, not the surplus.
+\code{"fracleach_surplus"} applies the same fractions to \code{n_surplus_t}
+instead, the form before whep#1535: a surplus-based deviation from the
+IPCC definition, kept selectable for comparison, stamped
+\code{"fracleach_surplus_wet"} and so on. Under every method
 \code{no3_n_t + denitrification_n_t + retained_profile_n_t} equals
 \code{n_surplus_t}.
 }
@@ -94,7 +103,15 @@ aborts as in \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, and a dry 
 \code{whep_water_regime_value} for a missing or unknown value, naming the
 count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
 surplus, so a dry row of unknown regime has no defensible fraction. Wet
-rows need no \code{water_regime}.
+rows need no \code{water_regime}. \code{"fracleach_surplus"} checks the same.
+
+Under \code{"ipcc_fracleach"} leaching is capped at \code{n_surplus_t}, so it never
+exceeds the nitrogen left after crop uptake. IPCC Tier 1 has no such cap;
+rows where it binds carry the suffix \code{"_capped_surplus"} on their stamp
+(e.g. \code{"ipcc_fracleach_wet_capped_surplus"}). A missing
+\code{n_input_for_n2o_t} column, or a missing value in it, aborts
+(\code{whep_missing_n_added}, \code{whep_n_added_na}): read as zero it would leach
+nothing while the partition still closed.
 }
 \examples{
 calculate_n_leaching(example = TRUE)
