@@ -1472,9 +1472,11 @@ testthat::test_that("indirect_n2o_source selects the Table 11.3 edition", {
   # both editions, so only the leaching term moves:
   #   2019: 5000 * (0.20 * 0.010 + 0.24 * 0.011)  * 44 / 28 = 36.4571 kg N2O.
   #   2006: 5000 * (0.20 * 0.010 + 0.30 * 0.0075) * 44 / 28 = 33.3929 kg N2O.
+  # The species only resolves the pasture share reported apart (whep#1524); the
+  # single form prices every row's N alike.
   data <- tibble::tribble(
-    ~heads, ~n_excretion, ~method_manure_n2o,
-    100,    50,           "IPCC_2019_Tier2"
+    ~species,       ~species_gen, ~heads, ~n_excretion, ~method_manure_n2o,
+    "Dairy Cattle", "Cattle",     100,    50,           "IPCC_2019_Tier2"
   )
   # The single-fraction form this lock was measured under is
   # `indirect_n2o_fractions = "single"` since whep#1365.
@@ -1801,4 +1803,108 @@ testthat::test_that("an unknown indirect_n2o_fractions value aborts", {
     whep:::.manure_options(list(indirect_n2o_fractions = "table_11_3")),
     "indirect_n2o_fractions"
   )
+})
+
+# Grazing N2O reported apart (whep#1524) --------------------------------------
+
+# The Pasture/Range/Paddock share of the Global GLEAM 2.0 split of
+# `species_gen`, read independently of the engine's resolver.
+.global_pasture_share <- function(species_gen) {
+  whep::regional_mms_distribution |>
+    dplyr::filter(
+      source == "gleam_2_0",
+      region == "Global",
+      species == species_gen,
+      mms_type == "Pasture/Range/Paddock"
+    ) |>
+    dplyr::pull(fraction) |>
+    sum()
+}
+
+testthat::test_that("grazing N2O is reported apart, inside the manure total", {
+  # The IPCC reports pasture, range and paddock N under managed soils (Ch 11),
+  # and the nitrogen balance prices the same N on its excreta rows. The
+  # livestock chain keeps pricing it (it is the one chain that feeds the GHG
+  # footprint), so it has to say how much of its manure N2O that is: otherwise
+  # nobody summing it with a managed-soils figure can net the overlap out.
+  data <- tibble::tribble(
+    ~species,       ~species_gen, ~heads, ~n_excretion,
+    "Dairy Cattle", "Cattle",     100,    50,
+    "Sheep",        "Sheep",      100,    20,
+    "Camels",       "Camels",     10,     40
+  )
+  out <- data |>
+    whep:::.calc_direct_n2o() |>
+    whep:::.calc_indirect_n2o()
+
+  share <- c(
+    .global_pasture_share("Cattle"),
+    .global_pasture_share("Sheep"),
+    .global_pasture_share("Camels")
+  )
+  pasture_n <- data$heads * data$n_excretion * share
+  # EF3PRP of the 2019 Refinement, Ch 11 Table 11.1 (Updated): 0.004 for
+  # cattle, pigs and poultry, 0.003 for sheep and other animals.
+  testthat::expect_equal(
+    out$manure_n2o_direct_pasture,
+    pasture_n * c(0.004, 0.003, 0.003) * 44 / 28,
+    tolerance = 1e-12
+  )
+  # FracGASM 0.21 and FracLEACH-(H) 0.24 (Ch 11 Table 11.3 (Updated)).
+  testthat::expect_equal(
+    out$manure_n2o_indirect_pasture,
+    pasture_n * (0.21 * 0.010 + 0.24 * 0.011) * 44 / 28,
+    tolerance = 1e-12
+  )
+  # A part of the total, never on top of it.
+  testthat::expect_true(all(
+    out$manure_n2o_direct_pasture <= out$manure_n2o_direct
+  ))
+  testthat::expect_true(all(
+    out$manure_n2o_indirect_pasture <= out$manure_n2o_indirect
+  ))
+  # Camels are wholly pasture, so all their manure N2O is grazing N2O.
+  testthat::expect_equal(share[3], 1)
+  testthat::expect_equal(
+    out$manure_n2o_direct_pasture[3],
+    out$manure_n2o_direct[3]
+  )
+  testthat::expect_equal(
+    out$manure_n2o_indirect_pasture[3],
+    out$manure_n2o_indirect[3]
+  )
+})
+
+testthat::test_that("the single indirect form also reports grazing N2O", {
+  data <- tibble::tribble(
+    ~species,       ~species_gen, ~heads, ~n_excretion,
+    "Dairy Cattle", "Cattle",     100,    50
+  )
+  out <- whep:::.calc_indirect_n2o(
+    data,
+    options = list(indirect_n2o_fractions = "single")
+  )
+  testthat::expect_equal(
+    out$manure_n2o_indirect_pasture,
+    out$manure_n2o_indirect * .global_pasture_share("Cattle"),
+    tolerance = 1e-12
+  )
+})
+
+testthat::test_that("both tiers carry the grazing N2O columns", {
+  tier1 <- tibble::tribble(
+    ~species,      ~heads,
+    "Sheep",       1000,
+    "Pigs",        1000
+  ) |>
+    whep::calculate_manure_emissions(tier = 1)
+  testthat::expect_true(all(
+    c("manure_n2o_direct_pasture", "manure_n2o_indirect_pasture") %in%
+      names(tier1)
+  ))
+  testthat::expect_true(all(
+    tier1$manure_n2o_direct_pasture + tier1$manure_n2o_indirect_pasture <=
+      tier1$manure_n2o_total
+  ))
+  testthat::expect_true(all(tier1$manure_n2o_direct_pasture > 0))
 })

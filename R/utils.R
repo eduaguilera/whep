@@ -2710,6 +2710,11 @@ utils::globalVariables(
     "cohort_life_stage",
     # livestock_cohorts.R (whep#1127) -- dairy-cattle herd routed to its cows
     "milk_herd",
+    # livestock_manure.R (whep#1524) -- grazing N2O reported apart
+    "manure_n2o_direct_pasture",
+    "manure_n2o_indirect_pasture",
+    "weighted_ef3_pasture",
+    "pasture",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

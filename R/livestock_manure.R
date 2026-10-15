@@ -1155,6 +1155,7 @@ NULL
     .check_mms_matched("ef3") |>
     dplyr::summarise(
       weighted_ef3 = sum(fraction * ef3),
+      weighted_ef3_pasture = sum(fraction * ef3 * .is_pasture_mms(mms_type)),
       mms_basis = dplyr::first(mms_basis),
       .by = row_id_n2o
     )
@@ -1169,6 +1170,10 @@ NULL
       manure_n2o_direct = n_animals *
         n_excretion *
         weighted_ef3 *
+        n2o_to_n,
+      manure_n2o_direct_pasture = n_animals *
+        n_excretion *
+        weighted_ef3_pasture *
         n2o_to_n
     ) |>
     .stamp_assumption(
@@ -1176,7 +1181,19 @@ NULL
       paste0("mms_assumed_", out$mms_basis),
       !is.na(out$mms_basis)
     ) |>
-    dplyr::select(-row_id_n2o, -weighted_ef3, -mms_basis)
+    dplyr::select(-row_id_n2o, -weighted_ef3, -weighted_ef3_pasture, -mms_basis)
+}
+
+#' Whether a manure-management label is the grazing stream.
+#'
+#' Pasture/range/paddock N is the one stream the IPCC reports under managed
+#' soils (2019 Refinement Vol 4 Ch 11, F_PRP, EF3PRP) rather than manure
+#' management (Ch 10). WHEP prices it in this chain, and reports that part
+#' apart as `manure_n2o_direct_pasture` and `manure_n2o_indirect_pasture`
+#' (whep#1524).
+#' @noRd
+.is_pasture_mms <- function(mms_type) {
+  mms_type == "Pasture/Range/Paddock"
 }
 
 #' Fail closed on a row that resolved no weighted EF3.
@@ -1235,7 +1252,11 @@ NULL
         ef5 *
         n2o_to_n,
       manure_n2o_indirect = n2o_volatilization +
-        n2o_leaching
+        n2o_leaching,
+      manure_n2o_indirect_pasture = n_animals *
+        n_excretion *
+        (fracs$frac_gas_pasture * ef4 + fracs$frac_leach_pasture * ef5) *
+        n2o_to_n
     ) |>
     dplyr::select(-n2o_volatilization, -n2o_leaching) |>
     .stamp_assumption(
@@ -1247,31 +1268,32 @@ NULL
 
 #' The volatilised and leached N fractions of each row, in row order.
 #'
+#' `frac_gas` and `frac_leach` price all the row's N; `frac_gas_pasture` and
+#' `frac_leach_pasture` are the part of them carried by its
+#' Pasture/Range/Paddock share, so the grazing N2O can be reported apart
+#' (whep#1524).
+#'
 #' `"single"` gives every row the `frac_gasms` and `frac_leach` of
 #' `indirect_n2o_ef`, the form before whep#1365: one Ch 11 fraction applied to
 #' all excreted N, pasture and stored manure alike. Kept so earlier figures
 #' stay reproducible; `frac_gasms` 0.20 is assumed, unverified.
 #' @noRd
 .indirect_n2o_fractions <- function(data, opt) {
+  split <- .indirect_mms_split(data, opt)
   if (identical(opt$indirect_n2o_fractions, "single")) {
-    edition <- opt$indirect_n2o_source
-    return(tibble::tibble(
-      frac_gas = rep(.get_indirect_param("frac_gasms", edition), nrow(data)),
-      frac_leach = rep(.get_indirect_param("frac_leach", edition), nrow(data))
-    ))
+    return(.single_indirect_fractions(split, opt$indirect_n2o_source))
   }
-  .weighted_indirect_fractions(data, opt)
+  .weighted_indirect_fractions(split, opt$indirect_n2o_source)
 }
 
-#' Table 10.22 fractions weighted over each row's manure-management split.
+#' Each row's manure-management split, keyed by `row_id_indirect`.
 #'
 #' The split is resolved exactly as `.calc_weighted_direct_n2o()` resolves it,
 #' so the two N2O terms price the same N on the same systems. The assumed
 #' splits of `.fill_assumed_mms_shares()` already warned on the direct path,
 #' so they are taken quietly here.
 #' @noRd
-.weighted_indirect_fractions <- function(data, opt) {
-  fracs <- .indirect_mms_fractions(opt$indirect_n2o_source)
+.indirect_mms_split <- function(data, opt) {
   data |>
     .resolve_manure_region(opt$mms_region, opt$mms_shares) |>
     dplyr::mutate(
@@ -1289,16 +1311,47 @@ NULL
       shares = opt$mms_shares
     ) |>
     .fill_assumed_mms_shares(opt$mms_shares, warn = FALSE) |>
-    .check_mms_matched("fraction") |>
-    dplyr::left_join(fracs, by = c("mms_type", "loss_category")) |>
-    .check_indirect_matched() |>
+    .check_mms_matched("fraction")
+}
+
+#' One fraction on all of a row's N; its pasture part is the pasture share.
+#' @noRd
+.single_indirect_fractions <- function(split, edition) {
+  gas <- .get_indirect_param("frac_gasms", edition)
+  leach <- .get_indirect_param("frac_leach", edition)
+  split |>
     dplyr::summarise(
-      frac_gas = sum(fraction * frac_gas_ms),
-      frac_leach = sum(fraction * frac_leach_ms),
+      pasture = sum(fraction * .is_pasture_mms(mms_type)),
       .by = row_id_indirect
     ) |>
     dplyr::arrange(row_id_indirect) |>
-    dplyr::select(frac_gas, frac_leach)
+    dplyr::transmute(
+      frac_gas = gas,
+      frac_leach = leach,
+      frac_gas_pasture = gas * pasture,
+      frac_leach_pasture = leach * pasture
+    )
+}
+
+#' Table 10.22 fractions weighted over each row's manure-management split.
+#' @noRd
+.weighted_indirect_fractions <- function(split, edition) {
+  split |>
+    dplyr::left_join(
+      .indirect_mms_fractions(edition),
+      by = c("mms_type", "loss_category")
+    ) |>
+    .check_indirect_matched() |>
+    dplyr::mutate(pasture = .is_pasture_mms(mms_type)) |>
+    dplyr::summarise(
+      frac_gas = sum(fraction * frac_gas_ms),
+      frac_leach = sum(fraction * frac_leach_ms),
+      frac_gas_pasture = sum(fraction * frac_gas_ms * pasture),
+      frac_leach_pasture = sum(fraction * frac_leach_ms * pasture),
+      .by = row_id_indirect
+    ) |>
+    dplyr::arrange(row_id_indirect) |>
+    dplyr::select(-row_id_indirect)
 }
 
 #' The Table 10.22 animal category of each row.
