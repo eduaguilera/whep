@@ -1967,18 +1967,18 @@ item_prod_code,item_prod_name,name_biomass,year,use_share,burn_share,source,to_b
 92,Quinoa,Cereals nes,1990,0.51923227688537,0.0341345083411388,Spain_Hist,TRUE
 92,Quinoa,Cereals nes,2000,0.378442796928421,0.0111880296552884,Spain_Hist,TRUE
 92,Quinoa,Cereals nes,2008,0.26525497326933,0.00881694032076804,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1900,0.1,0,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1910,0.1,0,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1922,0.1,0,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1933,0.1,0,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1940,0.1,0,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1950,0.1,0.225,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1960,0.1,0.45,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1970,0.1,0.9,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1980,0.1,0.9,Spain_Hist,TRUE
-94,Fonio,"Roots, other",1990,0.1,0.9,Spain_Hist,TRUE
-94,Fonio,"Roots, other",2000,0.1,0.45,Spain_Hist,TRUE
-94,Fonio,"Roots, other",2008,0.1,0.225,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1900,0.1,0,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1910,0.1,0,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1922,0.1,0,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1933,0.1,0,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1940,0.1,0,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1950,0.1,0.225,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1960,0.1,0.45,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1970,0.1,0.9,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1980,0.1,0.9,Spain_Hist,TRUE
+94,Fonio,Cereals nes,1990,0.1,0.9,Spain_Hist,TRUE
+94,Fonio,Cereals nes,2000,0.1,0.45,Spain_Hist,TRUE
+94,Fonio,Cereals nes,2008,0.1,0.225,Spain_Hist,TRUE
 97,Triticale,Triticale,1900,0.595901983291814,0,Spain_Hist,TRUE
 97,Triticale,Triticale,1910,0.595901983291814,0,Spain_Hist,TRUE
 97,Triticale,Triticale,1922,0.566923015580893,0,Spain_Hist,TRUE
