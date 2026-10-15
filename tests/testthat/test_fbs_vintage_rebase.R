@@ -121,6 +121,16 @@ test_that("the old vintage follows the rebased level, not the published one", {
   expect_equal(importer_2005(.nut_select(rows)), 100)
 })
 
+test_that("rebasing does not modify the frame it was given", {
+  fbs_new <- data.table::as.data.table(
+    .nut_vintage(.nut_fbs_rows(), "FAOSTAT_FBS_New")
+  )
+  before <- data.table::copy(fbs_new)
+  rebased <- whep:::.rebase_fbs_trade(fbs_new, .nut_factors())
+  expect_gt(nrow(attr(rebased, "rebased_keys")), 0L)
+  expect_identical(fbs_new, before)
+})
+
 test_that("as_published leaves the new vintage as FAOSTAT published it", {
   rows <- .nut_fbs_rows()
   factors <- whep:::.fbs_rebase_factors(
@@ -249,7 +259,8 @@ test_that("an absent old vintage is reported, not passed off as rebased", {
   # Every row still balances -- the new vintage's own rows do -- so no
   # identity on the output can notice the rebase did not happen. The guard
   # must.
-  selected <- .nut_select(rows |> dplyr::filter(year >= 2010L), factors) |>
+  recent <- rows |> dplyr::filter(year >= 2010L)
+  selected <- .nut_select(recent, factors) |>
     dplyr::select(year, area_code, element, value) |>
     tidyr::pivot_wider(names_from = element, values_from = value)
   expect_supplied_guard(

@@ -161,7 +161,7 @@ test_that("build_commodity_balances returns expected columns", {
 test_that("build_commodity_balances warns that nut_basis is unused", {
   expect_warning(
     whep::build_commodity_balances(
-      nut_basis = "new_fbs",
+      nut_basis = "as_published",
       .fixed_data = cbs_fixed_fixture()
     ),
     "nut_basis"

@@ -414,27 +414,36 @@
 #'   product was found, and a cigarette also holds paper and filter. Where the
 #'   products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
 #'   remainder stays as stock change. Only Tobacco rows from 2014 on move.
-#' @param nut_basis One of `"old_fbs"` (default) or `"new_fbs"`, selecting
-#'   which Food Balance Sheet vintage sets the level of FBS item 2551 `Nuts
-#'   and products` (whep#1495). The new vintage is not a coherent mass basis
-#'   for it: at 2010 its world imports are 13.57 Mt against 7.69 Mt of world
-#'   exports (1.76x; 1.65x at 2022) and its food, 19.47 Mt, exceeds the
-#'   14.29 Mt of nuts the world grew in shell, while its protein is about
-#'   the old vintage's. Regressed on species-level trade, its importers
-#'   convert kernels and prepared nuts to in-shell equivalent with factors
-#'   2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one flow lands
-#'   on two bases. The old vintage closes world trade (6.45 vs 6.51 Mt).
+#' @param nut_basis One of `"rebased"` (default) or `"as_published"`,
+#'   selecting how the trade of FBS item 2551 `Nuts and products` is taken
+#'   from FAOSTAT's new food balance sheets, 2010 on (whep#1495). Their nut
+#'   trade is not one mass basis: at 2010 world imports are 13.57 Mt against
+#'   7.69 Mt of world exports (1.76x; 1.65x at 2022), and the excess goes on
+#'   into food, 19.47 Mt against 14.29 Mt of nuts the world grew in shell,
+#'   with about the old vintage's protein. Regressed on species-level trade,
+#'   importers convert kernels and prepared nuts to in-shell equivalent with
+#'   factors 2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one
+#'   flow lands on two bases. The old vintage closes (6.45 vs 6.51 Mt).
 #'
-#'   `"old_fbs"` keeps the old vintage as reported up to 2013 and puts the
-#'   new one on its level from 2014, multiplying each `(area, element)` by
-#'   the median old/new ratio over 2010-2013, clamped to the band the
-#'   forward scaling uses -- the old level with the new vintage's change over
-#'   time, as the palm-kernel fix already does. Those rows are labelled
-#'   `"FAOSTAT_FBS_New_rebased"`. The ratio is read from the pins whatever
-#'   years are built. `"new_fbs"` keeps FAOSTAT's new vintage and scales the
-#'   old one up to it, the behaviour before whep#1495, which carried the
-#'   excess back to 1961 (world 2551 imports at 2005: 10.57 Mt scaled against
-#'   5.03 Mt reported). Only item 2551 moves.
+#'   `"rebased"` multiplies each area's import and export by its median
+#'   old/new ratio over 2010-2013, clamped to `[0.2, 1]` -- the old
+#'   vintage's level with the new one's change over time, as the palm-kernel
+#'   fix already joins them -- and takes the net trade removed out of food
+#'   and domestic supply, so every row keeps its supply-use identity and
+#'   production and stock change do not move. A row whose net cut is not
+#'   positive or exceeds its food is left as published. The moved rows are
+#'   labelled `"FAOSTAT_FBS_New_rebased"`, and the ratio is read from the
+#'   pins whatever years are built. `"as_published"` keeps FAOSTAT's figures,
+#'   the behaviour before whep#1495; the old vintage is scaled to whichever
+#'   level is chosen, so 1961-2009 follows it. **The default moves published
+#'   values**, all of them in item 2551. Measured on a real 2009-2016
+#'   build at 2010, world imports fall from 13.85 to 7.16 Mt and exports
+#'   from 7.83 to 6.51 Mt (imports/exports 1.77x to 1.10x; 1.61x to 1.02x
+#'   at 2016), and food from 19.79 to 14.43 Mt against 14.60 Mt of
+#'   production; the 5.37 Mt drop is 0.11% of the 4,692 Mt of all-item food.
+#'   Production and stock change do not move from 2010 on. FBS's own 2551
+#'   protein over the pin's food rises from 45.6 to 62.9 g/kg, against FAO's
+#'   in-shell basket of 64.7 that [build_food_supply()] applies.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
