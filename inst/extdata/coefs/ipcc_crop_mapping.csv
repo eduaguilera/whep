@@ -45,7 +45,7 @@ item_prod_code,item_prod_name,name_biomass,ipcc_crop,crop_group
 116,Potatoes,Potato,Potatoes,Root_tuber
 122,Sweet potatoes,Sweet potato,Sweet_potatoes,Root_tuber
 125,"Cassava, fresh",Cassava,Cassava,Root_tuber
-94,Fonio,"Roots, other",Other_roots,Root_tuber
+94,Fonio,Cereals nes,Other_cereals,Wheat
 135,Yautia,"Roots, other",Other_roots,Root_tuber
 136,Taro,"Roots, other",Other_roots,Root_tuber
 137,Yams,"Roots, other",Other_roots,Root_tuber
