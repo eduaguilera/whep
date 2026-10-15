@@ -2710,6 +2710,20 @@ utils::globalVariables(
     "cohort_life_stage",
     # livestock_cohorts.R (whep#1127) -- dairy-cattle herd routed to its cows
     "milk_herd",
+    # fbs_vintage_rebase.R (whep#1495) -- FBS 2551 trade on the old level
+    "area_int",
+    "corrected",
+    "cut_export",
+    "cut_import",
+    "i.rebase_old_new",
+    "i.value",
+    "is_rebased",
+    "item_int",
+    "net_cut",
+    "ok",
+    "r_export",
+    "r_import",
+    "rebase_old_new",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

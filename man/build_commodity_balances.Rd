@@ -24,6 +24,7 @@ build_commodity_balances(
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices(),
   .fixed_data = NULL
 )
 }
@@ -432,6 +433,37 @@ of product -- assumed, unverified: no sourced leaf content per tonne of
 product was found, and a cigarette also holds paper and filter. Where the
 products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
 remainder stays as stock change. Only Tobacco rows from 2014 on move.}
+
+\item{nut_basis}{One of \code{"rebased"} (default) or \code{"as_published"},
+selecting how the trade of FBS item 2551 \verb{Nuts and products} is taken
+from FAOSTAT's new food balance sheets, 2010 on (whep#1495). Their nut
+trade is not one mass basis: at 2010 world imports are 13.57 Mt against
+7.69 Mt of world exports (1.76x; 1.65x at 2022), and the excess goes on
+into food, 19.47 Mt against 14.29 Mt of nuts the world grew in shell,
+with about the old vintage's protein. Regressed on species-level trade,
+importers convert kernels and prepared nuts to in-shell equivalent with
+factors 2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one
+flow lands on two bases. The old vintage closes (6.45 vs 6.51 Mt).
+
+\code{"rebased"} multiplies each area's import and export by its median
+old/new ratio over 2010-2013, clamped to \verb{[0.2, 1]} -- the old
+vintage's level with the new one's change over time, as the palm-kernel
+fix already joins them -- and takes the net trade removed out of food
+and domestic supply, so every row keeps its supply-use identity and
+production and stock change do not move. A row whose net cut is not
+positive or exceeds its food is left as published. The moved rows are
+labelled \code{"FAOSTAT_FBS_New_rebased"}, and the ratio is read from the
+pins whatever years are built. \code{"as_published"} keeps FAOSTAT's figures,
+the behaviour before whep#1495; the old vintage is scaled to whichever
+level is chosen, so 1961-2009 follows it. \strong{The default moves published
+values}, all of them in item 2551. Measured on a real 2009-2016
+build at 2010, world imports fall from 13.85 to 7.16 Mt and exports
+from 7.83 to 6.51 Mt (imports/exports 1.77x to 1.10x; 1.61x to 1.02x
+at 2016), and food from 19.79 to 14.43 Mt against 14.60 Mt of
+production; the 5.37 Mt drop is 0.11\% of the 4,692 Mt of all-item food.
+Production and stock change do not move from 2010 on. FBS's own 2551
+protein over the pin's food rises from 45.6 to 62.9 g/kg, against FAO's
+in-shell basket of 64.7 that \code{\link[=build_food_supply]{build_food_supply()}} applies.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
