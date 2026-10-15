@@ -26,15 +26,13 @@ following columns:
 \code{"Other processing residues"}).
 \item \code{Cat_1}: Primary category label used in material flow accounting.
 \item \code{Name_biomass}: Corresponding item name in \code{biomass_coefs}, enabling
-joins with the biomass coefficient table. \code{NA} for the 22 live-animal
-items, which are heads rather than biomass and have no coefficient row by
-design. Three rows instead carry the literal string \code{"0"}, an upstream
-placeholder that matches no \code{biomass_coefs} row: 2775 Aquatic Plants,
-4000 Animal draught and 2899 Miscellaneous. Every other value resolves.
-Draught is measured in work hours and Miscellaneous is a residual
-aggregate, so neither has a biomass counterpart; Aquatic Plants is a real
-commodity whose coefficient row does not exist yet, so its CBS feed and
-food mass carries no dry matter, protein or energy (whep#970).
+joins with the biomass coefficient table; every non-missing value
+resolves. \code{NA} means the item has no biomass counterpart: the 22
+live-animal items, which are heads rather than biomass, 4000 Animal
+draught, which is measured in work hours, and 2899 Miscellaneous, a
+residual aggregate. Upstream, the last two and 2775 Aquatic Plants carry
+the literal placeholder \code{"0"}; here 2775 bridges to the \verb{Aquatic Plants}
+row of \link{biomass_coefs} instead (whep#970).
 \item \code{dbMFA_items}: Item identifier used in the material flow analysis
 database.
 \item \code{FEDNA}: Name of the FEDNA feed-composition table entry

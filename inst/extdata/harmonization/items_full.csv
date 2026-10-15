@@ -67,7 +67,7 @@ Rape and Mustard Oil,2574.0,p2574,p070,Rape and Mustard Oil extraction,tonnes,Cr
 Straw,2105.0,#N/A,#N/A,#N/A,tonnes,Crop residues,,residues,Herbaceous crop residues,Straw,Straw,Foragge,PAJA DE CEREALES,Other_uses
 Other crop residues,2106.0,#N/A,#N/A,#N/A,tonnes,Crop residues,residues,residues,Herbaceous crop residues,Other crop residues,Other crop residues,Foragge,PAJA DE CEREALES,Other_uses
 Firewood,2107.0,p2107,p131,Forestry,tonnes,Crop residues,,,Woody crop residues,Firewood,Average wood,Fuelwood and charcoal,0,Other_uses
-Animal draught,4000.0,p4000,p092,Asses husbandry,,Draught,,,,Draught,0,0,0,Feed
+Animal draught,4000.0,p4000,p092,Asses husbandry,,Draught,,,,Draught,,0,0,Feed
 Fish meal,2790.0,p2790,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,Fish Meal,Fish,PESCADO PROMEDIO,Feed
 "Molluscs, Other",2767.0,p2767,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,"Molluscs, Other",Fish,PESCADO PROMEDIO,Feed
 Pelagic Fish,2763.0,p2763,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,Pelagic Fish,Fish,PESCADO PROMEDIO,Feed
@@ -78,7 +78,7 @@ Freshwater Fish,2761.0,p2761,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,A
 Demersal Fish,2762.0,p2762,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,Demersal Fish,Fish,PESCADO PROMEDIO,Other_uses
 "Marine Fish, Other",2764.0,p2764,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,"Marine Fish, Other",Fish,PESCADO PROMEDIO,Other_uses
 "Aquatic Animals, Others",2769.0,p2769,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,"Aquatic Animals, Others",Fish,PESCADO PROMEDIO,Other_uses
-Aquatic Plants,2775.0,p2775,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,0,Fish,PESCADO PROMEDIO,Food
+Aquatic Plants,2775.0,p2775,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,Aquatic Plants,Fish,PESCADO PROMEDIO,Food
 "Fish, Body Oil",2781.0,p2781,p132,Aquaculture,tonnes,Fish,animals,animals,Fish,Aquatic animals,"Fish, body oil",Fish,OLEINAS PESCADO,
 Wood,3004.0,p3004,p131,Forestry,tonnes,Forestry,,,Wood,Firewood,Average wood,Wood,0,
 Fallow,3003.0,p3003,p129,Fallowing,tonnes,Grass,grass,grass,Grassland,Fallow,Fallow,Foragge,Ray-grass verde TERCERA,
@@ -195,7 +195,7 @@ Pineapples and products,2618.0,p2618,p041,Pineapples production,tonnes,Primary c
 Pimento,2641.0,p2641,p050,Pimento production,tonnes,Primary crops,crops,crops,"Vegetables, fruit, nuts, pulses, spices",Spices,"Chili pepper and peppers, dry",Species,PULPA MANZANA,Food
 Hops,677.0,p677,p048,Hops production,tonnes,Primary crops,crops,crops,"Vegetables, fruit, nuts, pulses, spices",Spices,Hop,Species,PULPA MANZANA,Food
 "Spices, Other",2645.0,p2645,p052,"Spices production, Other",tonnes,Primary crops,crops,crops,"Vegetables, fruit, nuts, pulses, spices",Spices,Anise,Species,PULPA MANZANA,Food
-Miscellaneous,2899.0,#N/A,#N/A,#N/A,tonnes,Primary crops,,,"Vegetables, fruit, nuts, pulses, spices",Other,0,Processed Food,PULPA MANZANA,Food
+Miscellaneous,2899.0,#N/A,#N/A,#N/A,tonnes,Primary crops,,,"Vegetables, fruit, nuts, pulses, spices",Other,,Processed Food,PULPA MANZANA,Food
 Onions,2602.0,p2602,p032,Onions production,tonnes,Primary crops,crops,crops,"Vegetables, fruit, nuts, pulses, spices",Vegetables,Onion,Onions,PULPA MANZANA,Food
 Dates,2619.0,p2619,p042,Dates production,tonnes,Primary crops,crops,crops,"Vegetables, fruit, nuts, pulses, spices",Fruits,Dates,Fruits Processed,PULPA MANZANA,Feed
 Scavenging,3500.0,p3500,p127,Scavenging production,tonnes,Scavenging,scavenging,scavenging,Grassland,Scavenging,Grass,Foragge,Ray-grass verde TERCERA,Feed

@@ -1299,13 +1299,11 @@ build_feed_demand <- function(
 }
 
 # Why one CBS feed item failed to classify, so the warning says which table to
-# repair. A `Name_biomass` of "0" is the upstream placeholder carried by three
-# items_full rows, not a biomass name (whep#970).
+# repair.
 .feed_gap_reason <- function(feed_quality, name_biomass) {
   dplyr::case_when(
     is.na(feed_quality) ~ "absent from feed_taxonomy",
     is.na(name_biomass) ~ "no Name_biomass in items_full",
-    name_biomass == "0" ~ "placeholder Name_biomass '0'",
     .default = paste0("no biomass_coefs row named ", name_biomass)
   )
 }
