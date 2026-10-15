@@ -102,7 +102,18 @@ calculate_crop_residues <- function(
 #'   (reference below-ground biomass only).
 #' @param weights Named list; `w_ref` is the reference weight in the ensemble
 #'   (0-1, default 0.5), used only when `method = "ensemble"`.
-#' @return The input tibble with `root_dm_t` and `method_root`.
+#' @param irrigation Which irrigated crops take the root:shoot factor of
+#'   `irrigation_adj` (0.85 irrigated), used only when `x` has
+#'   `water_regime`: `"except_paddy"` (default) applies it to every crop but
+#'   paddy rice, which is flooded whether irrigated or not; `"all_crops"`
+#'   applies it to every crop, as afsetools does; `"none"` applies no
+#'   irrigation factor. Water stress raises root:shoot across crops (Eziz et
+#'   al. 2017, doi:10.1002/ece3.3630; Kou et al. 2022,
+#'   doi:10.3389/fpls.2022.1085409; Seidel et al. 2024,
+#'   doi:10.1016/j.scitotenv.2024.176738), implying an irrigated factor of
+#'   about 0.70 to 0.88 (whep#1536).
+#' @return The input tibble with `root_dm_t` and `method_root`, plus
+#'   `method_root_irrigation` when `x` has `water_regime`.
 #' @export
 #' @examples
 #' calculate_crop_roots(
@@ -116,9 +127,11 @@ calculate_crop_residues <- function(
 calculate_crop_roots <- function(
   x,
   method = c("ensemble", "root_shoot", "reference"),
-  weights = list(w_ref = 0.5)
+  weights = list(w_ref = 0.5),
+  irrigation = c("except_paddy", "all_crops", "none")
 ) {
   method <- rlang::arg_match(method)
+  irrigation <- rlang::arg_match(irrigation)
   .crop_npp_validate(
     x,
     c("item_prod_code", "product_dm_t", "residue_dm_t", "area_ha"),
@@ -128,7 +141,7 @@ calculate_crop_roots <- function(
   x |>
     .root_coefs_join() |>
     .root_n_factor() |>
-    .root_irrigation_factor() |>
+    .root_irrigation_factor(irrigation) |>
     .root_estimates() |>
     .root_combine(method, w_ref) |>
     dplyr::mutate(method_root = method) |>
@@ -147,6 +160,8 @@ calculate_crop_roots <- function(
 #' @param root_method Root method passed to [calculate_crop_roots()].
 #' @param weights Named list of ensemble weights; `w_ipcc` for residues and
 #'   `w_ref` for roots (each 0-1, default 0.5).
+#' @param root_irrigation Irrigated root:shoot scope passed to
+#'   [calculate_crop_roots()] as `irrigation`.
 #' @return The input tibble with `product_dm_t`, `yield_dm_t_ha`, `residue_dm_t`,
 #'   `root_dm_t`, `crop_npp_dm_t`, `method_residue` and `method_root`.
 #' @export
@@ -158,11 +173,16 @@ calculate_crop_npp <- function(
   x,
   residue_method = "ensemble",
   root_method = "ensemble",
-  weights = list(w_ipcc = 0.5, w_ref = 0.5)
+  weights = list(w_ipcc = 0.5, w_ref = 0.5),
+  root_irrigation = "except_paddy"
 ) {
   x |>
     calculate_crop_residues(method = residue_method, weights = weights) |>
-    calculate_crop_roots(method = root_method, weights = weights) |>
+    calculate_crop_roots(
+      method = root_method,
+      weights = weights,
+      irrigation = root_irrigation
+    ) |>
     dplyr::mutate(crop_npp_dm_t = product_dm_t + residue_dm_t + root_dm_t)
 }
 
@@ -424,10 +444,13 @@ calculate_npp_carbon_nitrogen <- function(x) {
   )
 }
 
-# Provenance of the irrigation coefficients (checked 2026-10-14; ASSUMED,
-# UNVERIFIED, see whep#1536). `irrigation_adj` cites "Sadras 2007; Zhang et
-# al. 2019" for the irrigated residue ratio factor of 0.9 and root:shoot
-# factor of 0.85; the afsetools original also cites Benjamin et al. 2014.
+# Provenance of the irrigation coefficients (checked 2026-10-14; see
+# whep#1536). `irrigation_adj` cites "Sadras 2007; Zhang et al. 2019" for the
+# irrigated residue ratio factor of 0.9 and root:shoot factor of 0.85; the
+# afsetools original also cites Benjamin et al. 2014. Neither citation holds
+# (below), so the 0.9 residue factor stays ASSUMED, UNVERIFIED. The 0.85
+# root:shoot factor is grounded instead in three meta-analyses and reviews
+# cited at `.root_irrigation_factor()`.
 # - Sadras, V. O. (2007). Evolutionary aspects of the trade-off between seed
 #   size and number in crops. Field Crops Research 100, 125-138,
 #   doi 10.1016/j.fcr.2006.07.004. Full text read: its subject is seed size
@@ -650,9 +673,32 @@ calculate_npp_carbon_nitrogen <- function(x) {
     )
 }
 
-# The rs_ratio_factor provenance is unverified; see the note above
-# .residue_irrigation_factor().
-.root_irrigation_factor <- function(x) {
+# Every irrigated crop takes the root:shoot factor except paddy rice
+# ("except_paddy", maintainer decision on whep#1536). Paddy is flooded
+# whether or not it is irrigated, so the irrigated-against-rainfed contrast
+# the factor stands for does not apply to it. The factor is not gated by the
+# residue sensitivity groups: water stress raises root:shoot more in
+# tap-rooted crops such as legumes, not less (Kou et al. 2022).
+# - Eziz, A., Yan, Z., Tian, D., Han, W., Tang, Z. and Fang, J. (2017).
+#   Drought effect on plant biomass allocation: a meta-analysis. Ecology and
+#   Evolution 7, 11002-11010, doi 10.1002/ece3.3630. 164 studies; drought
+#   raises the root mass fraction by 9.07% (11.58% in herbs), with no
+#   contrast between cultivated and wild plants.
+# - Kou, X., Han, W. and Kang, J. (2022). Responses of root system
+#   architecture to water stress at multiple levels: a meta-analysis of
+#   trials under controlled conditions. Frontiers in Plant Science 13,
+#   1085409, doi 10.3389/fpls.2022.1085409. Water stress raises root:shoot
+#   by 21.6% in fibrous and 42.6% in tap root systems.
+# - Seidel, S. J. et al. (2024). The overlooked effects of environmental
+#   impacts on root:shoot ratio in experiments and soil-crop models. Science
+#   of the Total Environment, doi 10.1016/j.scitotenv.2024.176738. Drought
+#   raises root:shoot by 13.5% (Zhou et al. 2018); field rainfed against
+#   irrigated winter wheat by 27% (old) and 4% (modern cultivar).
+# Read as rainfed over irrigated, these imply an irrigated factor of 0.70
+# (tap roots) to 0.88 (the Zhou et al. 2018 mean), or 0.96 for the modern
+# wheat cultivar in the field; 0.85 sits inside that range. Paddy is crop group "Rice"
+# (item 27, the only rice item in `ipcc_crop_mapping`).
+.root_irrigation_factor <- function(x, irrigation = "except_paddy") {
   if (!rlang::has_name(x, "water_regime")) {
     return(dplyr::mutate(x, rs_ratio_factor = 1))
   }
@@ -660,7 +706,24 @@ calculate_npp_carbon_nitrogen <- function(x) {
     dplyr::select(water_regime, rs_ratio_factor)
   x |>
     dplyr::left_join(irr, by = "water_regime") |>
-    dplyr::mutate(rs_ratio_factor = tidyr::replace_na(rs_ratio_factor, 1))
+    dplyr::mutate(
+      rs_ratio_factor = tidyr::replace_na(rs_ratio_factor, 1),
+      rs_ratio_factor = .root_irrigation_scope(
+        rs_ratio_factor,
+        crop_group,
+        irrigation
+      ),
+      method_root_irrigation = irrigation
+    )
+}
+
+.root_irrigation_scope <- function(factor, crop_group, irrigation) {
+  switch(
+    irrigation,
+    all_crops = factor,
+    none = rep(1, length(factor)),
+    except_paddy = dplyr::if_else(crop_group %in% "Rice", 1, factor)
+  )
 }
 
 .root_estimates <- function(x) {
