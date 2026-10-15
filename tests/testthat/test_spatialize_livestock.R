@@ -275,6 +275,86 @@ test_that("manure_pattern modulates weights", {
   expect_true(manure_c1 > plain_c1)
 })
 
+# A supplied proxy layer keyed on another lattice (here a 0.05-degree offset)
+# joins no cell. The manure pattern then has nothing to blend and the weights
+# fall back to land use alone; grass productivity multiplies nothing, yet every
+# grazer row still travels under "luh2_grass". Heads are conserved exactly in
+# both, so no total can tell that the layer was never applied (whep#1034).
+.offset_layer <- function(value_col, values) {
+  tibble::tibble(lon = c(0.3, 0.8, 1.3), lat = 50.3, "{value_col}" := values)
+}
+
+.heads_conserved <- function(result) {
+  all(purrr::map_lgl(unique(livestock_data$year), \(yr) {
+    isTRUE(all.equal(
+      sum(result$heads[result$year == yr]),
+      sum(livestock_data$heads[livestock_data$year == yr])
+    ))
+  }))
+}
+
+.unguarded_livestock <- function(...) {
+  testthat::with_mocked_bindings(
+    build_gridded_livestock(
+      livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      country_grid,
+      ...
+    ),
+    .check_proxy_layer_joined = function(grid, ...) grid,
+    .package = "whep"
+  )
+}
+
+test_that("a manure pattern that joins no cell is refused", {
+  pattern <- .offset_layer("manure_intensity", c(1, 0.1, 0.5))
+
+  expect_supplied_guard(
+    identity = .heads_conserved(.unguarded_livestock(manure_pattern = pattern)),
+    guard = build_gridded_livestock(
+      livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      country_grid,
+      manure_pattern = pattern
+    )
+  )
+})
+
+test_that("a grass productivity table that joins no cell is refused", {
+  npp <- .offset_layer("grass_npp", c(300, 500, 200))
+  unguarded <- .unguarded_livestock(grass_productivity = npp)
+
+  expect_supplied_guard(
+    identity = .heads_conserved(unguarded) &&
+      "luh2_grass" %in% unguarded$method_livestock_proxy,
+    guard = build_gridded_livestock(
+      livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      country_grid,
+      grass_productivity = npp
+    )
+  )
+})
+
+test_that("a proxy layer that joins some cells is applied, not refused", {
+  pattern <- tibble::tibble(lon = 0.25, lat = 50.25, manure_intensity = 1)
+  npp <- tibble::tibble(lon = 0.25, lat = 50.25, grass_npp = 300)
+
+  result <- build_gridded_livestock(
+    livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    country_grid,
+    manure_pattern = pattern,
+    grass_productivity = npp
+  )
+
+  expect_true(.heads_conserved(result))
+})
+
 test_that("custom species_proxy is respected", {
   # Override: make cattle use cropland instead of pasture
   custom_proxy <- tibble::tribble(
