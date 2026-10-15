@@ -8,7 +8,8 @@ calculate_crop_npp(
   x,
   residue_method = "ensemble",
   root_method = "ensemble",
-  weights = list(w_ipcc = 0.5, w_ref = 0.5)
+  weights = list(w_ipcc = 0.5, w_ref = 0.5),
+  root_irrigation = "crop_sensitivity"
 )
 }
 \arguments{
@@ -21,6 +22,9 @@ any optional adjustment columns used by the residue and root steps.}
 
 \item{weights}{Named list of ensemble weights; \code{w_ipcc} for residues and
 \code{w_ref} for roots (each 0-1, default 0.5).}
+
+\item{root_irrigation}{Irrigated root:shoot scope passed to
+\code{\link[=calculate_crop_roots]{calculate_crop_roots()}} as \code{irrigation}.}
 }
 \value{
 The input tibble with \code{product_dm_t}, \code{yield_dm_t_ha}, \code{residue_dm_t},

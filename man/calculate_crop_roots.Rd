@@ -7,7 +7,8 @@
 calculate_crop_roots(
   x,
   method = c("ensemble", "root_shoot", "reference"),
-  weights = list(w_ref = 0.5)
+  weights = list(w_ref = 0.5),
+  irrigation = c("crop_sensitivity", "all_crops", "none")
 )
 }
 \arguments{
@@ -21,9 +22,21 @@ reference), \code{"root_shoot"} (root:shoot ratio only) or \code{"reference"}
 
 \item{weights}{Named list; \code{w_ref} is the reference weight in the ensemble
 (0-1, default 0.5), used only when \code{method = "ensemble"}.}
+
+\item{irrigation}{How the irrigated root:shoot factor of \code{irrigation_adj}
+reaches each crop, used only when \code{x} has \code{water_regime}:
+\code{"crop_sensitivity"} (default) scales it by the crop group's
+\code{irr_residue_sensitivity} from \code{irr_residue_crop_adj}, as the residue
+term is, so paddy rice, wheat, legumes and other crops keep their
+root:shoot ratio and maize takes the full factor; \code{"all_crops"} applies
+the full factor to every crop, as afsetools does; \code{"none"} applies no
+irrigation factor. No source gives the factor's size: Benjamin et al.
+(2014, doi:10.4236/ojss.2014.44018) supports its direction for maize only
+(whep#1536).}
 }
 \value{
-The input tibble with \code{root_dm_t} and \code{method_root}.
+The input tibble with \code{root_dm_t} and \code{method_root}, plus
+\code{method_root_irrigation} when \code{x} has \code{water_regime}.
 }
 \description{
 Estimates root dry matter from above-ground biomass using an ensemble of an

@@ -102,7 +102,18 @@ calculate_crop_residues <- function(
 #'   (reference below-ground biomass only).
 #' @param weights Named list; `w_ref` is the reference weight in the ensemble
 #'   (0-1, default 0.5), used only when `method = "ensemble"`.
-#' @return The input tibble with `root_dm_t` and `method_root`.
+#' @param irrigation How the irrigated root:shoot factor of `irrigation_adj`
+#'   reaches each crop, used only when `x` has `water_regime`:
+#'   `"crop_sensitivity"` (default) scales it by the crop group's
+#'   `irr_residue_sensitivity` from `irr_residue_crop_adj`, as the residue
+#'   term is, so paddy rice, wheat, legumes and other crops keep their
+#'   root:shoot ratio and maize takes the full factor; `"all_crops"` applies
+#'   the full factor to every crop, as afsetools does; `"none"` applies no
+#'   irrigation factor. No source gives the factor's size: Benjamin et al.
+#'   (2014, doi:10.4236/ojss.2014.44018) supports its direction for maize only
+#'   (whep#1536).
+#' @return The input tibble with `root_dm_t` and `method_root`, plus
+#'   `method_root_irrigation` when `x` has `water_regime`.
 #' @export
 #' @examples
 #' calculate_crop_roots(
@@ -116,9 +127,11 @@ calculate_crop_residues <- function(
 calculate_crop_roots <- function(
   x,
   method = c("ensemble", "root_shoot", "reference"),
-  weights = list(w_ref = 0.5)
+  weights = list(w_ref = 0.5),
+  irrigation = c("crop_sensitivity", "all_crops", "none")
 ) {
   method <- rlang::arg_match(method)
+  irrigation <- rlang::arg_match(irrigation)
   .crop_npp_validate(
     x,
     c("item_prod_code", "product_dm_t", "residue_dm_t", "area_ha"),
@@ -128,7 +141,7 @@ calculate_crop_roots <- function(
   x |>
     .root_coefs_join() |>
     .root_n_factor() |>
-    .root_irrigation_factor() |>
+    .root_irrigation_factor(irrigation) |>
     .root_estimates() |>
     .root_combine(method, w_ref) |>
     dplyr::mutate(method_root = method) |>
@@ -147,6 +160,8 @@ calculate_crop_roots <- function(
 #' @param root_method Root method passed to [calculate_crop_roots()].
 #' @param weights Named list of ensemble weights; `w_ipcc` for residues and
 #'   `w_ref` for roots (each 0-1, default 0.5).
+#' @param root_irrigation Irrigated root:shoot scope passed to
+#'   [calculate_crop_roots()] as `irrigation`.
 #' @return The input tibble with `product_dm_t`, `yield_dm_t_ha`, `residue_dm_t`,
 #'   `root_dm_t`, `crop_npp_dm_t`, `method_residue` and `method_root`.
 #' @export
@@ -158,11 +173,16 @@ calculate_crop_npp <- function(
   x,
   residue_method = "ensemble",
   root_method = "ensemble",
-  weights = list(w_ipcc = 0.5, w_ref = 0.5)
+  weights = list(w_ipcc = 0.5, w_ref = 0.5),
+  root_irrigation = "crop_sensitivity"
 ) {
   x |>
     calculate_crop_residues(method = residue_method, weights = weights) |>
-    calculate_crop_roots(method = root_method, weights = weights) |>
+    calculate_crop_roots(
+      method = root_method,
+      weights = weights,
+      irrigation = root_irrigation
+    ) |>
     dplyr::mutate(crop_npp_dm_t = product_dm_t + residue_dm_t + root_dm_t)
 }
 
@@ -618,15 +638,34 @@ calculate_npp_carbon_nitrogen <- function(x) {
     )
 }
 
-.root_irrigation_factor <- function(x) {
+# The residue term already exempts paddy rice, wheat, legumes and other crops
+# through `irr_residue_sensitivity`; "crop_sensitivity" gates the root:shoot
+# factor the same way, so a crop the residue table finds no irrigation effect
+# for does not lose roots to an unsourced 0.85 (whep#1536). An unmapped crop
+# group takes sensitivity 0, as in `.residue_irrigation_factor()`.
+.root_irrigation_factor <- function(x, irrigation = "crop_sensitivity") {
   if (!rlang::has_name(x, "water_regime")) {
     return(dplyr::mutate(x, rs_ratio_factor = 1))
   }
   irr <- whep::whep_coef_table("irrigation_adj") |>
     dplyr::select(water_regime, rs_ratio_factor)
+  sens <- whep::whep_coef_table("irr_residue_crop_adj") |>
+    dplyr::select(crop_group, root_irr_sensitivity = irr_residue_sensitivity)
   x |>
     dplyr::left_join(irr, by = "water_regime") |>
-    dplyr::mutate(rs_ratio_factor = tidyr::replace_na(rs_ratio_factor, 1))
+    dplyr::left_join(sens, by = "crop_group") |>
+    dplyr::mutate(
+      rs_ratio_factor = tidyr::replace_na(rs_ratio_factor, 1),
+      root_irr_sensitivity = switch(
+        irrigation,
+        all_crops = 1,
+        none = 0,
+        crop_sensitivity = tidyr::replace_na(root_irr_sensitivity, 0)
+      ),
+      rs_ratio_factor = 1 + root_irr_sensitivity * (rs_ratio_factor - 1),
+      method_root_irrigation = irrigation
+    ) |>
+    dplyr::select(-root_irr_sensitivity)
 }
 
 .root_estimates <- function(x) {

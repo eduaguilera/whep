@@ -2710,6 +2710,8 @@ utils::globalVariables(
     "cohort_life_stage",
     # livestock_cohorts.R (whep#1127) -- dairy-cattle herd routed to its cows
     "milk_herd",
+    # crop_npp.R (whep#1536) -- irrigated root:shoot gated by crop sensitivity
+    "root_irr_sensitivity",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
