@@ -48,7 +48,7 @@
 #
 # Measured on the pins at 2010, world imports fall from 13.57 to 6.88 Mt
 # against exports of 6.37 Mt (1.08x; 1.01x at 2016) and food from 19.47 to
-# 14.11 Mt, under the 14.09 Mt of production. FBS's own protein over that food
+# 14.11 Mt, under the 14.29 Mt grown in shell. FBS's own protein over that food
 # is 62.9 g/kg, against FAO's in-shell basket of 64.7 (`build_food_supply()`,
 # whep#1453) and the old vintage's 66.2; over the published food it was 45.6.
 #
