@@ -51,6 +51,17 @@
 # first argument to check it: `Rscript ... validation/residue_base_dm.R
 # ensemble` (5 years below the band), `ratio` or `wirsenius` (both fail).
 #
+# Since #1518 the non-cereal crops with their own IPCC Table 11.2 line
+# (soybean, groundnut, pulses, potato and, through IPCC's tuber line,
+# cassava, sweet potato, yams and other roots) are estimated from yield too,
+# by default with that same line. Their comparison with IPCC below is then
+# close to a tautology: soybean, groundnut and potato read 1.05-1.11 of it
+# in 2010 and 2020, the modern-variety harvest-index correction and the
+# product dry-matter content of `bio_coefs` (not IPCC's DRY). It still
+# catches a crop that falls off the line. The second argument selects the non-cereal
+# method: `Rscript ... validation/residue_base_dm.R ipcc pin` checks the
+# pin's ratio (soybean 1.42x, potato 1.36x of IPCC in 2010).
+#
 # Not part of the test suite: it reads the `crop_residues` pin.
 #
 # Run:  Rscript --no-init-file validation/residue_base_dm.R
@@ -74,8 +85,18 @@ method <- commandArgs(trailingOnly = TRUE)[1]
 if (is.na(method)) {
   method <- "ipcc"
 }
-cli::cli_inform("Cereal residue method: {.val {method}}.")
-residues <- get_primary_residues(cereal_residue = method)
+non_cereal_method <- commandArgs(trailingOnly = TRUE)[2]
+if (is.na(non_cereal_method)) {
+  non_cereal_method <- "ipcc"
+}
+cli::cli_inform(c(
+  "Cereal residue method: {.val {method}}.",
+  "Non-cereal residue method: {.val {non_cereal_method}}."
+))
+residues <- get_primary_residues(
+  cereal_residue = method,
+  non_cereal_residue = non_cereal_method
+)
 cereals <- dplyr::filter(residues, .data$item_cbs_code_crop %in% cereal_codes)
 
 # 2. Unit basis -------------------------------------------------------------
