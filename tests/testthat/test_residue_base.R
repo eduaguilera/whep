@@ -68,7 +68,9 @@ testthat::test_that("the pin's ratio follows Wirsenius's region membership", {
     residue_pin(pea)
   })
 
-  out <- whep::get_primary_residues()
+  # Peas have an IPCC line and are estimated from yield by default
+  # (whep#1518); the pin's ratio, which this re-keys, is still selectable.
+  out <- whep::get_primary_residues(non_cereal_residue = "pin")
 
   russia <- out[out$area_code == 185L, ]
   spain <- out[out$area_code == 203L, ]
@@ -203,7 +205,7 @@ testthat::test_that("a cereal without production or area is refused", {
   expect_supplied_guard(
     identity = isTRUE(all.equal(vacuous, 0)),
     guard = whep::get_primary_residues(),
-    class = "whep_residue_cereal_no_product"
+    class = "whep_residue_no_product"
   )
 
   local_mocked_bindings(whep_read_file = function(name, ...) {
@@ -211,7 +213,7 @@ testthat::test_that("a cereal without production or area is refused", {
   })
   testthat::expect_error(
     whep::get_primary_residues(),
-    class = "whep_residue_cereal_no_product"
+    class = "whep_residue_no_product"
   )
 
   local_mocked_bindings(whep_read_file = function(name, ...) {
@@ -222,7 +224,7 @@ testthat::test_that("a cereal without production or area is refused", {
   })
   testthat::expect_error(
     whep::get_primary_residues(),
-    class = "whep_residue_cereal_no_product"
+    class = "whep_residue_no_product"
   )
 })
 
@@ -236,8 +238,199 @@ testthat::test_that("a cereal split over two residue items is refused", {
   })
   testthat::expect_error(
     whep::get_primary_residues(),
-    class = "whep_residue_cereal_items"
+    class = "whep_residue_split_items"
   )
+})
+
+# A non-cereal crop's residue and production rows, as the pin names them.
+crop_rows <- function(crop, area, value) {
+  names <- switch(
+    crop,
+    soybean = c("Soya beans", "Other crop residues", "Soyabeans", "Soyabeans"),
+    potato = c(
+      "Potatoes",
+      "Other crop residues",
+      "Potatoes and products",
+      "Potato"
+    ),
+    rapeseed = c(
+      "Rape or colza seed",
+      "Other crop residues",
+      "Rape and Mustardseed",
+      "Rape"
+    )
+  )
+  tibble::tibble(
+    Area = area,
+    Item_prod = names[[1]],
+    Item_cbs = names[[2]],
+    Item_cbs_crop = names[[3]],
+    Name_biomass = names[[4]],
+    Prod_ygpit_Mg = value
+  )
+}
+
+crop_product <- function(crop, area, tonnes, hectares) {
+  rows <- crop_rows(crop, area, tonnes)
+  dplyr::mutate(rows, Item_cbs = rows$Item_cbs_crop, Area_ygpit_ha = hectares)
+}
+
+ipcc_residue_dm <- function(code, tonnes, hectares, method = "ipcc") {
+  whep::calculate_crop_residues(
+    tibble::tibble(
+      item_prod_code = code,
+      production_t = tonnes,
+      area_ha = hectares,
+      year = 2000L,
+      region_hanpp = "West Europe"
+    ),
+    method = method
+  )$residue_dm_t
+}
+
+testthat::test_that("a non-cereal with an IPCC line is estimated from yield", {
+  # whep#1518. The pin's ratio put world soybean residue 1.4 times above the
+  # IPCC (2006) Table 11.2 soybean line, potato 1.4-1.6 times and cassava 1.9
+  # times above the tuber line, while the pulses sat at a third to a half of
+  # theirs. Those crops are now estimated from yield as cereals are, so the
+  # pin's own residue figure no longer matters for them.
+  pin <- residue_pin(
+    crop_rows("soybean", "Spain", 999),
+    crop_product("soybean", "Spain", 1000, 400)
+  )
+  local_mocked_bindings(whep_read_file = function(name, ...) pin)
+
+  out <- whep::get_primary_residues()
+
+  expected <- ipcc_residue_dm("236", 1000, 400)
+  testthat::expect_equal(out$value_dm, expected)
+  testthat::expect_equal(
+    out$value,
+    expected / biomass_coef("Soyabeans", "Residue_kgDM_kgFM")
+  )
+  testthat::expect_equal(out$item_cbs_code_residue, 2106)
+  testthat::expect_equal(out$method_residue, "ipcc")
+
+  pin$Prod_ygpit_Mg[pin$Product_residue == "Residue"] <- 5
+  local_mocked_bindings(whep_read_file = function(name, ...) pin)
+  testthat::expect_equal(whep::get_primary_residues()$value_dm, expected)
+})
+
+testthat::test_that("every non-cereal method is selectable and recorded", {
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    residue_pin(
+      crop_rows("soybean", "Spain", 999),
+      crop_product("soybean", "Spain", 1000, 400)
+    )
+  })
+
+  for (method in c("ipcc", "ensemble", "ratio")) {
+    out <- whep::get_primary_residues(non_cereal_residue = method)
+    testthat::expect_equal(
+      out$value_dm,
+      ipcc_residue_dm("236", 1000, 400, method = method)
+    )
+    testthat::expect_equal(out$method_residue, method)
+  }
+  # The pin's ratio stays selectable: the recovery undone, nothing else.
+  out <- whep::get_primary_residues(non_cereal_residue = "pin")
+  testthat::expect_equal(
+    out$value,
+    999 / legacy_rate("Soybeans", "West Europe")
+  )
+  testthat::expect_equal(out$method_residue, "pin")
+  testthat::expect_error(
+    whep::get_primary_residues(non_cereal_residue = "wirsenius"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("a crop with no Table 11.2 line keeps the pin's ratio", {
+  # The `ipcc_residue_coefs.csv` line for rapeseed (1.58, 0.3) is not in IPCC
+  # (2006) or (2019) Table 11.2, so rapeseed is not estimated from yield.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    residue_pin(
+      crop_rows("rapeseed", "Spain", 70),
+      crop_product("rapeseed", "Spain", 1000, 400)
+    )
+  })
+
+  out <- whep::get_primary_residues()
+
+  testthat::expect_equal(
+    out$value,
+    70 / legacy_rate("Rapeseed, oil crops", "West Europe")
+  )
+  testthat::expect_equal(out$method_residue, "pin")
+})
+
+testthat::test_that("a zero-recovery crop gets the residue it produced", {
+  # The predecessor's recovery rate for roots and tubers in West Europe is 0,
+  # so the pin holds 0 there and the gross residue cannot be read back from
+  # it. Estimated from yield, the potato haulm exists; how much of it leaves
+  # the field is the recovery rate's business downstream.
+  testthat::expect_equal(legacy_rate("Roots and Tubers", "West Europe"), 0)
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    residue_pin(
+      crop_rows("potato", "Spain", 0),
+      crop_product("potato", "Spain", 30000, 1000)
+    )
+  })
+
+  out <- whep::get_primary_residues()
+
+  testthat::expect_equal(out$value_dm, ipcc_residue_dm("116", 30000, 1000))
+  testthat::expect_gt(out$value_dm, 0)
+  testthat::expect_equal(
+    whep::get_primary_residues(non_cereal_residue = "pin") |> nrow(),
+    0L
+  )
+})
+
+testthat::test_that("a non-cereal without production or area is refused", {
+  no_area <- residue_pin(
+    crop_rows("soybean", "Spain", 999),
+    crop_product("soybean", "Spain", 1000, 0)
+  )
+  vacuous <- ipcc_residue_dm("236", 1000, 0)
+  local_mocked_bindings(whep_read_file = function(name, ...) no_area)
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(vacuous, 0)),
+    guard = whep::get_primary_residues(),
+    class = "whep_residue_no_product"
+  )
+
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    residue_pin(crop_rows("soybean", "Spain", 999))
+  })
+  testthat::expect_error(
+    whep::get_primary_residues(),
+    class = "whep_residue_no_product"
+  )
+  # The pin's ratio needs no production row.
+  testthat::expect_equal(
+    whep::get_primary_residues(non_cereal_residue = "pin")$method_residue,
+    "pin"
+  )
+})
+
+testthat::test_that("the shipped non-cereal lines are IPCC Table 11.2's", {
+  # IPCC (2006) Vol. 4 Ch. 11 Table 11.2, pp. 11.17-11.18, repeated in the
+  # 2019 Refinement's Table 11.2 (updated), p. 11.19. A later edit to
+  # `ipcc_residue_coefs.csv` must not move these crops off the printed line.
+  lines <- whep:::.residue_ipcc_lines()
+  shipped <- whep::whep_coef_table("ipcc_residue_coefs") |>
+    dplyr::select("ipcc_crop", "slope_ag", "intercept_ag_dm_t_ha")
+  both <- dplyr::inner_join(lines, shipped, by = "ipcc_crop")
+  testthat::expect_setequal(both$ipcc_crop, lines$ipcc_crop)
+  testthat::expect_equal(both$slope_ag.y, both$slope_ag.x)
+  testthat::expect_equal(
+    both$intercept_ag_dm_t_ha.y,
+    both$intercept_ag_dm_t_ha.x
+  )
+  # Every crop of the list is reached by at least one production item.
+  mapped <- whep::whep_coef_table("ipcc_crop_mapping")$ipcc_crop
+  testthat::expect_true(all(lines$ipcc_crop %in% mapped))
 })
 
 testthat::test_that("the Wirsenius region keeps every other HANPP label", {
@@ -278,8 +471,8 @@ testthat::test_that("the Wirsenius region keeps every other HANPP label", {
 # Oil palm residue (whep#1424) ------------------------------------------------
 
 # Malaysia 2010 as the pin carries it: FAOSTAT's fruit tonnes and hectares,
-# and the pin's recovered residue. A Spanish pea row stands for every other
-# non-cereal crop.
+# and the pin's recovered residue. A Spanish rapeseed row stands for every
+# other non-cereal crop that reads the pin's ratio.
 oil_palm_pin <- function() {
   palm <- tibble::tibble(
     Area = "Malaysia",
@@ -290,14 +483,7 @@ oil_palm_pin <- function() {
   residue_pin(
     dplyr::bind_rows(
       dplyr::mutate(palm, Item_cbs = "Firewood", Prod_ygpit_Mg = 318806798),
-      tibble::tibble(
-        Area = "Spain",
-        Item_prod = "Peas, dry",
-        Item_cbs = "Straw",
-        Item_cbs_crop = "Peas",
-        Name_biomass = "Pea",
-        Prod_ygpit_Mg = 70
-      )
+      crop_rows("rapeseed", "Spain", 70)
     ),
     dplyr::mutate(
       palm,
@@ -330,9 +516,12 @@ testthat::test_that("oil palm residue is Malaysia's fronds and trunks per t", {
   )
   testthat::expect_equal(palm$item_cbs_code_residue, 2107)
   testthat::expect_equal(palm$method_residue, "malaysia_nbs_per_product")
-  pea <- out[out$item_cbs_code_crop != 254, ]
-  testthat::expect_equal(pea$value, 70 / legacy_rate("Pulses", "West Europe"))
-  testthat::expect_equal(pea$method_residue, "pin")
+  rape <- out[out$item_cbs_code_crop != 254, ]
+  testthat::expect_equal(
+    rape$value,
+    70 / legacy_rate("Rapeseed, oil crops", "West Europe")
+  )
+  testthat::expect_equal(rape$method_residue, "pin")
 })
 
 testthat::test_that("the anchored oil palm residue survives into the CBS", {

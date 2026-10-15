@@ -93,6 +93,13 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'     regional ratios, applied directly on Wirsenius's own region membership.
 #'
 #'   See the "Cereal residue" section. Other crops are not affected.
+#' @param non_cereal_residue How the residue of a non-cereal crop with its
+#'   own line in IPCC (2006) Table 11.2 is estimated: soybean, groundnut, dry
+#'   beans, peas, chickpeas, lentils and the other pulses, potato, and,
+#'   through IPCC's "Tubers" line, cassava, sweet potato, yams and the other
+#'   roots. One of `"ipcc"` (default), `"ensemble"` and `"ratio"`, the same
+#'   estimators as for `cereal_residue`, or `"pin"`, the pin's ratio as for
+#'   every other crop. See the "Non-cereal residue" section.
 #' @param oil_palm_residue How oil palm residue (fronds and trunks) is
 #'   obtained. One of:
 #'   - `"per_product"` (default): 60 Mt DM / 83.09 Mt of fresh fruit bunches
@@ -141,9 +148,11 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'    crop with residue mass carries no such coefficient, so the gap stays
 #'    visible rather than reading as zero.
 #' - `method_residue`: how the row's residue was estimated: the
-#'    `cereal_residue` method for a cereal, `"malaysia_nbs_per_product"` or
-#'    `"malaysia_nbs_per_hectare"` for oil palm unless `oil_palm_residue` is
-#'    `"pin"`, and `"pin"` for every other crop.
+#'    `cereal_residue` method for a cereal, the `non_cereal_residue` method
+#'    for a non-cereal crop with its own IPCC line,
+#'    `"malaysia_nbs_per_product"` or `"malaysia_nbs_per_hectare"` for oil
+#'    palm unless `oil_palm_residue` is `"pin"`, and `"pin"` for every other
+#'    crop.
 #'
 #' The pin's residue quantities are fresh matter. Across its crops the ratio of
 #' pinned residue to product tracks the fresh-matter residue:product ratio
@@ -259,9 +268,11 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 get_primary_residues <- function(
   example = FALSE,
   cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius"),
-  oil_palm_residue = c("per_product", "per_hectare", "pin")
+  oil_palm_residue = c("per_product", "per_hectare", "pin"),
+  non_cereal_residue = c("ipcc", "ensemble", "ratio", "pin")
 ) {
   cereal_residue <- rlang::arg_match(cereal_residue)
+  non_cereal_residue <- rlang::arg_match(non_cereal_residue)
   oil_palm_residue <- rlang::arg_match(oil_palm_residue)
   if (example) {
     return(.example_get_primary_residues())
@@ -274,10 +285,11 @@ get_primary_residues <- function(
   # turns back into the residue produced (#1195). See the pin-batch section
   # above for the measurement, and note that this is where the predecessor's
   # production series enters the commodity balance (#1054).
-  # `.residue_ratio_corrected()` then corrects that model's ratio (#1448), and
-  # `.residue_oil_palm_anchored()` replaces oil palm's outright (#1424).
-  # Cereal residue is recomputed from the pin's `Product` rows, so both kinds
-  # of row resolve their area here, once.
+  # `.residue_ratio_corrected()` then corrects that model's ratio (#1448,
+  # #1518), and `.residue_oil_palm_anchored()` replaces oil palm's outright
+  # (#1424). Cereal residue, and that of the non-cereals with an IPCC line, is
+  # recomputed from the pin's `Product` rows, so both kinds of row resolve
+  # their area here, once.
   pin <- "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>
@@ -289,7 +301,11 @@ get_primary_residues <- function(
     dplyr::filter(product_residue == "Residue") |>
     .warn_residues_no_area() |>
     .residue_gross_from_recovered() |>
-    .residue_ratio_corrected(products = products, method = cereal_residue) |>
+    .residue_ratio_corrected(
+      products = products,
+      method = cereal_residue,
+      non_cereal = non_cereal_residue
+    ) |>
     .residue_oil_palm_anchored(
       products = products,
       method = oil_palm_residue
