@@ -396,6 +396,27 @@
 #'   product was found, and a cigarette also holds paper and filter. Where the
 #'   products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
 #'   remainder stays as stock change. Only Tobacco rows from 2014 on move.
+#' @param nut_basis One of `"old_fbs"` (default) or `"new_fbs"`, selecting
+#'   which Food Balance Sheet vintage sets the level of FBS item 2551 `Nuts
+#'   and products` (whep#1495). The new vintage is not a coherent mass basis
+#'   for it: at 2010 its world imports are 13.57 Mt against 7.69 Mt of world
+#'   exports (1.76x; 1.65x at 2022) and its food, 19.47 Mt, exceeds the
+#'   14.29 Mt of nuts the world grew in shell, while its protein is about
+#'   the old vintage's. Regressed on species-level trade, its importers
+#'   convert kernels and prepared nuts to in-shell equivalent with factors
+#'   2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one flow lands
+#'   on two bases. The old vintage closes world trade (6.45 vs 6.51 Mt).
+#'
+#'   `"old_fbs"` keeps the old vintage as reported up to 2013 and puts the
+#'   new one on its level from 2014, multiplying each `(area, element)` by
+#'   the median old/new ratio over 2010-2013, clamped to the band the
+#'   forward scaling uses -- the old level with the new vintage's change over
+#'   time, as the palm-kernel fix already does. Those rows are labelled
+#'   `"FAOSTAT_FBS_New_rebased"`. The ratio is read from the pins whatever
+#'   years are built. `"new_fbs"` keeps FAOSTAT's new vintage and scales the
+#'   old one up to it, the behaviour before whep#1495, which carried the
+#'   excess back to 1961 (world 2551 imports at 2005: 10.57 Mt scaled against
+#'   5.03 Mt reported). Only item 2551 moves.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -579,7 +600,7 @@ build_commodity_balances <- function(
          supplied."
       )
     }
-    if (nut_basis != "old_fbs") {
+    if (nut_basis != "rebased") {
       cli::cli_warn(
         "{.arg nut_basis} is ignored when {.arg .fixed_data} is supplied."
       )
@@ -2904,6 +2925,9 @@ build_processing_coefs <- function(
     items
   )
 
+  # FBS 2551 trade on the old vintage's level (whep#1495)
+  inputs$fbs_new <- .rebase_fbs_trade(inputs$fbs_new, inputs$fbs_rebase)
+
   # Combine all sources
   cbs_raw_all <- .assemble_cbs_sources(
     inputs,
@@ -2914,7 +2938,10 @@ build_processing_coefs <- function(
   )
 
   # Select best value among sources
-  .select_best_source(cbs_raw_all, rebase = inputs$fbs_rebase)
+  .select_best_source(
+    cbs_raw_all,
+    rebased = attr(inputs$fbs_new, "rebased_keys")
+  )
 }
 
 .fix_palm_kernels <- function(inputs) {
@@ -3294,7 +3321,7 @@ build_processing_coefs <- function(
   dt
 }
 
-.select_best_source <- function(cbs_raw_all, rebase = NULL) {
+.select_best_source <- function(cbs_raw_all, rebased = NULL) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
   # Key on the integer `area_code`, not the `area` name: sources disagree on
   # the name for the same code (plain name vs periodized polity name, e.g.
@@ -3437,11 +3464,6 @@ build_processing_coefs <- function(
     )
   }
 
-  # The items whose level comes from FBS_Old instead (whep#1495). A key with
-  # a factor loses its FBS_New value wherever FBS_Old reports, so it has no
-  # overlap below and FBS_Old is not scaled for it.
-  wide <- .apply_fbs_rebase(wide, rebase)
-
   # --- Harmonize old and new FBS ---
   # Trust FBS_New as the reference. In the overlap period (2010-2013),
   # compute a scaling ratio to align FBS_Old to FBS_New level, then
@@ -3502,8 +3524,6 @@ build_processing_coefs <- function(
     source := data.table::fcase(
       !is.na(FAOSTAT_prod)                                                ,
       "FAOSTAT_prod"                                                      ,
-      rebased                                                             ,
-      "FAOSTAT_FBS_New_rebased"                                           ,
       !is.na(FAOSTAT_FBS_New)                                             ,
       "FAOSTAT_FBS_New"                                                   ,
       !is.na(FBS_Old_scaled) & !is.na(scale_new_old) & scale_new_old != 1 ,
@@ -3531,6 +3551,7 @@ build_processing_coefs <- function(
     value := 0
   ]
 
+  wide <- .label_fbs_rebased(wide, rebased)
   wide[area_lookup, area := i.area, on = "area_code"]
   wide <- .add_best_source_flag(wide, dt_raw, key_cols, primary_sources)
 
