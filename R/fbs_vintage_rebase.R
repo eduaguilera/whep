@@ -10,12 +10,12 @@
 #   export           7,690 kt          6,508 kt
 #   food            19,473 kt         14,876 kt
 #
-# World production of the ten species is 14,292 kt in shell (`faostat-production`,
-# element 5510), so the new vintage eats more nuts than the world grew, and its
-# world imports are 1.76x its world exports (1.62x to 1.70x every year to
-# 2022). A closed world cannot import what nobody exported; the old vintage
-# closes to 0.99x. Protein supply is about the same in both (0.89 vs 0.97 Mt),
-# so the extra mass carries no protein.
+# World production of the ten species is 14,292 kt in shell
+# (`faostat-production`, element 5510), so the new vintage eats more nuts than
+# the world grew, and its world imports are 1.76x its world exports (1.62x to
+# 1.70x every year to 2022). A closed world cannot import what nobody
+# exported; the old vintage closes to 0.99x. Protein supply is about the same
+# in both (0.89 vs 0.97 Mt), so the extra mass carries no protein.
 #
 # Where it comes from, regressing each country's FBS 2551 trade on its
 # species-level trade in `faostat-trade-totals` (166 importers, R^2 0.97; 151
