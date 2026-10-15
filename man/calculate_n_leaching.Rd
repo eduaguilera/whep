@@ -193,8 +193,9 @@ row aborts (\code{whep_leaching_excreta_species}).
 With \code{carry_over_by}, rows are threaded per key in year order: each row's
 \code{C_in} is the \code{retained_profile_n_t} of its key's previous row. A key's
 first row starts at the steady state of that year's fluxes,
-\verb{C_in = S r / (1 - r)} with \code{r = (1 - d) (1 - a_cn) (1 - f)} the share of
-the pool's input that stays (field \code{initial_pool_steady_state}); a key
+\verb{C_in = S r / (1 - r)}, where the share of the pool's input that stays is
+\code{(1 - d) (1 - a_cn) (1 - f)}, written \code{r} (field
+\code{initial_pool_steady_state}); a key
 whose first year does not drain has no finite steady state and starts at
 0 (field \code{initial_vadose_zero}). Later rows carry the field
 \code{carried_pool}. A key absent from a year of the run keeps its pool on the

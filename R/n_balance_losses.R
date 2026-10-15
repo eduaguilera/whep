@@ -328,8 +328,9 @@ calculate_soil_n2o <- function(
 #' With `carry_over_by`, rows are threaded per key in year order: each row's
 #' `C_in` is the `retained_profile_n_t` of its key's previous row. A key's
 #' first row starts at the steady state of that year's fluxes,
-#' `C_in = S r / (1 - r)` with `r = (1 - d) (1 - a_cn) (1 - f)` the share of
-#' the pool's input that stays (field `initial_pool_steady_state`); a key
+#' `C_in = S r / (1 - r)`, where the share of the pool's input that stays is
+#' `(1 - d) (1 - a_cn) (1 - f)`, written `r` (field
+#' `initial_pool_steady_state`); a key
 #' whose first year does not drain has no finite steady state and starts at
 #' 0 (field `initial_vadose_zero`). Later rows carry the field
 #' `carried_pool`. A key absent from a year of the run keeps its pool on the
