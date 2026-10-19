@@ -183,7 +183,14 @@ reader behind them – <code>excreta</code> is a livestock-pipeline output, not 
 readable input – so under the default <code>method_grazing = "whep"</code> a
 call that omits either is refused straight away, before any input is read.
 Pass <code>method_grazing = "lpjml"</code> to charge the grassland the model's
-own grazing and need neither.</p></dd>
+own grazing and need neither. Two optional entries are forwarded to
+<code><a href="build_carbon_inputs.html">build_carbon_inputs</a></code> for the rainfed/irrigated yield split
+of crop groups, also only when <code>c_inputs</code> is not supplied:
+<code>regime_ratio</code> (the <code><a href="build_regime_yield_ratio.html">build_regime_yield_ratio</a></code> table;
+pass the one <code><a href="build_nitrogen_balance.html">build_nitrogen_balance</a></code> used so both chains
+apply one ratio) and <code>regime_production</code> (the
+<code><a href="get_primary_production.html">get_primary_production</a></code> table the national yields and the
+yield bounds come from). Each is built when absent.</p></dd>
 
 
 <dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
@@ -209,7 +216,14 @@ cover of 0.85, an ASSUMED value with no sourced constant behind it yet.
 Soil cover is computed once per cover profile and joined to the classes,
 so the class count does not multiply the monthly climate table.
 <code>list(method = "none")</code> keeps the single <code>cropland</code> class the package
-used before.</p></dd>
+used before. The default <code>regime = "yield_split"</code> builds the
+irrigated:rainfed yield ratio when <code>data$regime_ratio</code> is not supplied
+(and <code>c_inputs</code> is not), which needs SPAM2010 (downloaded into the user
+cache on first use, so the first run needs network), the
+<code>lpjml-crop-regime-yield</code> pin (or <code>WHEP_LPJML_RUN_DIR</code>) and the FAOSTAT
+production, fertiliser and land-use pins plus <code>luh2-areas</code>; see
+<code><a href="build_carbon_inputs.html">build_carbon_inputs()</a></code>. <code>list(regime = "area_split")</code> needs none of
+them.</p></dd>
 
 
 <dt id="arg-class-water">class_water<a class="anchor" aria-label="anchor" href="#arg-class-water"></a></dt>

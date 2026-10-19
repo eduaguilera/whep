@@ -230,9 +230,23 @@ observation there as well as a symptom.</p><ul><li><p><code>bnf_input</code>: <c
 tibble (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>year</code>, <code>item_prod_code</code>,
 <code>item_cbs_code</code>, <code>product_dm_t</code>, <code>residue_dm_t</code>, <code>root_dm_t</code>,
 optionally <code>residue_soil_dm_t</code>). The <code>"recycling"</code> term's
-<code>n_input_t</code> is <code>root_n_t</code> plus <code>residue_soil_n_t</code> from
-<code><a href="calculate_npp_carbon_nitrogen.html">calculate_npp_carbon_nitrogen()</a></code>'s output, or plus <code>residue_n_t</code> when
-<code>residue_soil_n_t</code> is absent (see <code>method_recycling_n</code>).</p></li>
+<code>n_input_t</code> is <code>root_n_t</code> plus <code>residue_soil_n_t</code>, the residue N left
+on the field, from <code><a href="calculate_npp_carbon_nitrogen.html">calculate_npp_carbon_nitrogen()</a></code>'s output. When
+the input does not carry <code>residue_soil_dm_t</code>,
+<code><a href="calculate_residue_destinies.html">calculate_residue_destinies()</a></code> is applied to it first, with
+<code>residue_destiny_method</code>, <code>residue_destiny_recovery</code> and
+<code>residue_bedding_fraction</code> (see <code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code>; the same
+arguments split the residue removal outputs there) and the polity's
+<code>region_krausmann</code> and <code>region_un_sub</code> taken from <code>area_code</code> when the
+input does not carry them. An input that already carries
+<code>residue_soil_dm_t</code> is recycled on the caller's destinies, while
+<code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code> books its residue removals from
+<code>residue_destiny_input</code> with the arguments above: the soil-returned
+and the removed residue add up to the gross residue only when both
+come from the package's own destiny split.</p></li>
+<li><p><code>recycling_residue_basis</code>: <code>"residue_soil_returned"</code> (default) or
+<code>"total_residue"</code>, which recycles the gross residue N (<code>residue_n_t</code>),
+removed residue included. Recorded in <code>method_recycling_n</code>.</p></li>
 <li><p><code>livestock_intake</code>: <code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>'s <code>intake</code>
 argument (the <code><a href="redistribute_feed.html">redistribute_feed()</a></code> realised-intake contract), plus
 <code>gridded</code> (its land-surface layer) and <code>resolution</code>/<code>methods</code>
@@ -393,10 +407,10 @@ share came from (<code>"engine_livestock_category"</code>,
 only for want of a manure-type share, <code>"no_excreta_n"</code> for a row with no
 N). Both are <code>NA</code> for every other <code>fert_type</code>.
 <code>method_recycling_n</code> records which residue basis the <code>"recycling"</code> term
-used: <code>"residue_soil_returned"</code> when the upstream NPP input supplied
-<code>residue_soil_dm_t</code> (residue N net of removal for feed/fuel/burning) or
-<code>"total_residue"</code> when only gross residue N was available; it is <code>NA</code> for
-every other <code>fert_type</code>. <code>method_synthetic</code> records the synthetic
+used: <code>"residue_soil_returned"</code> (residue N net of removal for feed,
+bedding and burning) or <code>"total_residue"</code> (the gross residue N, only on
+request through <code>data$recycling_residue_basis</code>); it is <code>NA</code> for every
+other <code>fert_type</code>. <code>method_synthetic</code> records the synthetic
 crop-split basis (<code>"coello"</code> or <code>"area_share"</code>) on <code>"synthetic"</code> rows and
 is <code>NA</code> for every other <code>fert_type</code>. <code>method_deposition</code> records which
 deposition product the <code>"deposition"</code> term's field came from, read off

@@ -136,16 +136,44 @@ derivable, <code>area_ha</code> falls back to the harvested area the NPP input
 carries.</p></li>
 <li><p><code>residue_destiny_input</code>: <code><a href="calculate_residue_destinies.html">calculate_residue_destinies()</a></code>'s required
 input (<code>item_prod_code</code>, <code>residue_dm_t</code>, plus whatever the chosen
-<code>residue_destiny_method</code> needs), for <code>used_residue_n_t</code>/
-<code>bedding_residue_n_t</code>/<code>burnt_residue_n_t</code>. <code>residue_destiny_method</code>
-selects the method (default <code>"recovery_regional"</code>), <code>residue_bedding</code>
+<code>residue_destiny_method</code> needs; the polity's <code>region_krausmann</code> and
+<code>region_un_sub</code> are taken from <code>area_code</code> when absent), for
+<code>used_residue_n_t</code>/<code>bedding_residue_n_t</code>/<code>burnt_residue_n_t</code>.
+<code>residue_destiny_method</code> selects the method (default
+<code>"recovery_regional"</code>), <code>residue_destiny_recovery</code> its recovery-rate
+variant (default <code>"wirsenius"</code>, the package default), <code>residue_bedding</code>
 the bedding rule (default <code>"wirsenius"</code>, 12.4% of the recovered cereal
 straw) and, under <code>residue_bedding = "fraction"</code>,
 <code>residue_bedding_fraction</code> the share of the recovered non-feed residue
 used as bedding (default <code>0</code>; see <code><a href="calculate_residue_destinies.html">calculate_residue_destinies()</a></code>).
+The same arguments split the
+residue of <code>npp_n_input</code> for the <code>"recycling"</code> input of
+<code><a href="build_n_inputs.html">build_n_inputs()</a></code>, which returns to the soil only the residue left on
+the field (<code>recycling_residue_basis</code>, default
+<code>"residue_soil_returned"</code>; <code>"total_residue"</code> recycles the gross
+residue and is recorded in <code>method_recycling_n</code>). An <code>npp_n_input</code>
+that already carries <code>residue_soil_dm_t</code> keeps it: the recycling then
+uses the caller's destinies while the removal outputs use
+<code>residue_destiny_input</code> and these arguments, so the
+soil-returned and removed residue add up to the gross residue only
+when both come from the package's own destiny split.
 The bedded straw also comes back as a manure input, through
-<code><a href="build_n_inputs.html">build_n_inputs()</a></code>. <code>residue_feed_share</code> selects that function's
+<code><a href="build_n_inputs.html">build_n_inputs()</a></code>, read from the same split as
+<code>bedding_residue_n_t</code>. <code>residue_feed_share</code> selects that split's
 <code>feed_share</code> (default <code>"wirsenius"</code>).</p></li>
+<li><p><code>regime_areas</code>, <code>regime_ratio</code>, <code>regime_production</code>, <code>regime_shares</code>:
+the rainfed/irrigated split's inputs (see Details), each read or built
+when absent: the rainfed and irrigated hectares per cell and
+production item (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>item_prod_code</code>, <code>year</code>,
+<code>rainfed_ha</code>, <code>irrigated_ha</code>; built with <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code>),
+the <code><a href="build_regime_yield_ratio.html">build_regime_yield_ratio()</a></code> table (built on the NPP rows; pass
+the table <code><a href="build_carbon_inputs.html">build_carbon_inputs()</a></code> reads to make both chains apply one
+ratio), and the <code><a href="get_primary_production.html">get_primary_production()</a></code> table the yield bounds of
+<code><a href="split_regime_yield.html">split_regime_yield()</a></code> are pooled from. <code>regime_shares</code> replaces all
+three with pre-built shares per grid key (<code>lon</code>, <code>lat</code>, <code>area_code</code>,
+<code>item_cbs_code</code>, <code>year</code>, <code>irrigated_area_share</code>,
+<code>irrigated_yield_share</code>), which carry no production item: the residue
+terms then follow the production share.</p></li>
 <li><p><code>livestock_intake</code>: shared with <code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s manure term;
 its <code>"grass"</code> <code>feed_quality</code> rows drive <code>grazed_weeds_n_t</code>.</p></li>
 <li><p><code>carbon_balance</code>: shared with <code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s <code>"som_ mineralization"</code> term; its <code>son_change_kgn_ha</code> drives <code>som_ sequestration_n_t</code>.</p></li>
@@ -240,7 +268,15 @@ and <code>method_regime_split</code> when the split ran (<code>"yield_ratio"</co
 expressed in fresh weight and the area share was used for everything;
 <code>"regime_shares"</code> for shares supplied as <code>data$regime_shares</code>; or
 <code>"no_regime_share"</code> for a row booked wholly rainfed because the regime
-layer does not cover it), plus the polity columns below. When the
+layer does not cover it), and <code>method_residue_regime</code>, how the row's
+residue terms were split, the rules of its production items joined by
+<code>"|"</code>: <code>"part_yield"</code> (re-evaluated at a rainfed part's yield),
+<code>"part_yield_irrigation_terms"</code> (re-evaluated at an irrigated part's
+yield, with the model's irrigation terms), <code>"crop_density"</code> (the item's
+per-hectare values on the part's area: no part yield, or
+<code>"area_split"</code>) or <code>"yield_share"</code> (the production share, for shares
+supplied without production items), <code>NA</code> on a row with no residue
+term, plus the polity columns below. When the
 supplied <code>n_inputs</code> carry them, the
 <code>method_recycling_n</code>, <code>method_synthetic</code>, <code>method_deposition</code>,
 <code>method_deposition_scope</code>, <code>method_human_population</code>,
@@ -258,17 +294,40 @@ regime-specific loss drivers can attach. Two shares per row drive it:
 the irrigated share of the crop's cell area, from the spatialization
 chain's rainfed/irrigated hectares (<code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code>), and the
 irrigated share of its production, from <code><a href="split_regime_yield.html">split_regime_yield()</a></code> on the
-ratio of <code><a href="build_regime_yield_ratio.html">build_regime_yield_ratio()</a></code>. Synthetic N, production N and the
-residue destinies (used, bedding, burnt) split by the production share,
-on the assumption that N availability per unit of yield is the same in
-both regimes; every other input, the harvested area, grazed weeds and SOM
-sequestration split by the area share. Summing the two parts reproduces
-the unsplit balance for every additive column. <code>"area_split"</code> uses the
-area share for everything and <code>"none"</code> returns the unsplit balance. The
-shares can be supplied as <code>data$regime_shares</code> (<code>lon</code>, <code>lat</code>,
-<code>area_code</code>, <code>item_cbs_code</code>, <code>year</code>, <code>irrigated_area_share</code>,
-<code>irrigated_yield_share</code>). Loss-driver tables without a <code>water_regime</code>
-column apply to both parts.</p>
+ratio of <code><a href="build_regime_yield_ratio.html">build_regime_yield_ratio()</a></code>. Synthetic N and production N split
+by the production share, on the assumption that N availability per unit
+of yield is the same in both regimes; every other input, the harvested
+area, grazed weeds and SOM sequestration split by the area share. The
+residue terms – the residue and root N returned to soil
+(<code>"recycling"</code>) and the used, bedding and burnt residue N – are
+evaluated per part: for each production item of the row, the parts'
+yields keep its production (<code>Y_r = Y / (1 + s (R - 1))</code>, <code>Y_i = R Y_r</code>),
+and each part carries the item's residue and root N per hectare times
+the response of <code><a href="calculate_crop_residues.html">calculate_crop_residues()</a></code> and <code><a href="calculate_crop_roots.html">calculate_crop_roots()</a></code>
+from the item's mean yield to the part's yield, in the part's water
+regime, so the model's irrigation terms (a lower residue ratio for the
+crop groups that respond, a lower root:shoot ratio) apply to the
+irrigated part. On the default chains, whose NPP input is built with the
+polity's <code>region_hanpp</code> and without <code>n_input_kg_ha</code>, the item's residue
+and root per hectare are the model's at its mean yield, so each part's
+are the model's at the part's own yield; with any other NPP input they
+are the item's own density scaled by the model's response. Residue and
+root are affine in yield, so a high-yield hectare carries less than its
+yield share. Summing the two parts
+reproduces the unsplit balance for every additive column except the
+residue terms and the totals that contain them, which sum to the parts'
+evaluation instead: with the irrigation terms, the residue and root N of
+irrigated land fall. The bedded straw the manure input brings back is
+the parts' bedding: when the balance builds its own inputs and beds any
+straw, each production item's bedding is scaled by its factor over the
+two parts before it reaches the manure engine, so the manure columns,
+too, differ from an unsplit run by the bedding the irrigation terms take
+off, and the bedded N that leaves the field is still the bedded N that
+returns. A non-zero residue term at a key the per-item
+evaluation does not cover means the balance's inputs and the NPP-N table
+disagree, and aborts. <code>"area_split"</code> uses the area share for everything,
+residue terms included, and <code>"none"</code> returns the unsplit balance.
+Loss-driver tables without a <code>water_regime</code> column apply to both parts.</p>
 <p><code>polity_validity</code> is forwarded to <code><a href="build_n_inputs.html">build_n_inputs()</a></code> – which forwards it in
 turn to <code><a href="build_ag_land_support.html">build_ag_land_support()</a></code>, <code><a href="build_n_deposition.html">build_n_deposition()</a></code>, <code><a href="build_human_n.html">build_human_n()</a></code>
 and <code><a href="spatialize_country_n_to_crops.html">spatialize_country_n_to_crops()</a></code> – and then applied to the balance rows

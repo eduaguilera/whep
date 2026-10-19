@@ -182,6 +182,19 @@ and Hemp dominance.</p></li>
 fractions <code>stand_frac_rainfed</code>, <code>stand_frac_irrigated</code>. Only rows in
 1994-2023 are used.</p></li>
 <li><p><code>lpjml_grid</code>: the cells (<code>lon</code>, <code>lat</code>) the LPJmL run's output covers.</p></li>
+<li><p><code>cache</code>: an environment (<code><a href="https://rdrr.io/r/base/environment.html" class="external-link">new.env()</a></code>) that keeps what the inputs that do
+not depend on the cells are reduced to: the SPAM2010 country totals, the
+synthetic nitrogen series, the LUH2 cropland, the Linum and Hemp
+production, and the LPJmL 1994-2023 stand sums and grid. The first call
+that needs one reads it and stores it, and a later call with the same
+<code>cache</code> reuses it instead of reading it again, so a build that calls
+this function once per year reads each of them once. Every call must
+share <code>run_dir</code> and the <code>spam</code>, <code>fertilizer</code>, <code>luh2</code>,
+<code>faostat_production</code>, <code>lpjml_window</code> and <code>lpjml_grid</code> members, because
+the cache is not keyed by them. <code>cropland</code> and <code>lpjml</code> depend on the
+years of <code>cells</code> and are not kept, and neither is the country LPJmL
+normaliser, which pools the cells of each call: the ratio of a call is
+the same with or without a <code>cache</code>.</p></li>
 </ul></dd>
 
 

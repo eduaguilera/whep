@@ -67,7 +67,20 @@ assembled per the WHEP historical carbon-balance design.
   reads, so the weights and the carbon they weight can never come from
   two different crosswalks. When `cropland` or `grass_natural` are
   absent the respective builder is called with the remaining members of
-  `data`.
+  `data`. The yield split of `crop_groups$regime` reads three more, each
+  built when absent: `regime_ratio`
+  ([`build_regime_yield_ratio()`](https://eduaguilera.github.io/whep/reference/build_regime_yield_ratio.md)
+  output; built on the crop rows that carry a share and a national
+  yield, so pass the table
+  [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+  used to make both chains read one ratio); `regime_production`
+  ([`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
+  output, for each crop's national yield and the yield bounds; read for
+  `years` and for 1961-2023 when absent); and `residue_humification`
+  (defaults to
+  [residue_humification](https://eduaguilera.github.io/whep/reference/residue_humification.md)),
+  whose residue and root coefficients re-weight each part's humified
+  fraction.
 
 - years:
 
@@ -98,7 +111,48 @@ assembled per the WHEP historical carbon-balance design.
   `"none"` puts every crop in its rainfed group. Recorded in
   `method_c_input`. A pre-built share layer can be supplied as
   `data$crop_regime_share` (`lon`, `lat`, `area_code`, `item_prod_code`,
-  `year`, `irrigated_share`).
+  `year`, `irrigated_share`). `regime`: how a crop's carbon per hectare
+  differs between its rainfed and irrigated parts. `"yield_split"`
+  (default) re-evaluates each part's residue and root at the part's own
+  yield. The parts' yields keep the crop's production, with the
+  irrigated:rainfed yield ratio `R` of the cell-crop-year that
+  [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+  splits synthetic nitrogen with (the bounded `ratio` of
+  [`split_regime_yield()`](https://eduaguilera.github.io/whep/reference/split_regime_yield.md)
+  on
+  [`build_regime_yield_ratio()`](https://eduaguilera.github.io/whep/reference/build_regime_yield_ratio.md)):
+  with irrigated share `s` and mean yield `Y`,
+  `Y_r = Y / (1 + s (R - 1))` and `Y_i = R Y_r`. Each part carries the
+  crop's residue and root carbon per hectare times the response of
+  [`calculate_crop_residues()`](https://eduaguilera.github.io/whep/reference/calculate_crop_residues.md)
+  and
+  [`calculate_crop_roots()`](https://eduaguilera.github.io/whep/reference/calculate_crop_roots.md)
+  from the crop's mean yield to the part's yield, evaluated in the
+  part's water regime, so the model's irrigation terms (a lower residue
+  ratio for the crop groups that respond, a lower root:shoot ratio)
+  apply to the irrigated part. Residue and root are affine in yield, so
+  a high-yield hectare carries less than its yield share, and with the
+  irrigation terms the crop's residue and root carbon fall on irrigated
+  land rather than being kept. A crop wholly in one regime is
+  re-evaluated at its mean yield in that regime. Weed and manure carbon
+  keep the crop's density on both parts. `"area_split"` keeps the crop's
+  densities on both parts, the rule before the yield split. Recorded per
+  class in `method_regime`.
+
+  **Inputs the default needs.** Unless `data$regime_ratio` and
+  `data$regime_production` are supplied, `"yield_split"` builds the
+  ratio with
+  [`build_regime_yield_ratio()`](https://eduaguilera.github.io/whep/reference/build_regime_yield_ratio.md)
+  and the national yields with
+  [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md),
+  which read: SPAM2010
+  ([`read_spam_yields()`](https://eduaguilera.github.io/whep/reference/read_spam_yields.md),
+  downloaded from Harvard Dataverse into the user cache on first use, so
+  the first run needs network, unless `WHEP_SPAM_DIR` points at a copy);
+  the LPJmL crop regime yields (the `lpjml-crop-regime-yield` pin, or
+  the run in `WHEP_LPJML_RUN_DIR` when set); and the FAOSTAT pins for
+  production, fertiliser nutrients and land use, plus the `luh2-areas`
+  pin. `"area_split"` builds no ratio and reads none of them.
 
 - density_basis:
 
@@ -243,7 +297,37 @@ resolution (or `(area_code, year, land_use)` at `"polity"`), with
 `method_manure_placement` (all `NA` on the grassland and natural
 classes, which are neither spatialized from polity-crop totals nor
 collapsed from crops), for `land_use` in `"cropland"`, `"grassland"` and
-`"natural"`, plus the polity columns below.
+`"natural"`, plus the polity columns below. Cropland groups also carry
+the regime split, `NA` on the single `"cropland"` class and on grassland
+and natural:
+
+- `method_regime`: the `crop_groups$regime` rule, `"yield_split"` or
+  `"area_split"`.
+
+- `method_regime_split`: the split rules of the class's crop parts,
+  sorted and joined by `"|"`: `"yield_ratio"` (part yields from the
+  regime yield ratio), `"trivial_rainfed_only"` and
+  `"trivial_irrigated_only"` (the crop has one regime in the cell),
+  `"no_ratio"` (no ratio for the cell-crop-year), `"area_no_production"`
+  (no national yield), `"area_no_components"` (the per-crop layer has no
+  residue and root densities), `"area_split"` (asked for) and
+  `"no_regime_share"` (no irrigated share; booked rainfed). The last
+  five keep the crop's own densities on both parts.
+
+- `method_residue_regime`: how the parts' residue and root were set,
+  joined the same way: `"part_yield"` (re-evaluated at a rainfed part's
+  yield), `"part_yield_irrigation_terms"` (re-evaluated at an irrigated
+  part's yield, with the model's irrigation terms) or `"crop_density"`
+  (the crop's own density).
+
+- `yield_split_c_share`: the share of the class's carbon input from crop
+  parts re-evaluated at the part yields of the regime yield ratio (rule
+  `"yield_ratio"`).
+
+- `method_regime_cn`: how the parts' input C:N was formed, joined the
+  same way: `"part_input_cn"` (from the part's own components' carbon
+  and nitrogen) or `"crop_input_cn"` (the crop's, where the per-crop
+  layer carries no component nitrogen).
 
 ## Polity columns
 

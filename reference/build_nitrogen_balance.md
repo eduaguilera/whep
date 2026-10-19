@@ -100,18 +100,54 @@ build_nitrogen_balance(
   - `residue_destiny_input`:
     [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)'s
     required input (`item_prod_code`, `residue_dm_t`, plus whatever the
-    chosen `residue_destiny_method` needs), for `used_residue_n_t`/
-    `bedding_residue_n_t`/`burnt_residue_n_t`. `residue_destiny_method`
-    selects the method (default `"recovery_regional"`),
+    chosen `residue_destiny_method` needs; the polity's
+    `region_krausmann` and `region_un_sub` are taken from `area_code`
+    when absent), for
+    `used_residue_n_t`/`bedding_residue_n_t`/`burnt_residue_n_t`.
+    `residue_destiny_method` selects the method (default
+    `"recovery_regional"`), `residue_destiny_recovery` its recovery-rate
+    variant (default `"wirsenius"`, the package default),
     `residue_bedding` the bedding rule (default `"wirsenius"`, 12.4% of
     the recovered cereal straw) and, under
     `residue_bedding = "fraction"`, `residue_bedding_fraction` the share
     of the recovered non-feed residue used as bedding (default `0`; see
     [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)).
-    The bedded straw also comes back as a manure input, through
-    [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md).
-    `residue_feed_share` selects that function's `feed_share` (default
+    The same arguments split the residue of `npp_n_input` for the
+    `"recycling"` input of
+    [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md),
+    which returns to the soil only the residue left on the field
+    (`recycling_residue_basis`, default `"residue_soil_returned"`;
+    `"total_residue"` recycles the gross residue and is recorded in
+    `method_recycling_n`). An `npp_n_input` that already carries
+    `residue_soil_dm_t` keeps it: the recycling then uses the caller's
+    destinies while the removal outputs use `residue_destiny_input` and
+    these arguments, so the soil-returned and removed residue add up to
+    the gross residue only when both come from the package's own destiny
+    split. The bedded straw also comes back as a manure input, through
+    [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md),
+    read from the same split as `bedding_residue_n_t`.
+    `residue_feed_share` selects that split's `feed_share` (default
     `"wirsenius"`).
+
+  - `regime_areas`, `regime_ratio`, `regime_production`,
+    `regime_shares`: the rainfed/irrigated split's inputs (see Details),
+    each read or built when absent: the rainfed and irrigated hectares
+    per cell and production item (`lon`, `lat`, `area_code`,
+    `item_prod_code`, `year`, `rainfed_ha`, `irrigated_ha`; built with
+    [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)),
+    the
+    [`build_regime_yield_ratio()`](https://eduaguilera.github.io/whep/reference/build_regime_yield_ratio.md)
+    table (built on the NPP rows; pass the table
+    [`build_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_carbon_inputs.md)
+    reads to make both chains apply one ratio), and the
+    [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
+    table the yield bounds of
+    [`split_regime_yield()`](https://eduaguilera.github.io/whep/reference/split_regime_yield.md)
+    are pooled from. `regime_shares` replaces all three with pre-built
+    shares per grid key (`lon`, `lat`, `area_code`, `item_cbs_code`,
+    `year`, `irrigated_area_share`, `irrigated_yield_share`), which
+    carry no production item: the residue terms then follow the
+    production share.
 
   - `livestock_intake`: shared with
     [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)'s
@@ -225,7 +261,15 @@ it was obtained (`method_moisture_regime`) and `climate_fill_km`,
 could not be expressed in fresh weight and the area share was used for
 everything; `"regime_shares"` for shares supplied as
 `data$regime_shares`; or `"no_regime_share"` for a row booked wholly
-rainfed because the regime layer does not cover it), plus the polity
+rainfed because the regime layer does not cover it), and
+`method_residue_regime`, how the row's residue terms were split, the
+rules of its production items joined by `"|"`: `"part_yield"`
+(re-evaluated at a rainfed part's yield),
+`"part_yield_irrigation_terms"` (re-evaluated at an irrigated part's
+yield, with the model's irrigation terms), `"crop_density"` (the item's
+per-hectare values on the part's area: no part yield, or `"area_split"`)
+or `"yield_share"` (the production share, for shares supplied without
+production items), `NA` on a row with no residue term, plus the polity
 columns below. When the supplied `n_inputs` carry them, the
 `method_recycling_n`, `method_synthetic`, `method_deposition`,
 `method_deposition_scope`, `method_human_population`,
@@ -248,16 +292,42 @@ and the irrigated share of its production, from
 [`split_regime_yield()`](https://eduaguilera.github.io/whep/reference/split_regime_yield.md)
 on the ratio of
 [`build_regime_yield_ratio()`](https://eduaguilera.github.io/whep/reference/build_regime_yield_ratio.md).
-Synthetic N, production N and the residue destinies (used, bedding,
-burnt) split by the production share, on the assumption that N
-availability per unit of yield is the same in both regimes; every other
-input, the harvested area, grazed weeds and SOM sequestration split by
-the area share. Summing the two parts reproduces the unsplit balance for
-every additive column. `"area_split"` uses the area share for everything
-and `"none"` returns the unsplit balance. The shares can be supplied as
-`data$regime_shares` (`lon`, `lat`, `area_code`, `item_cbs_code`,
-`year`, `irrigated_area_share`, `irrigated_yield_share`). Loss-driver
-tables without a `water_regime` column apply to both parts.
+Synthetic N and production N split by the production share, on the
+assumption that N availability per unit of yield is the same in both
+regimes; every other input, the harvested area, grazed weeds and SOM
+sequestration split by the area share. The residue terms – the residue
+and root N returned to soil (`"recycling"`) and the used, bedding and
+burnt residue N – are evaluated per part: for each production item of
+the row, the parts' yields keep its production
+(`Y_r = Y / (1 + s (R - 1))`, `Y_i = R Y_r`), and each part carries the
+item's residue and root N per hectare times the response of
+[`calculate_crop_residues()`](https://eduaguilera.github.io/whep/reference/calculate_crop_residues.md)
+and
+[`calculate_crop_roots()`](https://eduaguilera.github.io/whep/reference/calculate_crop_roots.md)
+from the item's mean yield to the part's yield, in the part's water
+regime, so the model's irrigation terms (a lower residue ratio for the
+crop groups that respond, a lower root:shoot ratio) apply to the
+irrigated part. On the default chains, whose NPP input is built with the
+polity's `region_hanpp` and without `n_input_kg_ha`, the item's residue
+and root per hectare are the model's at its mean yield, so each part's
+are the model's at the part's own yield; with any other NPP input they
+are the item's own density scaled by the model's response. Residue and
+root are affine in yield, so a high-yield hectare carries less than its
+yield share. Summing the two parts reproduces the unsplit balance for
+every additive column except the residue terms and the totals that
+contain them, which sum to the parts' evaluation instead: with the
+irrigation terms, the residue and root N of irrigated land fall. The
+bedded straw the manure input brings back is the parts' bedding: when
+the balance builds its own inputs and beds any straw, each production
+item's bedding is scaled by its factor over the two parts before it
+reaches the manure engine, so the manure columns, too, differ from an
+unsplit run by the bedding the irrigation terms take off, and the bedded
+N that leaves the field is still the bedded N that returns. A non-zero
+residue term at a key the per-item evaluation does not cover means the
+balance's inputs and the NPP-N table disagree, and aborts.
+`"area_split"` uses the area share for everything, residue terms
+included, and `"none"` returns the unsplit balance. Loss-driver tables
+without a `water_regime` column apply to both parts.
 
 `polity_validity` is forwarded to
 [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)

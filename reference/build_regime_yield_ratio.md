@@ -110,6 +110,22 @@ products. Smil, V. (2001) *Enriching the Earth*, MIT Press.
   - `lpjml_grid`: the cells (`lon`, `lat`) the LPJmL run's output
     covers.
 
+  - `cache`: an environment
+    ([`new.env()`](https://rdrr.io/r/base/environment.html)) that keeps
+    what the inputs that do not depend on the cells are reduced to: the
+    SPAM2010 country totals, the synthetic nitrogen series, the LUH2
+    cropland, the Linum and Hemp production, and the LPJmL 1994-2023
+    stand sums and grid. The first call that needs one reads it and
+    stores it, and a later call with the same `cache` reuses it instead
+    of reading it again, so a build that calls this function once per
+    year reads each of them once. Every call must share `run_dir` and
+    the `spam`, `fertilizer`, `luh2`, `faostat_production`,
+    `lpjml_window` and `lpjml_grid` members, because the cache is not
+    keyed by them. `cropland` and `lpjml` depend on the years of `cells`
+    and are not kept, and neither is the country LPJmL normaliser, which
+    pools the cells of each call: the ratio of a call is the same with
+    or without a `cache`.
+
 - example:
 
   If `TRUE`, return a small fixture instead of building the ratio.

@@ -165,10 +165,29 @@ build_n_inputs(
     required input tibble (`lon`, `lat`, `area_code`, `year`,
     `item_prod_code`, `item_cbs_code`, `product_dm_t`, `residue_dm_t`,
     `root_dm_t`, optionally `residue_soil_dm_t`). The `"recycling"`
-    term's `n_input_t` is `root_n_t` plus `residue_soil_n_t` from
+    term's `n_input_t` is `root_n_t` plus `residue_soil_n_t`, the
+    residue N left on the field, from
     [`calculate_npp_carbon_nitrogen()`](https://eduaguilera.github.io/whep/reference/calculate_npp_carbon_nitrogen.md)'s
-    output, or plus `residue_n_t` when `residue_soil_n_t` is absent (see
-    `method_recycling_n`).
+    output. When the input does not carry `residue_soil_dm_t`,
+    [`calculate_residue_destinies()`](https://eduaguilera.github.io/whep/reference/calculate_residue_destinies.md)
+    is applied to it first, with `residue_destiny_method`,
+    `residue_destiny_recovery` and `residue_bedding_fraction` (see
+    [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md);
+    the same arguments split the residue removal outputs there) and the
+    polity's `region_krausmann` and `region_un_sub` taken from
+    `area_code` when the input does not carry them. An input that
+    already carries `residue_soil_dm_t` is recycled on the caller's
+    destinies, while
+    [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+    books its residue removals from `residue_destiny_input` with the
+    arguments above: the soil-returned and the removed residue add up to
+    the gross residue only when both come from the package's own destiny
+    split.
+
+  - `recycling_residue_basis`: `"residue_soil_returned"` (default) or
+    `"total_residue"`, which recycles the gross residue N
+    (`residue_n_t`), removed residue included. Recorded in
+    `method_recycling_n`.
 
   - `livestock_intake`:
     [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md)'s
@@ -374,14 +393,14 @@ row has none (`"fallback_label_no_species"` for manure the engine
 labelled excreta only for want of a manure-type share, `"no_excreta_n"`
 for a row with no N). Both are `NA` for every other `fert_type`.
 `method_recycling_n` records which residue basis the `"recycling"` term
-used: `"residue_soil_returned"` when the upstream NPP input supplied
-`residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
-`"total_residue"` when only gross residue N was available; it is `NA`
-for every other `fert_type`. `method_synthetic` records the synthetic
-crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows
-and is `NA` for every other `fert_type`. `method_deposition` records
-which deposition product the `"deposition"` term's field came from, read
-off the supplied `nhx`/`noy` by
+used: `"residue_soil_returned"` (residue N net of removal for feed,
+bedding and burning) or `"total_residue"` (the gross residue N, only on
+request through `data$recycling_residue_basis`); it is `NA` for every
+other `fert_type`. `method_synthetic` records the synthetic crop-split
+basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and is `NA`
+for every other `fert_type`. `method_deposition` records which
+deposition product the `"deposition"` term's field came from, read off
+the supplied `nhx`/`noy` by
 [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
 (`"hani"` for
 [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)'s

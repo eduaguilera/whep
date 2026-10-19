@@ -136,7 +136,18 @@ historical reconstruction.
   livestock-pipeline output, not a readable input – so under the default
   `method_grazing = "whep"` a call that omits either is refused straight
   away, before any input is read. Pass `method_grazing = "lpjml"` to
-  charge the grassland the model's own grazing and need neither.
+  charge the grassland the model's own grazing and need neither. Two
+  optional entries are forwarded to
+  [`build_carbon_inputs`](https://eduaguilera.github.io/whep/reference/build_carbon_inputs.md)
+  for the rainfed/irrigated yield split of crop groups, also only when
+  `c_inputs` is not supplied: `regime_ratio` (the
+  [`build_regime_yield_ratio`](https://eduaguilera.github.io/whep/reference/build_regime_yield_ratio.md)
+  table; pass the one
+  [`build_nitrogen_balance`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+  used so both chains apply one ratio) and `regime_production` (the
+  [`get_primary_production`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
+  table the national yields and the yield bounds come from). Each is
+  built when absent.
 
 - years:
 
@@ -165,7 +176,15 @@ historical reconstruction.
   value with no sourced constant behind it yet. Soil cover is computed
   once per cover profile and joined to the classes, so the class count
   does not multiply the monthly climate table. `list(method = "none")`
-  keeps the single `cropland` class the package used before.
+  keeps the single `cropland` class the package used before. The default
+  `regime = "yield_split"` builds the irrigated:rainfed yield ratio when
+  `data$regime_ratio` is not supplied (and `c_inputs` is not), which
+  needs SPAM2010 (downloaded into the user cache on first use, so the
+  first run needs network), the `lpjml-crop-regime-yield` pin (or
+  `WHEP_LPJML_RUN_DIR`) and the FAOSTAT production, fertiliser and
+  land-use pins plus `luh2-areas`; see
+  [`build_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_carbon_inputs.md).
+  `list(regime = "area_split")` needs none of them.
 
 - class_water:
 

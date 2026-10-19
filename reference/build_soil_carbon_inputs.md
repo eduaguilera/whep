@@ -205,12 +205,17 @@ A tibble keyed by `(lon, lat, area_code, item_prod_code, year)` at
 `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-`humified_fraction`, `method_c_input`, `method_unspatialized`,
-`method_crop_weights`, `method_manure_placement` and `crop_area_ha` –
-the crop's area at that grain on the basis the densities are computed
-on: the FAOSTAT-renormalised cell area where a national harvested area
-was supplied, the spatialized area otherwise, so a consumer can recover
-the carbon mass without re-deriving it – plus the polity columns below.
+`input_cn` (the C:N of the components whose nitrogen is known),
+`input_n_mgn_ha_yr` (their nitrogen, Mg N per hectare per year, so
+`input_cn` times it is their carbon), `residue_n_mgn_ha_yr` and
+`root_n_mgn_ha_yr` (the soil-returned residue and root nitrogen within
+it, `NA` where unknown), `humified_fraction`, `method_c_input`,
+`method_unspatialized`, `method_crop_weights`, `method_manure_placement`
+and `crop_area_ha` – the crop's area at that grain on the basis the
+densities are computed on: the FAOSTAT-renormalised cell area where a
+national harvested area was supplied, the spatialized area otherwise, so
+a consumer can recover the carbon mass without re-deriving it – plus the
+polity columns below.
 
 ## Polity columns
 
