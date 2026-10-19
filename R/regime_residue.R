@@ -11,7 +11,8 @@
 # regime switches the model's irrigation terms on for the irrigated part: the
 # residue terms times `residue_ratio_factor` scaled by the crop group's
 # `irr_residue_sensitivity`, and the root:shoot ratio times `rs_ratio_factor`
-# (`irrigation_adj`, `irr_residue_crop_adj`). Each part then carries its
+# for every crop but paddy rice (`irrigation_adj`, `irr_residue_crop_adj`;
+# whep#1536). Each part then carries its
 # crop's residue (root) per hectare times
 #   model(part yield, part regime) / model(mean yield, no regime),
 # the denominator being the evaluation the crop's own residue and root come
