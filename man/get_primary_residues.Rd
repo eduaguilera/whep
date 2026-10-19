@@ -195,7 +195,13 @@ The anchor is a gross residue, so it replaces the pin's figure after the
 recovery rate has been undone and the ratio re-keyed; neither touches it.
 The anchored dry matter is converted to fresh mass with the oil palm
 \code{Residue_kgDM_kgFM} of \link{biomass_coefs}, so \code{value_dm} is the anchor
-exactly.
+exactly. That coefficient is 0.396, the dry matter of fresh oil palm fronds
+(39.6\% as fed, n = 3) in Heuzé, Tran, Sauvant & Lebas (2015), \emph{Oil palm
+fronds and oil palm crop residues}, Feedipedia,
+\url{https://www.feedipedia.org/node/6916} (whep#1516). Fronds are 46 of the
+60 Mt; trunks, whose sap is 75-80\% of their weight, are wetter, so the
+fresh mass is if anything understated. It sets the fresh mass booked to
+\code{Firewood}, not the dry matter.
 }
 
 \section{The batch pin on the build path}{
