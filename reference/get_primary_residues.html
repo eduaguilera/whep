@@ -47,7 +47,8 @@
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_primary_residues</span><span class="op">(</span></span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  cereal_residue <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ipcc"</span>, <span class="st">"ensemble"</span>, <span class="st">"ratio"</span>, <span class="st">"wirsenius"</span><span class="op">)</span>,</span>
-<span>  oil_palm_residue <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"per_product"</span>, <span class="st">"per_hectare"</span>, <span class="st">"pin"</span><span class="op">)</span></span>
+<span>  oil_palm_residue <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"per_product"</span>, <span class="st">"per_hectare"</span>, <span class="st">"pin"</span><span class="op">)</span>,</span>
+<span>  non_cereal_residue <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ipcc"</span>, <span class="st">"ensemble"</span>, <span class="st">"ratio"</span>, <span class="st">"pin"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -93,6 +94,16 @@ where the per-tonne ratio drifts (0.656 at 2012).</p></li>
 and the ratio re-keyed like every other non-cereal crop.</p></li>
 </ul><p>See the "Oil palm residue" section.</p></dd>
 
+
+<dt id="arg-non-cereal-residue">non_cereal_residue<a class="anchor" aria-label="anchor" href="#arg-non-cereal-residue"></a></dt>
+<dd><p>How the residue of a non-cereal crop with its
+own line in IPCC (2006) Table 11.2 is estimated: soybean, groundnut, dry
+beans, peas, chickpeas, lentils and the other pulses, potato, and,
+through IPCC's "Tubers" line, cassava, sweet potato, yams and the other
+roots. One of <code>"ipcc"</code> (default), <code>"ensemble"</code> and <code>"ratio"</code>, the same
+estimators as for <code>cereal_residue</code>, or <code>"pin"</code>, the pin's ratio as for
+every other crop. See the "Non-cereal residue" section.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -118,9 +129,11 @@ fresh residue times its own residue dry-matter content,
 crop with residue mass carries no such coefficient, so the gap stays
 visible rather than reading as zero.</p></li>
 <li><p><code>method_residue</code>: how the row's residue was estimated: the
-<code>cereal_residue</code> method for a cereal, <code>"malaysia_nbs_per_product"</code> or
-<code>"malaysia_nbs_per_hectare"</code> for oil palm unless <code>oil_palm_residue</code> is
-<code>"pin"</code>, and <code>"pin"</code> for every other crop.</p></li>
+<code>cereal_residue</code> method for a cereal, the <code>non_cereal_residue</code> method
+for a non-cereal crop with its own IPCC line,
+<code>"malaysia_nbs_per_product"</code> or <code>"malaysia_nbs_per_hectare"</code> for oil
+palm unless <code>oil_palm_residue</code> is <code>"pin"</code>, and <code>"pin"</code> for every other
+crop.</p></li>
 </ul><p>The pin's residue quantities are fresh matter. Across its crops the ratio of
 pinned residue to product tracks the fresh-matter residue:product ratio
 <code>kg_residue_kg_product_FM</code> of <a href="biomass_coefs.html">biomass_coefs</a> (about 0.8 of it for nearly
@@ -138,8 +151,11 @@ used, and on the real pin the result equals the predecessor's gross residue
 on all 427,584 rows where both exist. Where that rate is 0 (fodder crops
 in seven of the eight regions; roots and tubers, cassava, sugar beet and
 dry beans in West Europe and in North America and Oceania) the
-pin holds 0 and the gross residue cannot be recovered from it, so those
-crops carry no residue here, as before.</p>
+pin holds 0 and the gross residue cannot be recovered from it. Fodder
+crops and sugar beet carry no residue there, as before; roots and tubers,
+cassava and dry beans are estimated from yield (see "Non-cereal residue")
+and so carry the residue they produce, of which the recovery rate of 0
+downstream recovers nothing.</p>
 <p>The ratio behind the pin's gross residue is the fresh-matter
 residue:product ratio of <a href="biomass_coefs.html">biomass_coefs</a>, scaled by the region's
 residue:product ratio relative to West Europe (<code>residue_dm_product_dm</code> in
@@ -196,6 +212,34 @@ directly: residue dry matter is grain dry matter times the ratio of the
 area's Wirsenius region.</p>
     </div>
     <div class="section level2">
+    <h2 id="non-cereal-residue">Non-cereal residue<a class="anchor" aria-label="anchor" href="#non-cereal-residue"></a></h2>
+
+
+<p>The West Europe anchor is not right for non-cereals either, and the error
+runs both ways (whep#1518). Against the line IPCC (2006) Table 11.2 gives
+each crop (Vol. 4, Ch. 11, pp. 11.17-11.18), the pin's ratio put world
+residue dry matter in 2010 at 1.42 times the line for soybean, 1.36 for
+potato, 1.95 for cassava and 1.88 for sweet potato, but 0.53 for dry
+beans, 0.41 for the other pulses and 0.34 for chickpeas. Applying Wirsenius
+(2000) Table 3.16 directly does not cure it: soybean would fall to 0.86 of
+the line.</p>
+<p>So the crops that Table 11.2 gives a line of their own are estimated from
+the pin's production and harvested area exactly as cereals are, with
+<code><a href="calculate_crop_residues.html">calculate_crop_residues()</a></code> and its modern-variety correction:</p><table class="table table"><tr><td>crops</td><td>Table 11.2 row</td><td>slope</td><td>intercept, t DM/ha</td></tr><tr><td>soybean</td><td>Soyabean</td><td>0.93</td><td>1.35</td></tr><tr><td>groundnut (with shell)</td><td>Peanut (w/pod)</td><td>1.07</td><td>1.54</td></tr><tr><td>dry beans, broad beans</td><td>Dry bean</td><td>0.36</td><td>0.68</td></tr><tr><td>peas, chickpeas, lentils, other pulses</td><td>Beans &amp; pulses</td><td>1.13</td><td>0.85</td></tr><tr><td>potato</td><td>Potato</td><td>0.10</td><td>1.06</td></tr><tr><td>cassava, sweet potato, yams, other roots</td><td>Tubers</td><td>0.10</td><td>1.06</td></tr></table><p>The 2019 Refinement's Table 11.2 (updated, p. 11.19) repeats these
+values. "Tubers" is IPCC's own crop class, "modelled after potatoes"; the
+crops reach it through <code>ipcc_crop_mapping.csv</code>, as in the soil carbon and
+nitrogen chain. The other non-cereal lines in <code>ipcc_residue_coefs.csv</code>
+(rapeseed, sunflower, sugar beet, sugar cane, cotton) are not in Table 11.2,
+so those crops, tree crops and vegetables keep the pin's ratio, as does
+every crop under <code>non_cereal_residue = "pin"</code>.</p>
+<p>World residue dry matter of the crops estimated from yield, Tg, the pin's
+ratio against <code>"ipcc"</code> (the default):</p><table class="table table"><tr><td></td><td>1961</td><td>2010</td><td>2020</td></tr><tr><td>soybean</td><td>51 -&gt; 63</td><td>500 -&gt; 385</td><td>673 -&gt; 494</td></tr><tr><td>groundnut</td><td>33 -&gt; 48</td><td>90 -&gt; 93</td><td>112 -&gt; 110</td></tr><tr><td>dry beans</td><td>7 -&gt; 23</td><td>14 -&gt; 34</td><td>15 -&gt; 37</td></tr><tr><td>peas</td><td>8 -&gt; 17</td><td>14 -&gt; 17</td><td>20 -&gt; 22</td></tr><tr><td>other pulses</td><td>18 -&gt; 57</td><td>31 -&gt; 79</td><td>40 -&gt; 97</td></tr><tr><td>potato</td><td>26 -&gt; 35</td><td>36 -&gt; 28</td><td>42 -&gt; 27</td></tr><tr><td>cassava</td><td>19 -&gt; 16</td><td>65 -&gt; 37</td><td>79 -&gt; 46</td></tr><tr><td>sweet potato</td><td>24 -&gt; 20</td><td>20 -&gt; 12</td><td>19 -&gt; 11</td></tr><tr><td>all non-cereal residue</td><td>533 -&gt; 625</td><td>2159 -&gt; 2070</td><td>2755 -&gt; 2595</td></tr><tr><td>all residue</td><td>2672 -&gt; 2764</td><td>5492 -&gt; 5402</td><td>6622 -&gt; 6462</td></tr></table><p>Soybean, groundnut and potato then sit at 1.05-1.11 of their IPCC line in
+2010 and 2020 (<code>validation/residue_base_dm.R</code>): the modern-variety
+correction and the product dry-matter content of <code>bio_coefs</code>. No published
+global non-cereal series exists to check them against independently
+(whep#1399).</p>
+    </div>
+    <div class="section level2">
     <h2 id="oil-palm-residue">Oil palm residue<a class="anchor" aria-label="anchor" href="#oil-palm-residue"></a></h2>
 
 
@@ -217,7 +261,13 @@ The anchor is a gross residue, so it replaces the pin's figure after the
 recovery rate has been undone and the ratio re-keyed; neither touches it.
 The anchored dry matter is converted to fresh mass with the oil palm
 <code>Residue_kgDM_kgFM</code> of <a href="biomass_coefs.html">biomass_coefs</a>, so <code>value_dm</code> is the anchor
-exactly.</p>
+exactly. That coefficient is 0.396, the dry matter of fresh oil palm fronds
+(39.6% as fed, n = 3) in Heuzé, Tran, Sauvant &amp; Lebas (2015), <em>Oil palm
+fronds and oil palm crop residues</em>, Feedipedia,
+<a href="https://www.feedipedia.org/node/6916" class="external-link">https://www.feedipedia.org/node/6916</a> (whep#1516). Fronds are 46 of the
+60 Mt; trunks, whose sap is 75-80% of their weight, are wetter, so the
+fresh mass is if anything understated. It sets the fresh mass booked to
+<code>Firewood</code>, not the dry matter.</p>
     </div>
     <div class="section level2">
     <h2 id="the-batch-pin-on-the-build-path">The batch pin on the build path<a class="anchor" aria-label="anchor" href="#the-batch-pin-on-the-build-path"></a></h2>
@@ -269,12 +319,13 @@ and 1,919 are crops whose <code>biomass_coefs</code> ratio is 0.</p>
 <code>get_primary_residues()</code> undoes the recovery exactly, dividing by the same
 rate, but cannot recompute the predecessor's residue from production. It
 then re-keys the regional ratio on Wirsenius's own region membership, and
-estimates cereal residue from the pin's production and harvested area
-instead of reading it (#1448).</p>
+estimates cereal residue (#1448), and that of the non-cereal crops with
+their own IPCC Table 11.2 line (#1518), from the pin's production and
+harvested area instead of reading it.</p>
 <p>It is not a small input. The pin holds 7.63 Gt of recovered residue for
 2010 (Straw 3.60 Gt, Other crop residues 2.49 Gt, Firewood 1.54 Gt) and
-327.7 Gt over 1961–2021, which <code>get_primary_residues()</code> turns into 8.73
-Gt (Straw 3.84 Gt, Other crop residues 3.14 Gt, Firewood 1.76 Gt) and 395
+327.7 Gt over 1961–2021, which <code>get_primary_residues()</code> turns into 7.64
+Gt (Straw 3.92 Gt, Other crop residues 2.82 Gt, Firewood 0.90 Gt) and 366
 Gt of residue produced. 3,998 of its 249,095 output rows carry <code>NA</code> polity
 columns because the pin is name-keyed.</p>
 <p>Driving the same residue model off a fresh <code><a href="get_primary_production.html">get_primary_production()</a></code> would
@@ -290,8 +341,9 @@ straw scales with the field crop. The second is fodder, where the current
 build is close to twice the pin on every forage and silage item, the pin
 predating that work. Replacing the pin therefore means choosing a residue
 model, which is a science decision and not a refresh. For cereals that
-model is chosen by <code>get_primary_residues(cereal_residue = )</code>; it still
-runs on the pin's production.</p>
+model is chosen by <code>get_primary_residues(cereal_residue = )</code>, and for the
+non-cereals with an IPCC line by <code>non_cereal_residue =</code>; both still run on
+the pin's production.</p>
 </div>
 
 <div class="section">

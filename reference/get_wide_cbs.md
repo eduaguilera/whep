@@ -29,8 +29,8 @@ get_wide_cbs(
 
 - trade_recovery:
 
-  One of `"pass_through"` (default), `"net_import"` or `"none"`, passed
-  to
+  One of `"byproduct_residual"` (default), `"pass_through"`,
+  `"net_import"` or `"none"`, passed to
   [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md),
   which documents what each does and what the default moves. Each method
   is built and cached under its own slot, so asking for one never serves

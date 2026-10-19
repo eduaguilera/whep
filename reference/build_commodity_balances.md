@@ -34,6 +34,7 @@ build_commodity_balances(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices(),
   .fixed_data = NULL
 )
 ```
@@ -88,23 +89,32 @@ build_commodity_balances(
 
 - trade_recovery:
 
-  One of `"pass_through"` (default), `"net_import"` or `"none"`,
-  selecting what happens to a traded item the CBS has no row for. The
-  trade record is joined onto the CBS, so it can only fill a row that
-  already exists; `"none"` keeps that, the behaviour before whep#762,
-  and an area whose balance sheet omits an item it imports loses that
-  supply outright. The other two first create the missing rows from the
-  trade record, restricted to tonnes-denominated items (live-animal
-  trade is in heads and arrives through
+  One of `"byproduct_residual"` (default), `"pass_through"`,
+  `"net_import"` or `"none"`, selecting what happens to a traded item
+  the CBS has no row for. The trade record is joined onto the CBS, so it
+  can only fill a row that already exists; `"none"` keeps that, the
+  behaviour before whep#762, and an area whose balance sheet omits an
+  item it imports loses that supply outright. The others first create
+  the missing rows from the trade record, restricted to
+  tonnes-denominated items (live-animal trade is in heads and arrives
+  through
   [`get_livestock_cbs()`](https://eduaguilera.github.io/whep/reference/get_livestock_cbs.md))
   and to areas the CBS already covers in that year. A created row has no
   production and no stock change, so its domestic supply is its net
   import, split over the destinies by the item's world-average shares –
-  the fallback every CBS key with no destiny of its own takes. The two
+  the fallback every CBS key with no destiny of its own takes. They
   differ only on a net exporter, whose export exceeds its import and so
   has nothing to come from: `"pass_through"` creates the row with the
   export capped at the import (the rule FABIO applies to the rows it
-  creates from trade), and `"net_import"` does not create it. **Recovery
+  creates from trade), and `"net_import"` does not create it.
+  `"byproduct_residual"` is `"pass_through"` except for Meat Meal
+  (2112), a rendering by-product WHEP has no production source for once
+  FAOSTAT's balance for it ends in 2013: its full export is kept,
+  export-only keys included, and the balance imputes production as
+  export minus import, the residual rule FAOSTAT-era Meat Meal rows
+  already get (whep#1450). Measured on a 2011-2015 build, that adds 2.29
+  Mt of Meat Meal production and export at 2014 (43 areas) and 2.51 Mt
+  at 2015 against `"pass_through"`, and moves no other key. **Recovery
   moves published values.** Measured on a 2005-2015 build at 2010,
   `"net_import"` adds 1,038 keys and raises world imports by 8.72 Mt
   (0.57%), exports by 1.83 Mt and food by 3.07 Mt (0.07%). Protein
@@ -525,6 +535,41 @@ build_commodity_balances(
   filter. Where the products outweigh the leaf use (Ukraine 2019: 56 kt
   against 29.7 kt) the remainder stays as stock change. Only Tobacco
   rows from 2014 on move.
+
+- nut_basis:
+
+  One of `"rebased"` (default) or `"as_published"`, selecting how the
+  trade of FBS item 2551 `Nuts and products` is taken from FAOSTAT's new
+  food balance sheets, 2010 on (whep#1495). Their nut trade is not one
+  mass basis: at 2010 world imports are 13.57 Mt against 7.69 Mt of
+  world exports (1.76x; 1.65x at 2022), and the excess goes on into
+  food, 19.47 Mt against 14.29 Mt of nuts the world grew in shell, with
+  about the old vintage's protein. Regressed on species-level trade,
+  importers convert kernels and prepared nuts to in-shell equivalent
+  with factors 2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so
+  one flow lands on two bases. The old vintage closes (6.45 vs 6.51 Mt).
+
+  `"rebased"` multiplies each area's import and export by its median
+  old/new ratio over 2010-2013, clamped to `[0.2, 1]` – the old
+  vintage's level with the new one's change over time, as the
+  palm-kernel fix already joins them – and takes the net trade removed
+  out of food and domestic supply, so every row keeps its supply-use
+  identity and production and stock change do not move. A row whose net
+  cut is not positive or exceeds its food is left as published. The
+  moved rows are labelled `"FAOSTAT_FBS_New_rebased"`, and the ratio is
+  read from the pins whatever years are built. `"as_published"` keeps
+  FAOSTAT's figures, the behaviour before whep#1495; the old vintage is
+  scaled to whichever level is chosen, so 1961-2009 follows it. **The
+  default moves published values**, all of them in item 2551. Measured
+  on a real 2009-2016 build at 2010, world imports fall from 13.85 to
+  7.16 Mt and exports from 7.83 to 6.51 Mt (imports/exports 1.77x to
+  1.10x; 1.61x to 1.02x at 2016), and food from 19.79 to 14.43 Mt
+  against 14.60 Mt of production; the 5.37 Mt drop is 0.11% of the 4,692
+  Mt of all-item food. Production and stock change do not move from 2010
+  on. FBS's own 2551 protein over the pin's food rises from 45.6 to 62.9
+  g/kg, against FAO's in-shell basket of 64.7 that
+  [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
+  applies.
 
 - .fixed_data:
 

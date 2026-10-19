@@ -266,6 +266,22 @@ Dataframe with all input columns preserved, plus:
   uses default per-head excretion rates; Tier 2 uses the energy/nitrogen
   balance.
 
+- `manure_n2o_direct_pasture`, `manure_n2o_indirect_pasture`: the part
+  of `manure_n2o_direct` and `manure_n2o_indirect` (kg N2O) from the N
+  deposited by grazing animals on pasture, range and paddock, priced at
+  EF3PRP and the Ch 11 FracGASM and FracLEACH-(H). Both are already
+  inside `manure_n2o_total`, never added to it. The IPCC reports this N
+  under managed soils (2019 Refinement Vol 4 Ch 11, F_PRP), not manure
+  management, and
+  [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
+  prices the same N as a field loss on its excreta rows. WHEP's GHG
+  footprint takes it from this chain only
+  ([`build_livestock_ghg_extension()`](https://eduaguilera.github.io/whep/reference/build_livestock_ghg_extension.md);
+  [`build_crop_soil_n2o_extension()`](https://eduaguilera.github.io/whep/reference/build_crop_soil_n2o_extension.md)
+  leaves F_PRP out), so subtract these columns from `manure_n2o_total`
+  before adding any managed-soils figure that includes grazing N, or for
+  a manure-management-only total comparable to an inventory's.
+
 ## Examples
 
 ``` r
@@ -273,11 +289,13 @@ tibble::tibble(
   species = "Cattle", heads = 1000, iso3 = "DEU"
 ) |>
   calculate_manure_emissions(tier = 1)
-#> # A tibble: 1 × 15
+#> # A tibble: 1 × 17
 #>   species heads iso3  species_gen method_manure_ch4 manure_ef_kgch4
 #>   <chr>   <dbl> <chr> <chr>       <chr>                       <dbl>
 #> 1 Cattle   1000 DEU   Cattle      IPCC_2019_Tier1                 1
-#> # ℹ 9 more variables: manure_ch4_tier1 <dbl>, method_manure_n2o <chr>,
+#> # ℹ 11 more variables: manure_ch4_tier1 <dbl>, method_manure_n2o <chr>,
 #> #   manure_category <chr>, region <chr>, n_excretion <dbl>, method_mms <chr>,
-#> #   manure_n2o_direct <dbl>, manure_n2o_indirect <dbl>, manure_n2o_total <dbl>
+#> #   manure_n2o_direct <dbl>, manure_n2o_direct_pasture <dbl>,
+#> #   manure_n2o_indirect <dbl>, manure_n2o_indirect_pasture <dbl>,
+#> #   manure_n2o_total <dbl>
 ```

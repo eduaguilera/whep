@@ -27,8 +27,9 @@ get_processing_coefs(
 
 - trade_recovery:
 
-  One of `"pass_through"` (default), `"net_import"` or `"none"`,
-  selecting the CBS the coefficients are calibrated on. See
+  One of `"byproduct_residual"` (default), `"pass_through"`,
+  `"net_import"` or `"none"`, selecting the CBS the coefficients are
+  calibrated on. See
   [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md)
   and
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md).

@@ -38,9 +38,14 @@ volatilisation EF4 = 0.010 applied to the volatilised fraction
 do not volatilise, Eq 11.9); indirect via leaching FracLEACH = 0.24 times
 EF5 = 0.011. N2O-N is converted to N2O by 44/28 and to CO2e with the chosen
 GWP100.
-Manure deposited by grazing animals (F_PRP, which uses the grazing EF3 on
-pasture) and below-ground residue N are further Tier 1 inputs not yet
-included."><meta property="og:description" content="Estimate IPCC 2019 Tier 1 nitrous-oxide emissions from nitrogen applied to
+Manure deposited by grazing animals (F_PRP) is left out on purpose, not
+pending: build_livestock_ghg_extension() already prices it, direct at
+EF3PRP and indirect at FracGASM and FracLEACH-(H), and the two extensions
+are summed in the GHG footprint, so adding it here would count it twice
+(whep#1524). The livestock chain reports that part apart as
+manure_n2o_direct_pasture and manure_n2o_indirect_pasture (see
+calculate_manure_emissions()). Below-ground residue N is a further Tier 1
+input not yet included."><meta property="og:description" content="Estimate IPCC 2019 Tier 1 nitrous-oxide emissions from nitrogen applied to
 managed soils, as a footprint extension keyed by (year, area_code, item_cbs_code) in kilograms of carbon-dioxide equivalent (CO2e). This is the
 soil-N2O analogue of build_livestock_ghg_extension() and feeds
 build_footprint() / compute_footprint() the same way.
@@ -79,9 +84,14 @@ volatilisation EF4 = 0.010 applied to the volatilised fraction
 do not volatilise, Eq 11.9); indirect via leaching FracLEACH = 0.24 times
 EF5 = 0.011. N2O-N is converted to N2O by 44/28 and to CO2e with the chosen
 GWP100.
-Manure deposited by grazing animals (F_PRP, which uses the grazing EF3 on
-pasture) and below-ground residue N are further Tier 1 inputs not yet
-included."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+Manure deposited by grazing animals (F_PRP) is left out on purpose, not
+pending: build_livestock_ghg_extension() already prices it, direct at
+EF3PRP and indirect at FracGASM and FracLEACH-(H), and the two extensions
+are summed in the GHG footprint, so adding it here would count it twice
+(whep#1524). The livestock chain reports that part apart as
+manure_n2o_direct_pasture and manure_n2o_indirect_pasture (see
+calculate_manure_emissions()). Below-ground residue N is a further Tier 1
+input not yet included."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -157,9 +167,14 @@ volatilisation <code>EF4 = 0.010</code> applied to the volatilised fraction
 do not volatilise, Eq 11.9); indirect via leaching <code>FracLEACH = 0.24</code> times
 <code>EF5 = 0.011</code>. N2O-N is converted to N2O by 44/28 and to CO2e with the chosen
 GWP100.</p>
-<p>Manure deposited by grazing animals (F_PRP, which uses the grazing EF3 on
-pasture) and below-ground residue N are further Tier 1 inputs not yet
-included.</p>
+<p>Manure deposited by grazing animals (F_PRP) is left out on purpose, not
+pending: <code><a href="build_livestock_ghg_extension.html">build_livestock_ghg_extension()</a></code> already prices it, direct at
+EF3PRP and indirect at FracGASM and FracLEACH-(H), and the two extensions
+are summed in the GHG footprint, so adding it here would count it twice
+(whep#1524). The livestock chain reports that part apart as
+<code>manure_n2o_direct_pasture</code> and <code>manure_n2o_indirect_pasture</code> (see
+<code><a href="calculate_manure_emissions.html">calculate_manure_emissions()</a></code>). Below-ground residue N is a further Tier 1
+input not yet included.</p>
     </div>
 
     <div class="section level2">

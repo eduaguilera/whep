@@ -335,6 +335,14 @@ themselves, so one choice governs the whole build (whep#727). A
 <code>data$n_inputs</code> table supplied directly is left alone: it was built by its
 own call with its own choice, and the balance rows derived from it still get
 this argument's fate at the tail.</p>
+<p><strong>Grazing excreta.</strong> The <code>"excreta"</code> input is the N grazing animals deposit
+on pasture, range and paddock, and its N2O is in <code>n2o_direct_n_t</code>,
+<code>n2o_indirect_nh3_n_t</code> and <code>total_gwp_co2e_kg</code>, as the field loss it is.
+<code><a href="calculate_livestock_emissions.html">calculate_livestock_emissions()</a></code> prices the same emission and reports it
+as <code>manure_n2o_direct_pasture</code> and <code>manure_n2o_indirect_pasture</code>, and that
+is the chain WHEP's GHG footprint takes it from. So these balance columns
+are not to be added to livestock manure N2O: subtract the pasture columns
+from one of the two first (whep#1524).</p>
     </div>
     <div class="section level2">
     <h2 id="loss-drivers">Loss drivers<a class="anchor" aria-label="anchor" href="#loss-drivers"></a></h2>
