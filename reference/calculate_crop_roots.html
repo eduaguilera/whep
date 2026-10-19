@@ -56,7 +56,8 @@ columns are present in <code>x</code>.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">calculate_crop_roots</span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ensemble"</span>, <span class="st">"root_shoot"</span>, <span class="st">"reference"</span><span class="op">)</span>,</span>
-<span>  weights <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>w_ref <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
+<span>  weights <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>w_ref <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span>
+<span>  irrigation <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"except_paddy"</span>, <span class="st">"all_crops"</span>, <span class="st">"none"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -80,10 +81,24 @@ reference), <code>"root_shoot"</code> (root:shoot ratio only) or <code>"referenc
 <dd><p>Named list; <code>w_ref</code> is the reference weight in the ensemble
 (0-1, default 0.5), used only when <code>method = "ensemble"</code>.</p></dd>
 
+
+<dt id="arg-irrigation">irrigation<a class="anchor" aria-label="anchor" href="#arg-irrigation"></a></dt>
+<dd><p>Which irrigated crops take the root:shoot factor of
+<code>irrigation_adj</code> (0.85 irrigated), used only when <code>x</code> has
+<code>water_regime</code>: <code>"except_paddy"</code> (default) applies it to every crop but
+paddy rice, which is flooded whether irrigated or not; <code>"all_crops"</code>
+applies it to every crop, as afsetools does; <code>"none"</code> applies no
+irrigation factor. Water stress raises root:shoot across crops (Eziz et
+al. 2017, doi:10.1002/ece3.3630; Kou et al. 2022,
+doi:10.3389/fpls.2022.1085409; Seidel et al. 2024,
+doi:10.1016/j.scitotenv.2024.176738), implying an irrigated factor of
+about 0.70 to 0.88 (whep#1536).</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>The input tibble with <code>root_dm_t</code> and <code>method_root</code>.</p>
+    <p>The input tibble with <code>root_dm_t</code> and <code>method_root</code>, plus
+<code>method_root_irrigation</code> when <code>x</code> has <code>water_regime</code>.</p>
     </div>
 
     <div class="section level2">

@@ -54,7 +54,8 @@ dry matter) by running <code><a href="calculate_crop_residues.html">calculate_cr
 <span>  <span class="va">x</span>,</span>
 <span>  residue_method <span class="op">=</span> <span class="st">"ensemble"</span>,</span>
 <span>  root_method <span class="op">=</span> <span class="st">"ensemble"</span>,</span>
-<span>  weights <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>w_ipcc <span class="op">=</span> <span class="fl">0.5</span>, w_ref <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
+<span>  weights <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>w_ipcc <span class="op">=</span> <span class="fl">0.5</span>, w_ref <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span>
+<span>  root_irrigation <span class="op">=</span> <span class="st">"except_paddy"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -78,6 +79,11 @@ any optional adjustment columns used by the residue and root steps.</p></dd>
 <dt id="arg-weights">weights<a class="anchor" aria-label="anchor" href="#arg-weights"></a></dt>
 <dd><p>Named list of ensemble weights; <code>w_ipcc</code> for residues and
 <code>w_ref</code> for roots (each 0-1, default 0.5).</p></dd>
+
+
+<dt id="arg-root-irrigation">root_irrigation<a class="anchor" aria-label="anchor" href="#arg-root-irrigation"></a></dt>
+<dd><p>Irrigated root:shoot scope passed to
+<code><a href="calculate_crop_roots.html">calculate_crop_roots()</a></code> as <code>irrigation</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

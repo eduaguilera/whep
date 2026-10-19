@@ -13,7 +13,8 @@ calculate_crop_npp(
   x,
   residue_method = "ensemble",
   root_method = "ensemble",
-  weights = list(w_ipcc = 0.5, w_ref = 0.5)
+  weights = list(w_ipcc = 0.5, w_ref = 0.5),
+  root_irrigation = "except_paddy"
 )
 ```
 
@@ -38,6 +39,12 @@ calculate_crop_npp(
 
   Named list of ensemble weights; `w_ipcc` for residues and `w_ref` for
   roots (each 0-1, default 0.5).
+
+- root_irrigation:
+
+  Irrigated root:shoot scope passed to
+  [`calculate_crop_roots()`](https://eduaguilera.github.io/whep/reference/calculate_crop_roots.md)
+  as `irrigation`.
 
 ## Value
 
