@@ -804,6 +804,9 @@
   # the label dropped every row of those three items, so from 2010 on the CBS
   # kept their production and lost all of their destinies (whep#961). No pin
   # carries one code under two labels, so this cannot merge two items.
+  # The merge below drops every code `items_full` does not carry. That has to
+  # be a decision, not a side effect: see `.cb_codes_not_carried()`.
+  .check_cb_codes_carried(dt, items, pin_alias)
   dt[, item_cbs := NULL]
   members <- attr(dt, "bucket_members")
   out <- merge(dt, items, by = "item_cbs_code", sort = FALSE)
@@ -828,6 +831,93 @@
     )
   )
   out
+}
+
+# The FAOSTAT commodity- and food-balance codes `.extract_cb()` drops on
+# purpose, each with the `items_full` item that already holds its mass
+# (`carried_by`: the one item `cbs_trade_codes` also books its traded form
+# under; NA where there is no single such item -- bran folds into each cereal
+# separately -- or no WHEP item at all). FAOSTAT group totals (2900-2999)
+# are dropped by their range and are not listed. Any other code `items_full`
+# lacks aborts in `.check_cb_codes_carried()`: Meat Meal (2749) lost its whole
+# 1961-2013 balance to a silent drop before it was remapped (whep#1450).
+#
+# Every row below is a second view of mass a carried item already books, so
+# taking it as well would count that mass twice (whep#1506). FAOSTAT
+# standardises a processed product onto the equation of its originating
+# commodity: the product's trade, feed and waste are added to the parent after
+# multiplying by the reciprocal of the extraction rate, and for a by-product
+# "just one subtraction is necessary" (FAO 2001, Food Balance Sheets: A
+# Handbook, ch. IV.1, https://www.fao.org/4/x9892e/x9892e04.htm). WHEP's own
+# trade vocabulary (`cbs_trade_codes`) folds the traded forms of the same
+# items into the same parents: bran into each cereal, whey, cheese, skimmed
+# milk and cream into Milk - Excluding Butter, fish meal into Marine Fish,
+# Other, shelled groundnuts into Groundnuts.
+#
+# Measured on the pins, world 2010:
+# * Brans (2600): 153.10 Mt produced, 121.69 Mt fed. Wheat's whole processing
+#   destiny is 5.98 Mt against 445.01 Mt of food in grain equivalent, so the
+#   bran is milled out of grain the balance books as food. Rice is the
+#   exception: WHEP carries it milled (`.rice_milled_extraction_rate()`), so
+#   rice bran sits in no WHEP item. FAOSTAT does not split 2600 by cereal, so
+#   the rice share cannot be taken alone without inventing one.
+# * Whey (2742): 110.63 Mt produced, 80.64 Mt fed, a by-product of the
+#   329.60 Mt of whole milk processed. Milk - Excluding Butter (2848) produces
+#   714.85 Mt, exactly Milk, Whole, and its 74.42 Mt of feed exceeds whole plus
+#   skimmed milk feed (70.02 Mt) by the milk equivalent of the whey fed.
+# * Fish Meal (2855): 1.56 Mt produced, 1.84 Mt fed. The fish reduced to it is
+#   already the 21.75 Mt live-weight feed destiny of the fish items (18.39
+#   Mt of it pelagic); its trade is booked under Marine Fish, Other.
+# * Milk, Whole (2738), Milk, Skimmed (2739), Cheese (2741), Cream (2743): the
+#   components of Milk - Excluding Butter.
+# * Groundnuts (Shelled Eq) (2556), Roots & Tuber Dry Equiv (2815), Sugar,
+#   Refined Equiv (2818), Sugar, Raw Equivalent (2827): the same balances on
+#   another basis.
+# * Infant food (2680, 0.6 Mt of food) and Meat, Aquatic Mammals (2768, under
+#   10 kt): no WHEP item. Recorded so the drop is visible, not judged here.
+.cb_codes_not_carried <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~item,                     ~carried_by,
+    2556L,          "Groundnuts (Shelled Eq)", 2552L,
+    2600L,          "Brans",                   NA_integer_,
+    2680L,          "Infant food",             NA_integer_,
+    2738L,          "Milk, Whole",             2848L,
+    2739L,          "Milk, Skimmed",           2848L,
+    2741L,          "Cheese",                  2848L,
+    2742L,          "Whey",                    2848L,
+    2743L,          "Cream",                   2848L,
+    2768L,          "Meat, Aquatic Mammals",   NA_integer_,
+    2815L,          "Roots & Tuber Dry Equiv", NA_integer_,
+    2818L,          "Sugar, Refined Equiv",    2542L,
+    2827L,          "Sugar, Raw Equivalent",   2542L,
+    2855L,          "Fish Meal",               2764L
+  )
+}
+
+# Abort on a code that `.extract_cb()`'s merge would drop and nobody decided
+# to drop. A code arriving in a pin is a vocabulary question with no fill:
+# map it in `.fix_item_codes()` or list it in `.cb_codes_not_carried()`.
+.check_cb_codes_carried <- function(dt, items, pin_alias) {
+  unmapped <- unique(dt[
+    !item_cbs_code %in% items$item_cbs_code &
+      !item_cbs_code %in% .cb_codes_not_carried()$item_cbs_code &
+      !(item_cbs_code >= 2900 & item_cbs_code < 3000),
+    .(item_cbs_code, item_cbs)
+  ])
+  if (nrow(unmapped) == 0L) {
+    return(invisible(dt))
+  }
+  shown <- paste0(unmapped$item_cbs_code, " (", unmapped$item_cbs, ")")
+  cli::cli_abort(
+    c(
+      "{.val {pin_alias}} carries {cli::qty(length(shown))}{?an item code/item codes}
+       that {.code items_full} does not: {shown}.",
+      "i" = "Map {cli::qty(length(shown))}{?it/them} in
+       {.fn .fix_item_codes}, or list {?it/them} with the item that holds
+       the mass in {.fn .cb_codes_not_carried}."
+    ),
+    class = "whep_error_cb_code_unmapped"
+  )
 }
 
 # -- Processing helpers (from comdat_global) -----------------------------------
