@@ -457,6 +457,52 @@ than commodities and are dropped at ingestion (#752):
 `Coefs` sheet addresses by absolute position, which read as data claims
 an `Edible_portion` of 4.
 
+The `Aquatic Plants` row is WHEP's own, not the upstream workbook's,
+which has no seaweed row:
+[items_full](https://eduaguilera.github.io/whep/reference/items_full.md)
+bridged CBS item 2775 to a placeholder name that matched nothing, so its
+feed mass dropped out of feed availability and its food mass carried no
+protein or energy (whep#970). Two sources fill it, one per use:
+
+- **Food** (`N_kgN_kgFM`, `GE_product_MJ_kgFM`, `Lipids_g_kgFM`,
+  `Edible_portion`): FAO's own composition factor for the item, read
+  from FAO, *Food balance sheets: a handbook*, Rome, 2001, Annex I "Food
+  composition in terms of retail weight", row `AQUATIC PLANTS`, PDF page
+  68 (printed 64),
+  <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>: 54 kcal, 2.8
+  g protein and 0.6 g fat per 100 g of the commodity as recorded, i.e.
+  fresh. So nitrogen is 2.8 / 100 / 6.25 = 0.00448 kg per kg, the energy
+  cell holds 540 kcal, 2.25936 MJ, per kg, and `Edible_portion` is 1
+  because FAO applies the factor to the recorded quantity directly. The
+  energy is FAO's dietary energy, not bomb-calorimeter gross energy: it
+  is what
+  [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
+  turns into `energy_kcal_cap_day`, against FBS element 664. Oracle:
+  FAOSTAT FBS item 2775, World (area 5000), 2010, implies 26.5 g protein
+  per kg (element 671 over element 5142), 5.5% below the 2001 factor;
+  and 372 kcal per kg, so current FBS uses a lower energy factor than
+  the 2001 table.
+
+- **Feed** (`Product_kgDM_kgFM`, `Product_kgN_kgDM`): Heuze, V., Tran,
+  G., Giger-Reverdin, S., Lessire, M. and Lebas, F. (2017), *Seaweeds
+  (marine macroalgae)*, Feedipedia, INRAE, CIRAD, AFZ and FAO,
+  <https://feedipedia.org/node/78>, table "Laminaria and Saccharina
+  seaweeds" (fresh): dry matter 15.4% as fed (SD 3.6, range 9.7-22.5, n
+  = 56), crude protein 9.8% of DM (n = 50), so 0.01568 kg N per kg DM.
+  It is the only fresh-seaweed table on that page; the others are dried
+  meals at 85-93% DM, which would put fresh mass at nearly its own dry
+  weight.
+
+The two disagree on nitrogen per kg of fresh matter – 0.00448 against
+0.154 x 0.01568 = 0.00241 – because FAO's factor covers the whole
+aquatic-plant basket and Feedipedia's table covers kelps only. Protein
+differs widely across that basket: McHugh, D. J. (2003), *A guide to the
+seaweed industry*, FAO Fisheries Technical Paper 441, chapter 8,
+<https://www.fao.org/4/y4765e/y4765e0b.htm>, puts nori (*Porphyra*) at
+30-50% protein and *Laminaria* at about 10%. Each value is kept on the
+use it was published for. `Product_kgC_kgDM` and the remaining columns
+are left empty: no source was read for them.
+
 ## Examples
 
 ``` r
