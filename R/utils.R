@@ -2696,6 +2696,19 @@ utils::globalVariables(
     ".root_n",
     "residue_n_mg",
     "root_n_mg",
+    # moisture_regime.R (issue 359) -- IPCC 2019 wet/dry classifier inputs,
+    # its window-mean water terms and the internal stamp fields
+    "mat_c",
+    "frost_days",
+    "water_mm",
+    "moisture_ratio",
+    ".unclassified",
+    ".method",
+    # moisture_regime.R -- the irrigated-years window mean of a separate
+    # irrigation record and its stamp field
+    "irrigated_year",
+    "n_irrigated",
+    ".irrig_years",
     # livestock_enteric.R (whep#601) -- the 2019 Tier 1 enteric factor lookup
     "ef_2019",
     ".ef_regional",

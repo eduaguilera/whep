@@ -387,6 +387,22 @@ testthat::test_that("schema is complete at grid resolution", {
   )
 })
 
+testthat::test_that("the excreta species mix reaches only the excreta rows", {
+  # The fixture's only herd is dairy cattle, a CPP species (IPCC 2019 Table
+  # 11.1), so every excreta row is wholly CPP.
+  for (resolution in c("grid", "polity")) {
+    out <- .nbi_inputs(resolution)
+    excreta <- out$fert_type == "excreta"
+    testthat::expect_true(any(excreta))
+    testthat::expect_equal(out$excreta_cpp_share[excreta], rep(1, sum(excreta)))
+    testthat::expect_true(all(
+      out$method_excreta_species[excreta] == "engine_livestock_category"
+    ))
+    testthat::expect_true(all(is.na(out$excreta_cpp_share[!excreta])))
+    testthat::expect_true(all(is.na(out$method_excreta_species[!excreta])))
+  }
+})
+
 testthat::test_that("synthetic gridded output re-aggregates to the polity total", {
   out <- .nbi_inputs("grid")
   synthetic <- out[out$fert_type == "synthetic", ]
@@ -2351,6 +2367,29 @@ testthat::test_that("stranded human-N rows keep their basis stamps when pooled",
   )
 })
 
+testthat::test_that("reallocated fallback excreta keeps its species stamp", {
+  # Collected manure labelled excreta for want of a type split, landed with
+  # no crop item in cells without cropland: after reallocation it must still
+  # read as applied manure, not as grazing excreta of unknown species.
+  stranded <- .nbi_stranded_inputs() |>
+    dplyr::mutate(
+      fert_type = "excreta",
+      method_manure = "livestock_intake",
+      excreta_cpp_share = NA_real_,
+      method_excreta_species = "fallback_label_no_species"
+    )
+  out <- whep:::.ni_allocate_unattributed(
+    stranded,
+    list(ag_land_support = .nbi_ag_land_support()),
+    method_unsupported = "reallocate"
+  )
+  testthat::expect_equal(sum(out$n_input_t), 14)
+  testthat::expect_true(all(
+    out$method_excreta_species == "fallback_label_no_species"
+  ))
+  testthat::expect_true(all(is.na(out$excreta_cpp_share)))
+})
+
 testthat::test_that("a total population under the urban basis is refused by name", {
   # Every population slot is read by exact name, so no slot can partially
   # match another `data` entry and hand a string on as the population; the
@@ -2403,12 +2442,15 @@ testthat::test_that("the default manure source reproduces the pre-option output"
   # test's subject the manure source.
   data <- .nbi_with_shipped_ef3(.nbi_full_data())
   data$recycling_residue_basis <- "total_residue"
+  # The excreta species mix is added beside the golden columns; every column
+  # the golden pins must stay identical.
+  added <- c("method_manure", "excreta_cpp_share", "method_excreta_species")
   for (resolution in c("grid", "polity")) {
     out <- suppressMessages(
       whep::build_n_inputs(data = data, resolution = resolution)
     )
     testthat::expect_identical(
-      dplyr::select(out, -"method_manure"),
+      dplyr::select(out, -dplyr::all_of(added)),
       golden[[paste0("inputs_", resolution)]]
     )
     testthat::expect_true(all(

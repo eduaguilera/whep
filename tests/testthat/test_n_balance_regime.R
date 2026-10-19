@@ -854,7 +854,7 @@ testthat::test_that("the balance hands its manure input the parts' bedding", {
   )
   testthat::expect_error(
     whep::build_nitrogen_balance(
-      methods = list(nh3 = "ipcc"),
+      methods = list(nh3 = "ipcc", leaching = "ipcc_fracleach"),
       resolution = "grid",
       data = data
     ),

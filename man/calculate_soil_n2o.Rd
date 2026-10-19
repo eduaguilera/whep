@@ -3,46 +3,110 @@
 \name{calculate_soil_n2o}
 \alias{calculate_soil_n2o}
 \title{Estimate direct soil N2O emissions from applied nitrogen.}
+\source{
+IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
+National Greenhouse Gas Inventories, Vol 4, Ch 11, Table 11.1
+(Updated), p. 11.13.
+}
 \usage{
 calculate_soil_n2o(
   x,
-  method = c("ipcc2019", "aguilera", "ipcc2006"),
+  method = c("ipcc2019", "ipcc2019_atl_med", "aguilera", "ipcc2006"),
   example = FALSE
 )
 }
 \arguments{
-\item{x}{A tibble with \code{n_input_t} and \code{climate}. \code{method = "aguilera"}
-or \code{"ipcc2006"} additionally require \code{irrig_type} and (aguilera only)
-\code{fert_type}.}
+\item{x}{A tibble with \code{n_input_t}. \code{method = "ipcc2019"} requires
+\code{fert_type} (\code{"Synthetic"}, \code{"Solid"}, \code{"Liquid"}, \code{"Human"},
+\code{"Recycling"}, \code{"SOM"} or an excreta label: \code{"Excreta"},
+\code{"Excreta_cattle_monog"}, \code{"Excreta_other"}), \code{item_cbs_code} and
+\code{moisture_regime}, plus \code{excreta_cpp_share} on \code{"Excreta"} rows.
+\code{"ipcc2019_atl_med"} requires \code{climate}. \code{"aguilera"} and \code{"ipcc2006"}
+require \code{climate} and \code{irrig_type}, and aguilera \code{fert_type} (and
+\code{excreta_cpp_share} on \code{"Excreta"} rows).}
 
-\item{method}{\code{"ipcc2019"} (default, IPCC 2019 Tier 1, climate-only),
-\code{"aguilera"} (Mediterranean-calibrated, needs \code{irrig_type}/\code{fert_type})
-or \code{"ipcc2006"} (IPCC 2006 Tier 1, needs \code{irrig_type}).}
+\item{method}{\code{"ipcc2019"} (default, IPCC 2019 Tier 1 wet/dry),
+\code{"ipcc2019_atl_med"} (IPCC 2019 Tier 1 on ATL/MED), \code{"aguilera"}
+(Mediterranean-calibrated) or \code{"ipcc2006"} (IPCC 2006 Tier 1).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from \code{x}. Defaults to \code{FALSE}.}
 }
 \value{
 \code{x} with \code{n2o_direct_n_t} and \code{method_soil_n2o} appended.
+\code{method_soil_n2o} names the factor each row took: the method name, or
+for \code{"ipcc2019"} one of \code{"ipcc2019_wet_dry"}, \code{"ipcc2019_ef1fr"},
+\code{"ipcc2019_ef3prp_blend"}, \code{"ipcc2019_fallback_applied_manure"}, and for
+\code{"aguilera"} \code{"aguilera_excreta_blend"} on blended excreta rows and
+\code{"aguilera_fallback_applied_manure"} on fallback-labelled ones.
 }
 \description{
-Three emission-factor regimes for direct nitrous oxide from
-nitrogen applied to soil. \code{"ipcc2019"} (the default) is the IPCC 2019
-Tier 1 climate-disaggregated \code{EF1}, needing only \code{climate}: it reuses the
-\link{n2o_efs_disaggregated} table's two climate-level rows (\code{irrig_type == "Tier_1"} for ATL, \code{irrig_type == "Med_average"} for MED, 0.010 wet /
-0.005 dry) with no \code{mf} multiplier; the ATL value (0.010) is the same
-value documented as \code{EF1} in \code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}}, pulled
-from one shared source of truth rather than hardcoded a second time. It is
-the default because it is the internationally standard, globally
-applicable Tier 1 method. \code{"aguilera"} is a finer
-Mediterranean-calibrated disaggregation (Cayuela et al. 2017), selectable
-where its \code{irrig_type}/\code{fert_type} granularity is available and its
-regional emission factors apply: \code{n2o_direct_n_t = n_input_t * ef * mf},
-\code{ef} from \link{n2o_efs_disaggregated} on \verb{(irrig_type, climate)}, \code{mf} from
-\link{fertiliser_n2o_modifiers} on \verb{(fert_type, climate)}. \code{"ipcc2006"} uses
-the \link{n2o_efs_ipcc2006} table (IPCC 2006 Tier 1 defaults, flat 0.010
-except flooded rice 0.003), keyed like \code{"aguilera"} on
-\verb{(irrig_type, climate)} with no \code{mf} multiplier.
+Four emission-factor regimes for direct nitrous oxide from nitrogen
+applied to soil, \code{n2o_direct_n_t = n_input_t * ef}.
+
+\code{"ipcc2019"} (the default) is the IPCC 2019 Tier 1 wet/dry
+disaggregation, keyed on each row's \code{moisture_regime} (\code{"wet"} or
+\code{"dry"}), with every factor read from \link{ipcc_2019_soil_n_ef}:
+\itemize{
+\item \code{EF1} (IPCC 2019 Refinement Vol 4 Ch 11 Table 11.1 (Updated) p. 11.13):
+0.016 for synthetic fertiliser and 0.006 for every other N input in wet
+climates, 0.005 for all N inputs in dry climates. Stamped
+\code{"ipcc2019_wet_dry"}.
+\item \code{EF1FR} (same table): 0.004, the aggregated flooded-rice factor, on
+every rice row in both moisture and both water regimes. No drainage
+layer exists for its continuous-flooding (0.003) versus drained (0.005)
+split, and upland rice, which the table prices with \code{EF1}, has no layer
+of its own either. Rice rows are those whose \code{item_cbs_code} is the CBS
+item of a production item classed \code{Crop_irrig == "Rice"} in
+\link{items_prod_full} (2807, rice and products). Stamped \code{"ipcc2019_ef1fr"}.
+\item \code{EF3PRP} (same table) on excreta deposited by grazing animals, as the
+N-weighted blend \verb{excreta_cpp_share * EF3PRP,CPP + (1 - excreta_cpp_share) * EF3PRP,SO}, with \verb{EF3PRP,CPP} 0.006 wet and 0.002
+dry for cattle, poultry and pigs and \verb{EF3PRP,SO} 0.003 for sheep and
+other animals. Excreta keep this factor on a rice row too: Equation 11.1
+prices urine and dung deposited by grazing animals apart from the N
+applied to the crop. A row labelled by species reads its share from the
+label: 1 on \code{"Excreta_cattle_monog"}, 0 on \code{"Excreta_other"}. Stamped
+\code{"ipcc2019_ef3prp_blend"}.
+\item Excreta labelled so only as the fallback of a manure-type split
+(\code{method_excreta_species == "fallback_label_no_species"}) is collected
+manure applied to the land, not grazing deposition: it takes the factor
+of applied manure on its row (\code{EF1} for other N inputs, \code{EF1FR} on a
+rice item), whatever its missing species mix. Stamped
+\code{"ipcc2019_fallback_applied_manure"}.
+}
+
+\code{"ipcc2019_atl_med"} is the earlier IPCC 2019 Tier 1 option keyed on the
+Atlantic/Mediterranean \code{climate} instead: the \link{n2o_efs_disaggregated}
+table's two climate-level rows (\code{irrig_type == "Tier_1"} for ATL,
+\code{irrig_type == "Med_average"} for MED, 0.010 and 0.005), whatever the
+input. \code{"aguilera"} is a finer Mediterranean-calibrated disaggregation
+(Cayuela et al. 2017), selectable where its \code{irrig_type}/\code{fert_type}
+granularity is available and its regional emission factors apply:
+\code{ef * mf}, \code{ef} from \link{n2o_efs_disaggregated} on \verb{(irrig_type, climate)},
+\code{mf} from \link{fertiliser_n2o_modifiers} on \verb{(fert_type, climate)}. An
+\code{"Excreta"} row, whose species are carried as a share rather than in its
+label, takes \code{excreta_cpp_share * mf(Excreta_cattle_monog) + (1 - excreta_cpp_share) * mf(Excreta_other)}, stamped
+\code{"aguilera_excreta_blend"}; a fallback-labelled \code{"Excreta"} row, which is
+collected manure applied to the land and not grazing deposition, takes
+\code{mf(Solid)} (0.38 on MED, 0.60 on ATL), stamped
+\code{"aguilera_fallback_applied_manure"}.
+\code{"ipcc2006"} uses the \link{n2o_efs_ipcc2006}
+table (IPCC 2006 Tier 1 defaults, flat 0.010 except flooded rice 0.003),
+keyed like \code{"aguilera"} on \verb{(irrig_type, climate)} with no \code{mf}.
+}
+\details{
+\code{method = "ipcc2019"} aborts when \code{moisture_regime} is absent
+(\code{whep_missing_moisture_regime}), missing on any row
+(\code{whep_moisture_regime_na}, naming the count) or neither \code{"wet"} nor
+\code{"dry"} (\code{whep_moisture_regime_value}): which class a row belongs to is
+decided where the drivers are built, not here. An excreta row carrying N
+without an \code{excreta_cpp_share} aborts (\code{whep_excreta_share_missing}), as
+does a share outside 0 to 1 (\code{whep_excreta_share_invalid}) and a share on
+a species-labelled row that contradicts its label
+(\code{whep_excreta_share_label_conflict}); a row with no excreta N emits
+nothing whatever its mix. A \code{fert_type} with no direct
+factor in Equation 11.1 (\code{"BNF"}, \code{"Deposition"}) aborts
+(\code{whep_soil_n2o_fert_type}).
 }
 \examples{
 calculate_soil_n2o(example = TRUE)

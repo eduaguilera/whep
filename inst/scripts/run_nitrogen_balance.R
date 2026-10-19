@@ -544,28 +544,28 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
   )
 }
 
-# The loss cascade's method set, and the one driver column it still needs.
+# The loss cascade's method set.
 #
 # build_nitrogen_balance()'s defaults are MANNER ammonia and the Meisinger
 # drainage cascade. Both were ported from an earlier regional historical
 # reconstruction and both need per-cell driver columns that nothing in the
-# package produces globally (#359): MANNER
-# wants `manner_fertiliser` plus soil pH, application rate, rainfall,
-# irrigation, wind, technique, system, temperature and incorporation delay;
-# Meisinger wants `drainage_mm` plus tillage, irrigation category, SOM share
-# and C:N. The IPCC Tier 1 alternatives are already selectable, are globally
-# applicable by construction, and are stamped into `method_nh3` /
-# `method_leaching`, so a balance built this way says which it used.
+# package produces globally yet (#359): MANNER wants `manner_fertiliser` plus
+# soil pH, application rate, rainfall, irrigation, wind, technique, system,
+# temperature and incorporation delay; Meisinger wants `drainage_mm` plus
+# tillage, irrigation category, SOM share and C:N. The IPCC Tier 1
+# alternatives are globally applicable by construction and are stamped into
+# `method_nh3` / `method_leaching`, so a balance built this way says which it
+# used.
 #
-# With those chosen, exactly ONE driver column is left: `climate` (`"ATL"` or
-# `"MED"`), read by calculate_soil_n2o() and calculate_indirect_n2o_nh3().
-# There is no global classifier for it -- that is #359's first suggested
-# action -- so this driver supplies a CONSTANT placeholder. It is result-
-# affecting for the loss columns and for nothing else: `n_input_std_t`,
-# `prod_n_t`, `used_residue_n_t` and `grazed_weeds_n_t` are all computed by
-# .nb_inputs()/.nb_outputs() before .nb_losses() runs, and those four are the
-# whole of calculate_n_surplus(method = "harvest_removal"). The script checks
-# that identity below rather than asserting it.
+# Their drivers are WHEP-built: with no `n_balance_drivers` or
+# `n_balance_leaching_drivers` in `data`, build_nitrogen_balance() calls
+# build_n_loss_drivers() on the split balance's own rows. Every row gets the
+# IPCC 2019 wet/dry class of its cell, crop and water regime
+# (build_cell_moisture_regime(): CRU climate, LPJmL irrigation depth, the
+# trailing 30-year window), says in `method_moisture_regime` how it was
+# obtained, and `method_drivers` is "whep_built". That needs the grid split
+# (WHEP_NBD_REGIME other than `none`) and grid resolution: a polity balance
+# refuses to build drivers.
 # WHEP_NBD_REGIME selects the rainfed/irrigated split (#1233):
 # yield_split (default), area_split or none (the unsplit balance).
 NBD_LOSS_METHODS <- list(
@@ -574,47 +574,19 @@ NBD_LOSS_METHODS <- list(
   leaching = "ipcc_fracleach",
   regime = Sys.getenv("WHEP_NBD_REGIME", "yield_split")
 )
-NBD_PLACEHOLDER_CLIMATE <- "ATL"
-
-# One driver row per (balance key, fert_type), matching the grain .nb_loss_rows()
-# summarises to, so the balance's many-to-one join is satisfied exactly.
-.nbd_climate_drivers <- function(n_inputs, resolution, climate) {
-  if (is.null(n_inputs)) {
-    return(NULL)
-  }
-  key <- whep:::.nb_key(resolution)
-  n2o_fert_types <- c(
-    "excreta",
-    "manure_liquid",
-    "manure_solid",
-    "som_mineralization",
-    "synthetic",
-    "human",
-    "recycling"
-  )
-  n_inputs |>
-    dplyr::filter(.data$fert_type %in% n2o_fert_types) |>
-    dplyr::distinct(dplyr::across(dplyr::all_of(c(key, "fert_type")))) |>
-    dplyr::mutate(
-      fert_type = whep:::.nb_loss_fert_type(.data$fert_type),
-      climate = climate
-    ) |>
-    dplyr::distinct()
-}
 
 # The harvest-removal surplus re-derived from the balance's own pre-loss
 # columns. If this matches calculate_n_surplus() to floating point, the
-# surplus this run reports is untouched by the placeholder climate -- and by
-# every other loss method choice -- which is the only reason a number from a
-# run with a placeholder driver is quotable at all.
+# surplus this run reports is untouched by the loss drivers and by every loss
+# method choice.
 .nbd_check_surplus_is_lossfree <- function(surplus) {
   recomputed <- surplus$n_input_std_t -
     (surplus$prod_n_t + surplus$used_residue_n_t + surplus$grazed_weeds_n_t)
   gap <- max(abs(recomputed - surplus$surplus_n_t), na.rm = TRUE)
   cli::cli_inform(c(
     i = "Surplus recomputed from the pre-loss columns differs by
-         {signif(gap, 3)} t N at worst, so no loss method (and therefore no
-         placeholder climate) reaches it."
+         {signif(gap, 3)} t N at worst, so no loss method or driver reaches
+         it."
   ))
   invisible(gap)
 }
@@ -1031,8 +1003,8 @@ if (nrow(blockers) > 0L) {
   ) |>
     c(manure_inputs)
 
-  # Built here rather than inside build_nitrogen_balance() because the climate
-  # driver table has to be keyed on the rows the inputs actually produced.
+  # Built here rather than inside build_nitrogen_balance() so the input
+  # streams can be reported before the balance runs.
   n_inputs <- nbd_stage(
     "n_inputs",
     build_n_inputs(resolution = resolution, data = nbd_data)
@@ -1053,11 +1025,6 @@ if (nrow(blockers) > 0L) {
     cli::cli_h2("6b. Why the balance did not run")
     cli::cli_inform(c(x = "{failure$detail}"))
   }
-  cli::cli_inform(c(
-    "!" = "climate driver: every loss row is given
-           {.val {NBD_PLACEHOLDER_CLIMATE}} because no global classifier
-           exists (#359). The loss columns of this run are NOT results."
-  ))
   balance <- if (is.null(n_inputs)) {
     NULL
   } else {
@@ -1066,17 +1033,8 @@ if (nrow(blockers) > 0L) {
       build_nitrogen_balance(
         methods = NBD_LOSS_METHODS,
         resolution = resolution,
-        data = c(
-          nbd_data,
-          list(
-            n_inputs = n_inputs,
-            n_balance_drivers = .nbd_climate_drivers(
-              n_inputs,
-              resolution,
-              NBD_PLACEHOLDER_CLIMATE
-            )
-          )
-        )
+        # No driver tables: the balance builds them (method_drivers).
+        data = c(nbd_data, list(n_inputs = n_inputs))
       )
     )
   }

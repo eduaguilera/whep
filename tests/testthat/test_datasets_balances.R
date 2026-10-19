@@ -353,6 +353,89 @@ test_that("n_attenuation_constants transcribes A_CN and indirect EFs", {
   testthat::expect_equal(lookup[["nh3_frac_organic"]], 0.21)
 })
 
+test_that("ipcc_2019_soil_n_ef transcribes every Tier 1 factor", {
+  pointblank::expect_col_exists(
+    whep::ipcc_2019_soil_n_ef,
+    columns = c("parameter", "disaggregation", "value", "unit", "source")
+  )
+  testthat::expect_equal(nrow(whep::ipcc_2019_soil_n_ef), 18L)
+  pointblank::expect_col_vals_not_null(whep::ipcc_2019_soil_n_ef, "value")
+
+  expected <- tibble::tribble(
+    ~parameter, ~disaggregation, ~expected,
+    "EF1", "aggregated", 0.010,
+    "EF1", "synthetic_wet", 0.016,
+    "EF1", "other_wet", 0.006,
+    "EF1", "all_dry", 0.005,
+    "EF1FR", "aggregated", 0.004,
+    "EF1FR", "continuous_flooding", 0.003,
+    "EF1FR", "single_multiple_drainage", 0.005,
+    "EF3PRP_CPP", "aggregated", 0.004,
+    "EF3PRP_CPP", "wet", 0.006,
+    "EF3PRP_CPP", "dry", 0.002,
+    "EF3PRP_SO", "aggregated", 0.003,
+    "EF4", "aggregated", 0.010,
+    "EF4", "wet", 0.014,
+    "EF4", "dry", 0.005,
+    "EF5", "aggregated", 0.011,
+    "FracLEACH_H", "wet", 0.24,
+    "FracLEACH_H", "dry", 0,
+    "FracLEACH_H", "dry_irrigated_non_drip", 0.24
+  )
+
+  joined <- expected |>
+    dplyr::inner_join(
+      whep::ipcc_2019_soil_n_ef,
+      by = c("parameter", "disaggregation")
+    )
+  testthat::expect_equal(nrow(joined), 18L)
+  testthat::expect_equal(joined$value, joined$expected)
+
+  x <- whep::ipcc_2019_soil_n_ef
+  testthat::expect_equal(
+    x$unit,
+    dplyr::case_when(
+      x$parameter == "FracLEACH_H" ~ "kg N per kg N",
+      TRUE ~ "kg N2O-N per kg N"
+    )
+  )
+})
+
+test_that("ipcc_2019_soil_n_ef agrees with indirect_n2o_ef", {
+  indirect <- whep::indirect_n2o_ef |>
+    dplyr::filter(edition == "ipcc_2019")
+
+  ef4 <- whep::ipcc_2019_soil_n_ef |>
+    dplyr::filter(parameter == "EF4", disaggregation == "aggregated") |>
+    dplyr::pull(value)
+  testthat::expect_equal(
+    ef4,
+    indirect |>
+      dplyr::filter(parameter == "ef4_volatilization") |>
+      dplyr::pull(value)
+  )
+
+  ef5 <- whep::ipcc_2019_soil_n_ef |>
+    dplyr::filter(parameter == "EF5", disaggregation == "aggregated") |>
+    dplyr::pull(value)
+  testthat::expect_equal(
+    ef5,
+    indirect |>
+      dplyr::filter(parameter == "ef5_leaching") |>
+      dplyr::pull(value)
+  )
+
+  frac_leach <- whep::ipcc_2019_soil_n_ef |>
+    dplyr::filter(parameter == "FracLEACH_H", disaggregation == "wet") |>
+    dplyr::pull(value)
+  testthat::expect_equal(
+    frac_leach,
+    indirect |>
+      dplyr::filter(parameter == "frac_leach") |>
+      dplyr::pull(value)
+  )
+})
+
 # Module C (Task C3) human-population nitrogen benchmark series.
 
 testthat::test_that("human_n_reference keys its area by FAOSTAT code", {
@@ -600,7 +683,9 @@ testthat::test_that("the renamed Human level keeps the former Urban coefficients
     c(0.40, 0.65, 0.70, 0.75)
   )
   # Every fert_type build_nitrogen_balance() sends to the direct-N2O lookup
-  # resolves to a modifier in both climates.
+  # resolves to a modifier in both climates. "Excreta" carries its species
+  # as a share and is priced as the blend of the two species rows, so those
+  # are the rows it needs.
   sent <- whep:::.nb_loss_fert_type(c(
     "excreta",
     "manure_liquid",
@@ -610,7 +695,19 @@ testthat::test_that("the renamed Human level keeps the former Urban coefficients
     "human",
     "recycling"
   ))
-  grid <- tidyr::crossing(fert_type = sent, climate = c("MED", "ATL"))
+  testthat::expect_true("Excreta" %in% sent)
+  looked_up <- c(
+    setdiff(sent, "Excreta"),
+    "Excreta_cattle_monog",
+    "Excreta_other"
+  )
+  grid <- tidyr::crossing(fert_type = looked_up, climate = c("MED", "ATL"))
   joined <- dplyr::left_join(grid, mf, by = c("fert_type", "climate"))
   testthat::expect_false(anyNA(joined$mf))
+  blend <- whep:::.soil_n2o_ef_mf_aguilera(tibble::tribble(
+    ~n_input_t, ~fert_type, ~climate, ~irrig_type, ~excreta_cpp_share,
+    1, "Excreta", "MED", "Rainfed", 0.5,
+    1, "Excreta", "ATL", "Tier_1", 0.5
+  ))
+  testthat::expect_false(anyNA(blend))
 })
