@@ -678,7 +678,7 @@ calculate_npp_carbon_nitrogen <- function(x) {
 # whether or not it is irrigated, so the irrigated-against-rainfed contrast
 # the factor stands for does not apply to it. The factor is not gated by the
 # residue sensitivity groups: water stress raises root:shoot more in
-# tap-rooted crops such as legumes, not less (Kou et al. 2022).
+# tap-rooted plants, the group legumes belong to, not less (Kou et al. 2022).
 # - Eziz, A., Yan, Z., Tian, D., Han, W., Tang, Z. and Fang, J. (2017).
 #   Drought effect on plant biomass allocation: a meta-analysis. Ecology and
 #   Evolution 7, 11002-11010, doi 10.1002/ece3.3630. 164 studies; drought
@@ -687,17 +687,20 @@ calculate_npp_carbon_nitrogen <- function(x) {
 # - Kou, X., Han, W. and Kang, J. (2022). Responses of root system
 #   architecture to water stress at multiple levels: a meta-analysis of
 #   trials under controlled conditions. Frontiers in Plant Science 13,
-#   1085409, doi 10.3389/fpls.2022.1085409. Water stress raises root:shoot
-#   by 21.6% in fibrous and 42.6% in tap root systems.
+#   1085409, doi 10.3389/fpls.2022.1085409. Not crops only: its pot and
+#   tube trials span crops, grasses, a weed, poplar and apple. Across about
+#   70 papers, water stress raises root:shoot by 21.6% in fibrous (Fig. 5A)
+#   and 42.6% in tap root systems (Fig. 5B).
 # - Seidel, S. J. et al. (2024). The overlooked effects of environmental
 #   impacts on root:shoot ratio in experiments and soil-crop models. Science
 #   of the Total Environment, doi 10.1016/j.scitotenv.2024.176738. Drought
-#   raises root:shoot by 13.5% (Zhou et al. 2018); field rainfed against
-#   irrigated winter wheat by 27% (old) and 4% (modern cultivar).
+#   raises root:shoot by 13.5% (Zhou et al. 2018); in section 2.1.2, field
+#   rainfed against irrigated winter wheat by 27% in an old and 4% in a
+#   modern cultivar (Fang et al. 2017).
 # Read as rainfed over irrigated, these imply an irrigated factor of 0.70
 # (tap roots) to 0.88 (the Zhou et al. 2018 mean), or 0.96 for the modern
-# wheat cultivar in the field; 0.85 sits inside that range. Paddy is crop group "Rice"
-# (item 27, the only rice item in `ipcc_crop_mapping`).
+# wheat cultivar in the field; 0.85 sits inside that range. Paddy is crop
+# group "Rice" (item 27, the only rice item in `ipcc_crop_mapping`).
 .root_irrigation_factor <- function(x, irrigation = "except_paddy") {
   if (!rlang::has_name(x, "water_regime")) {
     return(dplyr::mutate(x, rs_ratio_factor = 1))
