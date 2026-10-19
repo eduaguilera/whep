@@ -28,9 +28,13 @@ CRU_TS_RELEASE <- list(
 # The CRU variables this project needs. The first four are what LPJmL reads as
 # forcing; `pet` is not read by LPJmL at all, but `get_soc_climate_drivers()`
 # needs it alongside `tmp` for the soil-carbon moisture drivers, and fetching it
-# here is what keeps both in one directory from ONE release.
+# here is what keeps both in one directory from ONE release. `frs` (ground-frost
+# days per month) is likewise not read by LPJmL: the IPCC tropical-zone test
+# (mean annual temperature above 18 degC and at most 7 frost days a year, 2019
+# Refinement Vol.4 Fig. 3A.5.2) needs it, and `.cru_annual()` sums it to days
+# per year.
 #
-# Fetching it here also keeps the SOC drivers off the PREPARED climate files.
+# Fetching them here also keeps the SOC drivers off the PREPARED climate files.
 # Those are gap-filled for LPJmL's grid (.fill_cru_grid_gaps(): "0 degrees C
 # over land is wrong, so borrow the nearest valid CRU cell"), which is right for
 # forcing the model and wrong as a climate observation -- the filled `tmp`
@@ -40,7 +44,7 @@ CRU_TS_RELEASE <- list(
 # CRU ships each variable as a separate file that also carries stn/mae/maea
 # diagnostics nothing here uses; the prepare step strips them, which is where
 # most of the size goes.
-CRU_TS_VARIABLES <- c("tmp", "pre", "cld", "wet", "pet")
+CRU_TS_VARIABLES <- c("tmp", "pre", "cld", "wet", "pet", "frs")
 
 # The two monthly wind artefacts, pinned for cost rather than because the code
 # is lost: the 1901-2019 ISIMIP base streams ~34 GB of daily files

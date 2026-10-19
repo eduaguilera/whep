@@ -331,7 +331,7 @@
   n_inputs <- whep::build_n_inputs(data = data)
   item_codes <- unique(n_inputs$item_cbs_code)
   fert_types <- c(
-    "Excreta_other",
+    "Excreta",
     "Liquid",
     "Solid",
     "SOM",
@@ -349,13 +349,24 @@
     ),
     fert_type = fert_types
   ) |>
-    dplyr::mutate(climate = "MED", irrig_type = "Rainfed")
+    # `climate` and `irrig_type` feed the ATL/MED options; `moisture_regime`
+    # feeds the IPCC 2019 wet/dry default. The fixture sets each driver
+    # independently, and "wet" keeps the wet/dry leaching defined without the
+    # rainfed/irrigated split most tests here switch off.
+    dplyr::mutate(
+      climate = "MED",
+      irrig_type = "Rainfed",
+      moisture_regime = "wet"
+    )
+  # Leaching runs on every balance row, including the output-only SOM
+  # sequestration row that carries no crop (NA item_cbs_code).
   data$n_balance_leaching_drivers <- tibble::tibble(
     lon = 0.25,
     lat = 50.25,
     area_code = 10L,
-    item_cbs_code = item_codes,
+    item_cbs_code = union(item_codes, NA_integer_),
     year = 2010L,
+    moisture_regime = "wet",
     climate = "MED",
     irrig_cat = "Rainfed",
     land_use = "Cropland",
@@ -580,6 +591,57 @@ testthat::test_that("the bedding supply is national, keyed on the territory", {
     c("year", "territory", "bedding_dm_t", "bedding_c_t", "bedding_n_t")
   )
   testthat::expect_identical(supply$territory, "10")
+})
+
+testthat::test_that("bedded straw N is priced as applied manure, not as excreta", {
+  # add_manure_bedding() places the straw on the housed, litter-using streams
+  # only, so it lands as "manure_solid" and IPCC 2019 Table 11.1 prices it with
+  # EF1 for other N inputs, never with the EF3PRP of grazing deposition. The
+  # excreta rows and their species mix must come out untouched. The drivers
+  # are set dry, where EF1 (0.005) differs from both EF3PRP factors.
+  key <- whep:::.nb_key("grid")
+  run <- function(fraction) {
+    data <- .nb_data_with_drivers()
+    data$residue_bedding <- "fraction"
+    data$residue_bedding_fraction <- fraction
+    data$n_balance_drivers$moisture_regime <- "dry"
+    inputs <- suppressWarnings(whep::build_n_inputs(data = data))
+    loss <- whep:::.nb_loss_rows(inputs, key, data) |>
+      whep::calculate_soil_n2o(method = "ipcc2019")
+    list(inputs = inputs, loss = loss)
+  }
+  type_n <- function(x, type, col = "n_input_t") {
+    sum(x[[col]][x$fert_type == type])
+  }
+  excreta <- function(x) {
+    x |>
+      dplyr::filter(.data$fert_type %in% c("excreta", "Excreta")) |>
+      dplyr::arrange(dplyr::across(dplyr::all_of(key)))
+  }
+  bare <- run(0)
+  bedded <- run(0.4)
+  bedding_n <- type_n(bedded$inputs, "manure_solid") -
+    type_n(bare$inputs, "manure_solid")
+  manure <- c("manure_solid", "manure_liquid", "excreta")
+
+  testthat::expect_gt(bedding_n, 0)
+  testthat::expect_equal(
+    sum(bedded$inputs$n_input_t[bedded$inputs$fert_type %in% manure]) -
+      sum(bare$inputs$n_input_t[bare$inputs$fert_type %in% manure]),
+    bedding_n,
+    tolerance = 1e-12
+  )
+  testthat::expect_gt(nrow(excreta(bare$inputs)), 0L)
+  testthat::expect_identical(excreta(bedded$inputs), excreta(bare$inputs))
+  testthat::expect_identical(excreta(bedded$loss), excreta(bare$loss))
+  solid <- dplyr::filter(bedded$loss, .data$fert_type == "Solid")
+  testthat::expect_true(all(solid$method_soil_n2o == "ipcc2019_wet_dry"))
+  testthat::expect_equal(
+    type_n(bedded$loss, "Solid", "n2o_direct_n_t") -
+      type_n(bare$loss, "Solid", "n2o_direct_n_t"),
+    bedding_n * whep:::.ipcc2019_soil_ef("EF1", "all_dry"),
+    tolerance = 1e-12
+  )
 })
 
 testthat::test_that("bedding residue N is an output of the full balance", {
@@ -863,8 +925,30 @@ testthat::test_that("zero-input balance rows have undefined, not infinite, ratio
 testthat::test_that("method_nh3/method_soil_n2o/method_leaching are stamped", {
   out <- .nb_run()
   testthat::expect_true(all(out$method_nh3 == "ipcc"))
-  testthat::expect_true(all(out$method_soil_n2o == "ipcc2019"))
-  testthat::expect_true(all(out$method_leaching == "ipcc_fracleach"))
+  # Each soil-N2O stamp names the factor its loss rows took; a row with no
+  # loss row says so.
+  stamps <- unlist(strsplit(out$method_soil_n2o, "|", fixed = TRUE))
+  testthat::expect_true(all(
+    stamps %in%
+      c("ipcc2019_no_loss_row", "ipcc2019_wet_dry", "ipcc2019_ef3prp_blend")
+  ))
+  testthat::expect_true(all(out$method_leaching == "ipcc_fracleach_wet"))
+})
+
+testthat::test_that("a balance row with no loss row is stamped as such", {
+  # A row with no N2O-relevant input forms no loss row, so it emits nothing
+  # and no factor was applied to it; its stamp must not read as a priced
+  # row's, which under several methods is the bare method name.
+  out <- .nb_run()
+  no_loss <- out$method_soil_n2o == "ipcc2019_no_loss_row"
+  testthat::expect_true(any(no_loss))
+  testthat::expect_true(all(out$n_input_for_n2o_t[no_loss] == 0))
+  testthat::expect_true(all(out$n2o_direct_n_t[no_loss] == 0))
+  testthat::expect_true(all(out$n2o_indirect_nh3_n_t[no_loss] == 0))
+  testthat::expect_true(all(
+    out$method_n2o_indirect_nh3[no_loss] == "ipcc2019_no_loss_row"
+  ))
+  testthat::expect_false(any(out$method_soil_n2o == "ipcc2019"))
 })
 
 testthat::test_that("resolution argument is validated", {
@@ -1526,15 +1610,49 @@ testthat::test_that("the default manure source reproduces the pre-option balance
     "fixtures",
     "n_inputs_default_golden.rds"
   ))
-  # The golden predates the sourced bedding share (whep#1005), so it is
-  # reproduced under the rule it was written with: no bedding.
+  # The golden predates the wet/dry methods: its N2O columns are the ATL/MED
+  # option on this fixture's MED climate, and its FracLEACH is the 0.24 that
+  # today's wet rows take. Built with those options, every number must still
+  # match; only the stamps name the options more precisely now. It also
+  # predates the sourced bedding share (whep#1005), so it is reproduced under
+  # the rule it was written with: no bedding.
   data <- .nb_data_with_drivers()
   data$methods <- list(losses = list(ef3_source = "as_shipped"))
   data$residue_feed_share <- "legacy"
   data$residue_bedding <- "fraction"
-  out <- suppressMessages(.nb_run(data))
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = list(
+      nh3 = "ipcc",
+      n2o = "ipcc2019_atl_med",
+      n2o_indirect = "ipcc2019_atl_med",
+      leaching = "ipcc_fracleach",
+      regime = "none"
+    ),
+    data = data
+  ))
+  # Rows with no N2O-relevant input carry the method and the reason.
+  atl_med <- c("ipcc2019_atl_med", "ipcc2019_atl_med_no_loss_row")
+  testthat::expect_true(all(out$method_soil_n2o %in% atl_med))
+  testthat::expect_true(all(out$method_n2o_indirect_nh3 %in% atl_med))
+  testthat::expect_true(all(out$method_leaching == "ipcc_fracleach_wet"))
+  # Added after the golden: the retained-in-profile term (zero on wet rows),
+  # the drivers' provenance and the class the leaching drivers carry.
+  testthat::expect_true(all(out$retained_profile_n_t == 0))
+  testthat::expect_true(all(out$method_drivers == "supplied"))
+  testthat::expect_true(all(out$moisture_regime == "wet"))
   testthat::expect_identical(
-    dplyr::select(out, -"method_manure"),
+    out |>
+      dplyr::select(
+        -"method_manure",
+        -"method_n2o_indirect_nh3",
+        -"retained_profile_n_t",
+        -"method_drivers",
+        -"moisture_regime"
+      ) |>
+      dplyr::mutate(
+        method_soil_n2o = "ipcc2019",
+        method_leaching = "ipcc_fracleach"
+      ),
     golden$balance_grid
   )
   # Keys with no manure row carry no manure stamp.
@@ -1665,16 +1783,502 @@ testthat::test_that("the entry check lets complete drivers and the IPCC method t
     "Synthetic", "Urea", 6, 50, 0, FALSE, 8.6, 8.6,
     "Recycling", NA, NA, NA, NA, NA, NA, NA
   )
+  # The default Meisinger leaching reads its own driver table, which the
+  # caller supplies too: build_n_loss_drivers() has no Meisinger drivers yet.
   testthat::expect_error(
-    whep::build_nitrogen_balance(data = list(n_balance_drivers = drivers)),
+    whep::build_nitrogen_balance(
+      data = list(
+        n_balance_drivers = drivers,
+        n_balance_leaching_drivers = tibble::tibble(fert_type = "Synthetic")
+      )
+    ),
     class = "nb_test_assembly_reached"
   )
   testthat::expect_error(
     whep::build_nitrogen_balance(
-      methods = list(nh3 = "ipcc"),
+      methods = list(nh3 = "ipcc", leaching = "ipcc_fracleach"),
       data = list()
     ),
     class = "nb_test_assembly_reached"
+  )
+})
+
+# ---- IPCC 2019 wet/dry loss methods ---------------------------------------
+
+.nb_run_methods <- function(data = .nb_data_with_drivers(), ...) {
+  whep::build_nitrogen_balance(
+    methods = utils::modifyList(
+      list(nh3 = "ipcc", leaching = "ipcc_fracleach", regime = "none"),
+      list(...)
+    ),
+    data = data
+  )
+}
+
+testthat::test_that("the indirect N2O method is a validated methods entry", {
+  m <- whep:::.nb_methods(list())
+  testthat::expect_identical(m$n2o, "ipcc2019")
+  testthat::expect_identical(m$n2o_indirect, "ipcc2019")
+  testthat::expect_identical(
+    whep:::.nb_methods(list(n2o_indirect = "ipcc2019_atl_med"))$n2o_indirect,
+    "ipcc2019_atl_med"
+  )
+  testthat::expect_identical(
+    whep:::.nb_methods(list(n2o = "ipcc2019_atl_med"))$n2o,
+    "ipcc2019_atl_med"
+  )
+  testthat::expect_error(
+    whep:::.nb_methods(list(n2o_indirect = "aguilera")),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the loss rows carry the N-weighted excreta share", {
+  # 10 t at a CPP share of 0.2 and 30 t at 0.6 on one key: 0.5 by N.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  n_inputs <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~fert_type, ~n_input_t,
+    ~excreta_cpp_share, ~method_excreta_species,
+    0.25, 50.25, 10L, 3000L, 2010L, "excreta", 10, 0.2,
+    "engine_livestock_category",
+    0.25, 50.25, 10L, 3000L, 2010L, "excreta", 30, 0.6,
+    "engine_livestock_category",
+    0.25, 50.25, 10L, 3000L, 2010L, "synthetic", 5, NA, NA
+  )
+  rows <- whep:::.nb_loss_rows(n_inputs, key, list())
+  excreta <- dplyr::filter(rows, .data$fert_type == "Excreta")
+  testthat::expect_equal(excreta$n_input_t, 40)
+  testthat::expect_equal(excreta$excreta_cpp_share, 0.5, tolerance = 1e-12)
+  testthat::expect_identical(
+    excreta$method_excreta_species,
+    "engine_livestock_category"
+  )
+  testthat::expect_true(is.na(rows$excreta_cpp_share[
+    rows$fert_type != "Excreta"
+  ]))
+  # One excreta row of unknown mix leaves the whole key without a share.
+  n_inputs$excreta_cpp_share[2] <- NA
+  n_inputs$method_excreta_species[2] <- NA
+  unknown <- whep:::.nb_loss_rows(n_inputs, key, list())
+  testthat::expect_true(is.na(
+    unknown$excreta_cpp_share[unknown$fert_type == "Excreta"]
+  ))
+})
+
+testthat::test_that("fallback-labelled excreta is pooled apart from grazing excreta", {
+  # Collected manure labelled excreta only as a fallback is priced as
+  # applied manure, so it must not pool with (and erase the mix of) the
+  # grazing excreta of the same key.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  n_inputs <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~fert_type, ~n_input_t,
+    ~excreta_cpp_share, ~method_excreta_species,
+    0.25, 50.25, 10L, 3000L, 2010L, "excreta", 10, 0.2,
+    "engine_livestock_category",
+    0.25, 50.25, 10L, 3000L, 2010L, "excreta", 30, NA,
+    "fallback_label_no_species",
+    0.25, 50.25, 10L, 3000L, 2010L, "excreta", 5, NA,
+    "fallback_label_no_species"
+  )
+  rows <- whep:::.nb_loss_rows(n_inputs, key, list())
+  testthat::expect_identical(nrow(rows), 2L)
+  grazing <- rows[
+    rows$method_excreta_species %in% "engine_livestock_category",
+  ]
+  fallback <- rows[
+    rows$method_excreta_species %in% "fallback_label_no_species",
+  ]
+  testthat::expect_equal(grazing$n_input_t, 10)
+  testthat::expect_equal(grazing$excreta_cpp_share, 0.2)
+  testthat::expect_equal(fallback$n_input_t, 35)
+  testthat::expect_true(is.na(fallback$excreta_cpp_share))
+  # Priced in the cascade: the grazing part at the wet EF3PRP blend, the
+  # fallback part at wet EF1 for other N inputs (0.006).
+  priced <- rows |>
+    dplyr::mutate(moisture_regime = "wet") |>
+    whep::calculate_soil_n2o(method = "ipcc2019")
+  testthat::expect_equal(
+    sum(priced$n2o_direct_n_t),
+    10 * (0.2 * 0.006 + 0.8 * 0.003) + 35 * 0.006,
+    tolerance = 1e-12
+  )
+})
+
+testthat::test_that("the default balance prices its loss rows with the wet IPCC factors", {
+  out <- .nb_run_methods()
+  inputs <- .nb_inputs_with_drivers()
+  n_of <- function(type) sum(inputs$n_input_t[inputs$fert_type == type])
+  synthetic <- n_of("synthetic")
+  others <- sum(purrr::map_dbl(
+    c(
+      "manure_liquid",
+      "manure_solid",
+      "som_mineralization",
+      "human",
+      "recycling"
+    ),
+    n_of
+  ))
+  excreta <- inputs[inputs$fert_type == "excreta", ]
+  # Table 11.1: wet EF1 0.016 synthetic, 0.006 other; the grass excreta take
+  # the EF3PRP blend of their CPP share (0.006 wet CPP, 0.003 SO).
+  excreta_ef <- excreta$excreta_cpp_share *
+    0.006 +
+    (1 - excreta$excreta_cpp_share) * 0.003
+  expected <- 0.016 *
+    synthetic +
+    0.006 * others +
+    sum(excreta$n_input_t * excreta_ef)
+  testthat::expect_gt(nrow(excreta), 0L)
+  testthat::expect_equal(sum(out$n2o_direct_n_t), expected, tolerance = 1e-12)
+  # Table 11.3: wet EF4 0.014 on every tonne volatilised.
+  testthat::expect_equal(
+    sum(out$n2o_indirect_nh3_n_t),
+    0.014 * sum(out$nh3_n_t),
+    tolerance = 1e-12
+  )
+  stamps <- unlist(strsplit(stats::na.omit(out$method_soil_n2o), "|", TRUE))
+  testthat::expect_true(all(
+    stamps %in%
+      c("ipcc2019_no_loss_row", "ipcc2019_wet_dry", "ipcc2019_ef3prp_blend")
+  ))
+  grass <- out[out$item_cbs_code %in% 3000L, ]
+  testthat::expect_identical(grass$method_soil_n2o, "ipcc2019_ef3prp_blend")
+  pointblank::expect_col_vals_in_set(
+    out,
+    "method_n2o_indirect_nh3",
+    c("ipcc2019_no_loss_row", "ipcc2019_wet_dry")
+  )
+})
+
+testthat::test_that("the ATL/MED options reproduce the former balance", {
+  # Golden totals of this fixture at commit bb604f8b, before the wet/dry
+  # method took the `ipcc2019` name (MED, so EF1 0.005 and the Rainfed ef on
+  # NH3). FracLEACH 0.24 on every row then equals today's wet rows. The
+  # golden also predates the sourced bedding share (whep#1005), so it is
+  # reproduced under the rule it was written with: no bedding.
+  data <- .nb_data_with_drivers()
+  data$methods <- list(losses = list(ef3_source = "as_shipped"))
+  data$residue_feed_share <- "legacy"
+  data$residue_bedding <- "fraction"
+  out <- .nb_run_methods(
+    data = data,
+    n2o = "ipcc2019_atl_med",
+    n2o_indirect = "ipcc2019_atl_med"
+  )
+  testthat::expect_equal(
+    sum(out$n2o_direct_n_t),
+    195.67972956176624,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    sum(out$n2o_indirect_nh3_n_t),
+    22.162198946713094,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(sum(out$no3_n_t), 8139.995079404959, tolerance = 1e-12)
+  # Rows with no N2O-relevant input carry the method and the reason.
+  atl_med <- c("ipcc2019_atl_med", "ipcc2019_atl_med_no_loss_row")
+  testthat::expect_true(all(out$method_soil_n2o %in% atl_med))
+  testthat::expect_true(all(out$method_n2o_indirect_nh3 %in% atl_med))
+})
+
+testthat::test_that("the balance refuses loss drivers without a moisture regime", {
+  data <- .nb_data_with_drivers()
+  data$n_balance_drivers$moisture_regime <- NULL
+  testthat::expect_error(
+    .nb_run_methods(data),
+    class = "whep_missing_moisture_regime"
+  )
+})
+
+testthat::test_that("a driver table keyed on the former excreta label is refused", {
+  # build_n_inputs()'s excreta now reaches the losses as "Excreta"; drivers
+  # still keyed on "Excreta_other" leave those rows without a moisture regime.
+  data <- .nb_data_with_drivers()
+  data$n_balance_drivers <- dplyr::mutate(
+    data$n_balance_drivers,
+    fert_type = dplyr::if_else(
+      .data$fert_type == "Excreta",
+      "Excreta_other",
+      .data$fert_type
+    )
+  )
+  err <- testthat::expect_error(
+    .nb_run_methods(data),
+    class = "whep_moisture_regime_na"
+  )
+  testthat::expect_match(cli::ansi_strip(conditionMessage(err)), "1 row")
+})
+
+testthat::test_that("dry irrigated parts leach and dry rainfed parts do not", {
+  data <- .nb_regime_split_data()
+  data$n_balance_leaching_drivers$moisture_regime <- "dry"
+  out <- .nb_run_methods(data, regime = "yield_split")
+  irrigated <- out$water_regime == "irrigated"
+  testthat::expect_equal(
+    out$no3_n_t[irrigated],
+    0.24 * out$surplus_t[irrigated],
+    tolerance = 1e-12
+  )
+  testthat::expect_true(all(out$no3_n_t[!irrigated] == 0))
+  testthat::expect_true(all(
+    out$method_leaching[irrigated] == "ipcc_fracleach_dry_irrigated"
+  ))
+  testthat::expect_true(all(
+    out$method_leaching[!irrigated] == "ipcc_fracleach_dry_rainfed_retained"
+  ))
+  testthat::expect_gt(sum(out$surplus_t[irrigated]), 0)
+})
+
+testthat::test_that("an unsplit dry balance cannot choose a leaching fraction", {
+  data <- .nb_data_with_drivers()
+  data$n_balance_leaching_drivers$moisture_regime <- "dry"
+  testthat::expect_error(
+    .nb_run_methods(data),
+    class = "whep_missing_water_regime"
+  )
+})
+
+testthat::test_that("aguilera blends the grass excreta modifier in the balance", {
+  out <- .nb_run_methods(
+    n2o = "aguilera",
+    n2o_indirect = "ipcc2019_atl_med"
+  )
+  grass <- out[out$item_cbs_code %in% 3000L, ]
+  testthat::expect_identical(grass$method_soil_n2o, "aguilera_excreta_blend")
+  excreta <- .nb_inputs_with_drivers() |>
+    dplyr::filter(.data$fert_type == "excreta")
+  # MED / Rainfed: ef 0.0027; mf 0.20 (cattle/monogastric), 0.30 (other).
+  mf <- excreta$excreta_cpp_share *
+    0.20 +
+    (1 - excreta$excreta_cpp_share) * 0.30
+  testthat::expect_equal(
+    grass$n2o_direct_n_t,
+    sum(excreta$n_input_t * 0.0027 * mf),
+    tolerance = 1e-12
+  )
+})
+
+testthat::test_that("the balance example carries the method columns a build returns", {
+  example <- whep::build_nitrogen_balance(example = TRUE)
+  built <- .nb_run_methods()
+  method_cols <- grep("^method_", names(example), value = TRUE)
+  testthat::expect_true(all(method_cols %in% names(built)))
+  testthat::expect_true("method_n2o_indirect_nh3" %in% method_cols)
+  testthat::expect_identical(example$method_soil_n2o, "ipcc2019_wet_dry")
+})
+
+# ---- WHEP-built loss drivers ------------------------------------------------
+
+.nb_ipcc_methods <- function(...) {
+  utils::modifyList(
+    list(
+      nh3 = "ipcc",
+      n2o = "ipcc2019",
+      leaching = "ipcc_fracleach",
+      regime = "yield_split"
+    ),
+    list(...)
+  )
+}
+
+# The split fixture without its driver tables, and the layers the builder
+# reads in their place: the fixture cell's own wet/dry classes for its crop
+# (2511 wet irrigated, dry rainfed) and a dry 30-year climate for the cell,
+# which classes every row without a crop of its own.
+.nb_built_driver_data <- function() {
+  data <- .nb_regime_split_data()
+  # The shares and the classes describe one land use: only 2511 holds
+  # irrigated land, so no other item carries irrigated N (an irrigated row
+  # with N and no class of its own is refused).
+  data$regime_shares <- dplyr::mutate(
+    data$regime_shares,
+    irrigated_area_share = dplyr::if_else(
+      .data$item_cbs_code %in% 2511L,
+      .data$irrigated_area_share,
+      0
+    ),
+    irrigated_yield_share = dplyr::if_else(
+      .data$item_cbs_code %in% 2511L,
+      .data$irrigated_yield_share,
+      0
+    )
+  )
+  data$n_balance_drivers <- NULL
+  data$n_balance_leaching_drivers <- NULL
+  data$drainage_mm <- NULL
+  classes <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~water_regime, ~year,
+    ~moisture_regime, ~method_moisture_regime,
+    0.25, 50.25, 10L, 2511L, "irrigated", 2010L, "wet",
+    "ipcc2019_wet_dry;trailing_30;precip_irrig",
+    0.25, 50.25, 10L, 2511L, "rainfed", 2010L, "dry",
+    "ipcc2019_wet_dry;trailing_30;precip_irrig"
+  ) |>
+    dplyr::mutate(climate_fill_km = NA_real_)
+  climate <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    year = 1981:2010,
+    mean_annual_temp_c = 10,
+    annual_precip_mm = 500,
+    annual_pet_mm = 900,
+    annual_frost_days = 60
+  )
+  data$n_loss_driver_inputs <- list(
+    moisture_regime = classes,
+    climate = climate
+  )
+  data
+}
+
+.nb_built_balance <- function() {
+  memo_n_fixture("nb_built_balance", function() {
+    suppressMessages(whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(),
+      data = .nb_built_driver_data()
+    ))
+  })
+}
+
+testthat::test_that("a grid balance without drivers builds them and says so", {
+  testthat::skip_if_not_installed("pointblank")
+  out <- .nb_built_balance()
+  out |>
+    pointblank::expect_col_vals_in_set("method_drivers", "whep_built") |>
+    pointblank::expect_col_vals_in_set("moisture_regime", c("wet", "dry")) |>
+    pointblank::expect_col_vals_not_null("method_moisture_regime")
+  crop <- out[out$item_cbs_code %in% 2511L, ]
+  testthat::expect_identical(
+    crop$moisture_regime[crop$water_regime == "irrigated"],
+    "wet"
+  )
+  no_item <- out[is.na(out$item_cbs_code), ]
+  testthat::expect_gt(nrow(no_item), 0L)
+  testthat::expect_true(all(stringr::str_detect(
+    no_item$method_moisture_regime,
+    "cell_rainfed_class=no_crop_item"
+  )))
+  # The soil N2O of the irrigated (wet) crop part is priced on wet factors.
+  testthat::expect_true(all(
+    crop$method_leaching[crop$water_regime == "irrigated"] ==
+      "ipcc_fracleach_wet"
+  ))
+})
+
+testthat::test_that("built drivers give the balance the supplied drivers' result", {
+  # The tables the build makes, supplied back, give the same balance.
+  data <- .nb_built_driver_data()
+  real <- whep::build_n_loss_drivers
+  tables <- NULL
+  built <- testthat::with_mocked_bindings(
+    suppressMessages(whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(),
+      data = data
+    )),
+    build_n_loss_drivers = function(...) {
+      tables <<- real(...)
+      tables
+    },
+    .package = "whep"
+  )
+  testthat::expect_named(
+    tables,
+    c("n_balance_drivers", "n_balance_leaching_drivers")
+  )
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = .nb_ipcc_methods(),
+    data = c(data, tables)
+  ))
+  testthat::expect_true(all(out$method_drivers == "supplied"))
+  testthat::expect_true(all(built$method_drivers == "whep_built"))
+  testthat::expect_identical(
+    dplyr::select(out, -"method_drivers"),
+    dplyr::select(built, -"method_drivers")
+  )
+})
+
+testthat::test_that("one supplied driver table is kept and the other built", {
+  data <- .nb_built_driver_data()
+  data$n_balance_drivers <- .nb_data_with_drivers()$n_balance_drivers
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = .nb_ipcc_methods(),
+    data = data
+  ))
+  testthat::expect_true(all(out$method_drivers == "supplied|whep_built"))
+})
+
+testthat::test_that("dry rainfed surplus is retained, and the partition holds", {
+  out <- .nb_built_balance()
+  testthat::expect_equal(
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    out$surplus_t,
+    tolerance = 1e-9
+  )
+  dry_rainfed <- out$moisture_regime == "dry" & out$water_regime == "rainfed"
+  testthat::expect_true(any(dry_rainfed & out$surplus_t > 0))
+  testthat::expect_true(all(out$denitrification_n_t[dry_rainfed] == 0))
+  testthat::expect_equal(
+    out$retained_profile_n_t[dry_rainfed],
+    out$surplus_t[dry_rainfed],
+    tolerance = 1e-12
+  )
+  testthat::expect_true(all(
+    out$method_leaching[dry_rainfed] == "ipcc_fracleach_dry_rainfed_retained"
+  ))
+  testthat::expect_true(all(out$retained_profile_n_t[!dry_rainfed] == 0))
+})
+
+testthat::test_that("a polity balance without drivers is refused before assembly", {
+  .nb_stub_assembly()
+  err <- testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(),
+      resolution = "polity",
+      data = list()
+    ),
+    class = "whep_n_loss_drivers_polity"
+  )
+  testthat::expect_match(
+    cli::ansi_strip(conditionMessage(err)),
+    "n_balance_leaching_drivers",
+    fixed = TRUE
+  )
+})
+
+testthat::test_that("an unsplit grid balance cannot build its drivers", {
+  .nb_stub_assembly()
+  testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(regime = "none"),
+      data = list()
+    ),
+    class = "whep_n_loss_drivers_regime"
+  )
+})
+
+testthat::test_that("Meisinger and MANNER name the drivers the builder lacks", {
+  .nb_stub_assembly()
+  err <- testthat::expect_error(
+    whep::build_nitrogen_balance(
+      methods = .nb_ipcc_methods(leaching = "meisinger_drainage"),
+      data = list()
+    ),
+    class = "whep_n_loss_drivers_unsupported"
+  )
+  msg <- cli::ansi_strip(conditionMessage(err))
+  for (col in c("drainage_mm", "som_share", "irrig_cat", "tillage")) {
+    testthat::expect_match(msg, col, fixed = TRUE)
+  }
+  err <- testthat::expect_error(
+    whep::build_nitrogen_balance(data = list()),
+    class = "whep_error_nh3_drivers_absent"
+  )
+  testthat::expect_match(
+    cli::ansi_strip(conditionMessage(err)),
+    "build_n_loss_drivers",
+    fixed = TRUE
   )
 })
 

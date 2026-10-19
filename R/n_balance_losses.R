@@ -95,53 +95,114 @@ calculate_nh3 <- function(x, method = "manner", example = FALSE) {
 #' Estimate direct soil N2O emissions from applied nitrogen.
 #'
 #' @description
-#' Three emission-factor regimes for direct nitrous oxide from
-#' nitrogen applied to soil. `"ipcc2019"` (the default) is the IPCC 2019
-#' Tier 1 climate-disaggregated `EF1`, needing only `climate`: it reuses the
-#' [n2o_efs_disaggregated] table's two climate-level rows (`irrig_type ==
-#' "Tier_1"` for ATL, `irrig_type == "Med_average"` for MED, 0.010 wet /
-#' 0.005 dry) with no `mf` multiplier; the ATL value (0.010) is the same
-#' value documented as `EF1` in [build_crop_soil_n2o_extension()], pulled
-#' from one shared source of truth rather than hardcoded a second time. It is
-#' the default because it is the internationally standard, globally
-#' applicable Tier 1 method. `"aguilera"` is a finer
-#' Mediterranean-calibrated disaggregation (Cayuela et al. 2017), selectable
-#' where its `irrig_type`/`fert_type` granularity is available and its
-#' regional emission factors apply: `n2o_direct_n_t = n_input_t * ef * mf`,
-#' `ef` from [n2o_efs_disaggregated] on `(irrig_type, climate)`, `mf` from
-#' [fertiliser_n2o_modifiers] on `(fert_type, climate)`. `"ipcc2006"` uses
-#' the [n2o_efs_ipcc2006] table (IPCC 2006 Tier 1 defaults, flat 0.010
-#' except flooded rice 0.003), keyed like `"aguilera"` on
-#' `(irrig_type, climate)` with no `mf` multiplier.
+#' Four emission-factor regimes for direct nitrous oxide from nitrogen
+#' applied to soil, `n2o_direct_n_t = n_input_t * ef`.
 #'
-#' @param x A tibble with `n_input_t` and `climate`. `method = "aguilera"`
-#'   or `"ipcc2006"` additionally require `irrig_type` and (aguilera only)
-#'   `fert_type`.
-#' @param method `"ipcc2019"` (default, IPCC 2019 Tier 1, climate-only),
-#'   `"aguilera"` (Mediterranean-calibrated, needs `irrig_type`/`fert_type`)
-#'   or `"ipcc2006"` (IPCC 2006 Tier 1, needs `irrig_type`).
+#' `"ipcc2019"` (the default) is the IPCC 2019 Tier 1 wet/dry
+#' disaggregation, keyed on each row's `moisture_regime` (`"wet"` or
+#' `"dry"`), with every factor read from [ipcc_2019_soil_n_ef]:
+#' * `EF1` (IPCC 2019 Refinement Vol 4 Ch 11 Table 11.1 (Updated) p. 11.13):
+#'   0.016 for synthetic fertiliser and 0.006 for every other N input in wet
+#'   climates, 0.005 for all N inputs in dry climates. Stamped
+#'   `"ipcc2019_wet_dry"`.
+#' * `EF1FR` (same table): 0.004, the aggregated flooded-rice factor, on
+#'   every rice row in both moisture and both water regimes. No drainage
+#'   layer exists for its continuous-flooding (0.003) versus drained (0.005)
+#'   split, and upland rice, which the table prices with `EF1`, has no layer
+#'   of its own either. Rice rows are those whose `item_cbs_code` is the CBS
+#'   item of a production item classed `Crop_irrig == "Rice"` in
+#'   [items_prod_full] (2807, rice and products). Stamped `"ipcc2019_ef1fr"`.
+#' * `EF3PRP` (same table) on excreta deposited by grazing animals, as the
+#'   N-weighted blend `excreta_cpp_share * EF3PRP,CPP + (1 -
+#'   excreta_cpp_share) * EF3PRP,SO`, with `EF3PRP,CPP` 0.006 wet and 0.002
+#'   dry for cattle, poultry and pigs and `EF3PRP,SO` 0.003 for sheep and
+#'   other animals. Excreta keep this factor on a rice row too: Equation 11.1
+#'   prices urine and dung deposited by grazing animals apart from the N
+#'   applied to the crop. A row labelled by species reads its share from the
+#'   label: 1 on `"Excreta_cattle_monog"`, 0 on `"Excreta_other"`. Stamped
+#'   `"ipcc2019_ef3prp_blend"`.
+#' * Excreta labelled so only as the fallback of a manure-type split
+#'   (`method_excreta_species == "fallback_label_no_species"`) is collected
+#'   manure applied to the land, not grazing deposition: it takes the factor
+#'   of applied manure on its row (`EF1` for other N inputs, `EF1FR` on a
+#'   rice item), whatever its missing species mix. Stamped
+#'   `"ipcc2019_fallback_applied_manure"`.
+#'
+#' `"ipcc2019_atl_med"` is the earlier IPCC 2019 Tier 1 option keyed on the
+#' Atlantic/Mediterranean `climate` instead: the [n2o_efs_disaggregated]
+#' table's two climate-level rows (`irrig_type == "Tier_1"` for ATL,
+#' `irrig_type == "Med_average"` for MED, 0.010 and 0.005), whatever the
+#' input. `"aguilera"` is a finer Mediterranean-calibrated disaggregation
+#' (Cayuela et al. 2017), selectable where its `irrig_type`/`fert_type`
+#' granularity is available and its regional emission factors apply:
+#' `ef * mf`, `ef` from [n2o_efs_disaggregated] on `(irrig_type, climate)`,
+#' `mf` from [fertiliser_n2o_modifiers] on `(fert_type, climate)`. An
+#' `"Excreta"` row, whose species are carried as a share rather than in its
+#' label, takes `excreta_cpp_share * mf(Excreta_cattle_monog) + (1 -
+#' excreta_cpp_share) * mf(Excreta_other)`, stamped
+#' `"aguilera_excreta_blend"`; a fallback-labelled `"Excreta"` row, which is
+#' collected manure applied to the land and not grazing deposition, takes
+#' `mf(Solid)` (0.38 on MED, 0.60 on ATL), stamped
+#' `"aguilera_fallback_applied_manure"`.
+#' `"ipcc2006"` uses the [n2o_efs_ipcc2006]
+#' table (IPCC 2006 Tier 1 defaults, flat 0.010 except flooded rice 0.003),
+#' keyed like `"aguilera"` on `(irrig_type, climate)` with no `mf`.
+#'
+#' @details
+#' `method = "ipcc2019"` aborts when `moisture_regime` is absent
+#' (`whep_missing_moisture_regime`), missing on any row
+#' (`whep_moisture_regime_na`, naming the count) or neither `"wet"` nor
+#' `"dry"` (`whep_moisture_regime_value`): which class a row belongs to is
+#' decided where the drivers are built, not here. An excreta row carrying N
+#' without an `excreta_cpp_share` aborts (`whep_excreta_share_missing`), as
+#' does a share outside 0 to 1 (`whep_excreta_share_invalid`) and a share on
+#' a species-labelled row that contradicts its label
+#' (`whep_excreta_share_label_conflict`); a row with no excreta N emits
+#' nothing whatever its mix. A `fert_type` with no direct
+#' factor in Equation 11.1 (`"BNF"`, `"Deposition"`) aborts
+#' (`whep_soil_n2o_fert_type`).
+#'
+#' @param x A tibble with `n_input_t`. `method = "ipcc2019"` requires
+#'   `fert_type` (`"Synthetic"`, `"Solid"`, `"Liquid"`, `"Human"`,
+#'   `"Recycling"`, `"SOM"` or an excreta label: `"Excreta"`,
+#'   `"Excreta_cattle_monog"`, `"Excreta_other"`), `item_cbs_code` and
+#'   `moisture_regime`, plus `excreta_cpp_share` on `"Excreta"` rows.
+#'   `"ipcc2019_atl_med"` requires `climate`. `"aguilera"` and `"ipcc2006"`
+#'   require `climate` and `irrig_type`, and aguilera `fert_type` (and
+#'   `excreta_cpp_share` on `"Excreta"` rows).
+#' @param method `"ipcc2019"` (default, IPCC 2019 Tier 1 wet/dry),
+#'   `"ipcc2019_atl_med"` (IPCC 2019 Tier 1 on ATL/MED), `"aguilera"`
+#'   (Mediterranean-calibrated) or `"ipcc2006"` (IPCC 2006 Tier 1).
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `n2o_direct_n_t` and `method_soil_n2o` appended.
+#'   `method_soil_n2o` names the factor each row took: the method name, or
+#'   for `"ipcc2019"` one of `"ipcc2019_wet_dry"`, `"ipcc2019_ef1fr"`,
+#'   `"ipcc2019_ef3prp_blend"`, `"ipcc2019_fallback_applied_manure"`, and for
+#'   `"aguilera"` `"aguilera_excreta_blend"` on blended excreta rows and
+#'   `"aguilera_fallback_applied_manure"` on fallback-labelled ones.
+#' @source IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
+#'   National Greenhouse Gas Inventories, Vol 4, Ch 11, Table 11.1
+#'   (Updated), p. 11.13.
 #' @export
 #' @examples
 #' calculate_soil_n2o(example = TRUE)
 calculate_soil_n2o <- function(
   x,
-  method = c("ipcc2019", "aguilera", "ipcc2006"),
+  method = c("ipcc2019", "ipcc2019_atl_med", "aguilera", "ipcc2006"),
   example = FALSE
 ) {
-  method <- match.arg(method)
+  method <- rlang::arg_match(method)
   if (isTRUE(example)) {
     return(.example_soil_n2o())
   }
-  if (method == "aguilera") {
-    .soil_n2o_aguilera(x)
-  } else if (method == "ipcc2006") {
-    .soil_n2o_ipcc2006(x)
-  } else {
-    .soil_n2o_ipcc2019(x)
-  }
+  switch(
+    method,
+    ipcc2019 = .soil_n2o_ipcc2019(x),
+    ipcc2019_atl_med = .soil_n2o_ipcc2019_atl_med(x),
+    aguilera = .soil_n2o_aguilera(x),
+    ipcc2006 = .soil_n2o_ipcc2006(x)
+  )
 }
 
 #' Estimate nitrate leaching, topsoil denitrification and indirect N2O.
@@ -155,9 +216,24 @@ calculate_soil_n2o <- function(
 #' ([subsoil_no3_reduction]) and a carbon-to-nitrogen leaching attenuation,
 #' then re-derives `denitrification_n_t` as the residual of `n_surplus_t`
 #' minus the computed `no3_n_t` (the raw denitrification share is only an
-#' intermediate; see Details). `"ipcc_fracleach"` is a much simpler global
-#' fallback using the flat `FracLEACH = 0.24` constant already documented
-#' in [build_crop_soil_n2o_extension()].
+#' intermediate; see Details). `"ipcc_fracleach"` is the IPCC 2019 Tier 1
+#' leached fraction, keyed on `moisture_regime` and `water_regime`, with
+#' every factor read from [ipcc_2019_soil_n_ef]: `FracLEACH-(H)` is 0.24 on
+#' wet rows and on dry irrigated rows and 0 on dry rainfed rows (IPCC 2019
+#' Refinement Vol 4 Ch 11 Section 11.2.2.2 p. 11.25: 0.24 "for wet climates
+#' or in dry climate regions where irrigation (other than drip irrigation)
+#' is used"), and `EF5` is 0.011 (Table 11.3 (Updated) p. 11.26). All
+#' irrigation is treated as non-drip, since no layer says which is drip:
+#' an upper-bound assumption for dry irrigated land. On wet and dry irrigated
+#' rows the rest of the surplus is booked as `denitrification_n_t`, as in the
+#' Meisinger cascade. On dry rainfed rows, where FracLEACH is 0, it is booked
+#' as `retained_profile_n_t`, nitrogen left in the soil profile, and
+#' `denitrification_n_t` is 0: FracLEACH says that surplus does not leach,
+#' not that it denitrifies, and no method here estimates its fate. Each row
+#' is stamped `"ipcc_fracleach_wet"`, `"ipcc_fracleach_dry_irrigated"` or
+#' `"ipcc_fracleach_dry_rainfed_retained"`. Under either method
+#' `no3_n_t + denitrification_n_t + retained_profile_n_t` equals
+#' `n_surplus_t`.
 #'
 #' @details
 #' For `method = "meisinger_drainage"`, `denitrification_n_t` is computed
@@ -178,9 +254,20 @@ calculate_soil_n2o <- function(
 #' rows join on `x$tillage`, but only `"Tillage"` exists in the source's
 #' synthetic block: a synthetic row with `tillage == "No_tillage"` aborts.
 #'
-#' @param x A tibble with `n_surplus_t`, `fert_type`, `climate`,
-#'   `irrig_cat`, `land_use`, `cn_input` (may be `NA`), `tillage` (checked
-#'   only for synthetic rows) and `som_share`.
+#' For `method = "ipcc_fracleach"`, a missing or invalid `moisture_regime`
+#' aborts as in [calculate_soil_n2o()], and a dry row without a
+#' `water_regime` aborts (`whep_missing_water_regime` for an absent column,
+#' `whep_water_regime_value` for a missing or unknown value, naming the
+#' count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
+#' surplus, so a dry row of unknown regime has no defensible fraction. Wet
+#' rows need no `water_regime`.
+#'
+#' @param x A tibble with `n_surplus_t`. `method = "meisinger_drainage"`
+#'   requires `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input`
+#'   (may be `NA`), `tillage` (checked only for synthetic rows) and
+#'   `som_share`; `method = "ipcc_fracleach"` requires `moisture_regime`
+#'   (`"wet"` or `"dry"`) and, on dry rows, `water_regime` (`"rainfed"` or
+#'   `"irrigated"`).
 #' @param drainage_mm A numeric vector aligned to `x`'s rows giving annual
 #'   drainage (mm), or a single string naming a column of `x` to use
 #'   instead. Kept as a separate argument (rather than a static `x` column)
@@ -190,7 +277,12 @@ calculate_soil_n2o <- function(
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `no3_n_t`, `denitrification_n_t`,
-#'   `n2o_indirect_no3_n_t` and `method_leaching` appended.
+#'   `retained_profile_n_t` (0 under `"meisinger_drainage"`, which books
+#'   every non-leached tonne as denitrified), `n2o_indirect_no3_n_t` and
+#'   `method_leaching` appended.
+#' @source IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
+#'   National Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2,
+#'   p. 11.25 (`FracLEACH-(H)`) and Table 11.3 (Updated), p. 11.26 (`EF5`).
 #' @export
 #' @examples
 #' calculate_n_leaching(example = TRUE)
@@ -200,7 +292,7 @@ calculate_n_leaching <- function(
   method = c("meisinger_drainage", "ipcc_fracleach"),
   example = FALSE
 ) {
-  method <- match.arg(method)
+  method <- rlang::arg_match(method)
   if (isTRUE(example)) {
     return(.example_n_leaching())
   }
@@ -215,25 +307,72 @@ calculate_n_leaching <- function(
 #'
 #' @description
 #' Converts the ammonia-N already volatilised ([calculate_nh3()]'s
-#' `nh3_n_t`) into indirect nitrous oxide. Atlantic rows
-#' use the flat IPCC EF4 factor (`ef4_nh3_to_n2o_atl`, 0.014) and touch no
-#' emission-factor lookup; Mediterranean rows use the disaggregated
-#' [n2o_efs_disaggregated] `ef` on `(irrig_type, climate)` alone (`NH3_MgN *
-#' N2O_EF`), WITHOUT the [fertiliser_n2o_modifiers] `mf` that
-#' [calculate_soil_n2o()]'s `method = "aguilera"` applies to direct N2O.
+#' `nh3_n_t`) into indirect nitrous oxide. `"ipcc2019"` (the default) is
+#' the IPCC 2019 Tier 1 wet/dry `EF4`, read from [ipcc_2019_soil_n_ef] on
+#' each row's `moisture_regime`: 0.014 wet and 0.005 dry (IPCC 2019
+#' Refinement Vol 4 Ch 11 Table 11.3 (Updated) p. 11.26), stamped
+#' `"ipcc2019_wet_dry"`. `"ipcc2019_atl_med"` is the Atlantic/Mediterranean
+#' option: Atlantic rows use the flat EF4 wet factor (`ef4_nh3_to_n2o_atl`,
+#' 0.014) and touch no emission-factor lookup; Mediterranean rows use the
+#' disaggregated [n2o_efs_disaggregated] `ef` on `(irrig_type, climate)`
+#' alone (`NH3_MgN * N2O_EF`), WITHOUT the [fertiliser_n2o_modifiers] `mf`
+#' that [calculate_soil_n2o()]'s `method = "aguilera"` applies to direct
+#' N2O. It is stamped `"ipcc2019_atl_med"`.
 #'
-#' @param x A tibble with `nh3_n_t`, `climate` and (for MED rows) the
-#'   `irrig_type` column [n2o_efs_disaggregated] is keyed on.
+#' @details
+#' `method = "ipcc2019"` aborts on an absent, missing or invalid
+#' `moisture_regime` exactly as [calculate_soil_n2o()] does.
+#'
+#' @param x A tibble with `nh3_n_t`. `method = "ipcc2019"` requires
+#'   `moisture_regime` (`"wet"` or `"dry"`); `method = "ipcc2019_atl_med"`
+#'   requires `climate` and, for MED rows, the `irrig_type` column
+#'   [n2o_efs_disaggregated] is keyed on.
+#' @param method `"ipcc2019"` (default, IPCC 2019 Tier 1 wet/dry) or
+#'   `"ipcc2019_atl_med"` (ATL flat EF4, MED disaggregated by irrigation).
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
-#' @return `x` with `n2o_indirect_nh3_n_t` appended.
+#' @return `x` with `n2o_indirect_nh3_n_t` and `method_n2o_indirect_nh3`
+#'   appended.
+#' @source IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
+#'   National Greenhouse Gas Inventories, Vol 4, Ch 11, Table 11.3
+#'   (Updated), p. 11.26.
 #' @export
 #' @examples
 #' calculate_indirect_n2o_nh3(example = TRUE)
-calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
+calculate_indirect_n2o_nh3 <- function(
+  x,
+  method = c("ipcc2019", "ipcc2019_atl_med"),
+  example = FALSE
+) {
+  method <- rlang::arg_match(method)
   if (isTRUE(example)) {
     return(.example_indirect_n2o_nh3())
   }
+  if (method == "ipcc2019") {
+    .indirect_nh3_ipcc2019(x)
+  } else {
+    .indirect_nh3_atl_med(x)
+  }
+}
+
+# ---- Private helpers: calculate_indirect_n2o_nh3 -------------------------
+
+.indirect_nh3_ipcc2019 <- function(x) {
+  .n_check_moisture_regime(x)
+  ef4 <- dplyr::if_else(
+    x$moisture_regime == "wet",
+    .ipcc2019_soil_ef("EF4", "wet"),
+    .ipcc2019_soil_ef("EF4", "dry")
+  )
+  x |>
+    dplyr::mutate(
+      n2o_indirect_nh3_n_t = .data$nh3_n_t * .env$ef4,
+      method_n2o_indirect_nh3 = "ipcc2019_wet_dry"
+    )
+}
+
+# The Atlantic/Mediterranean option, as before the wet/dry method existed.
+.indirect_nh3_atl_med <- function(x) {
   .n_check_climate(x)
   med_rows <- which(x$climate == "MED")
   ef_med <- rep(NA_real_, nrow(x))
@@ -247,7 +386,8 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
         .data$climate == "ATL",
         .data$nh3_n_t * ef4_atl,
         .data$nh3_n_t * .env$ef_med
-      )
+      ),
+      method_n2o_indirect_nh3 = "ipcc2019_atl_med"
     )
 }
 
@@ -263,6 +403,8 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
          {.fn read_lpjml_wind} (monthly, 0.5-degree, needs
          {.envvar WHEP_WIND_DIR}); no function supplies the other MANNER
          drivers.",
+    i = "{.fn build_n_loss_drivers} supplies the wet/dry and ATL/MED
+         drivers, not these.",
     i = "Supply them yourself, or use the IPCC Tier 1 method,
          {.code method = \"ipcc\"}, which needs only {.field fert_type}."
   )
@@ -487,26 +629,53 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
 # calculate_indirect_n2o_nh3() can reuse the raw ef*mf product without a
 # second EF join.
 .soil_n2o_aguilera <- function(x) {
+  fallback <- .n_excreta_fallback(x, x$fert_type)
+  blended <- x$fert_type %in% "Excreta" & !fallback
   x |>
     dplyr::mutate(
-      n2o_direct_n_t = .data$n_input_t * .soil_n2o_ef_mf_aguilera(x)
-    ) |>
-    dplyr::mutate(method_soil_n2o = "aguilera")
+      n2o_direct_n_t = .data$n_input_t * .soil_n2o_ef_mf_aguilera(x),
+      method_soil_n2o = dplyr::case_when(
+        .env$fallback ~ "aguilera_fallback_applied_manure",
+        .env$blended ~ "aguilera_excreta_blend",
+        .default = "aguilera"
+      )
+    )
 }
 
+# An "Excreta" row carries its species as `excreta_cpp_share` rather than in
+# its label, so its modifier is the N-weighted blend of the cattle and
+# monogastric row (the CPP animals of IPCC 2019 Table 11.1) and the
+# other-animal row of fertiliser_n2o_modifiers. Rows already labelled by
+# species keep their own modifier. A fallback-labelled "Excreta" row carries
+# no species at all and is collected manure applied to the land, not grazing
+# deposition: it takes the Solid modifier of fertiliser_n2o_modifiers.
 .soil_n2o_ef_mf_aguilera <- function(x) {
   ef <- .soil_n2o_ef_disaggregated(x)
   .soil_n2o_check_ef(ef)
-  keys <- dplyr::select(x, "fert_type", "climate")
-  keys$fert_type <- .human_legacy_fert_type(keys$fert_type)
-  mf <- keys |>
-    dplyr::left_join(
-      whep::fertiliser_n2o_modifiers,
-      by = c("fert_type", "climate")
-    ) |>
-    dplyr::pull("mf")
+  fert_type <- .human_legacy_fert_type(x$fert_type)
+  fallback <- .n_excreta_fallback(x, fert_type)
+  blended <- fert_type == "Excreta" & !fallback
+  share <- .n_excreta_share(x, blended, fert_type)
+  mf_cpp <- .soil_n2o_mf("Excreta_cattle_monog", x$climate)
+  mf_other <- .soil_n2o_mf("Excreta_other", x$climate)
+  mf_applied <- .soil_n2o_mf("Solid", x$climate)
+  mf <- dplyr::case_when(
+    fallback ~ mf_applied,
+    blended ~ share * mf_cpp + (1 - share) * mf_other,
+    .default = .soil_n2o_mf(fert_type, x$climate)
+  )
   .soil_n2o_check_mf(x, mf)
   ef * mf
+}
+
+.soil_n2o_mf <- function(fert_type, climate) {
+  tibble::tibble(fert_type = fert_type, climate = climate) |>
+    dplyr::left_join(
+      whep::fertiliser_n2o_modifiers,
+      by = c("fert_type", "climate"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::pull("mf")
 }
 
 # The disaggregated (irrig_type, climate) ef, joined without any NA guard so
@@ -576,11 +745,100 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   }
 }
 
-# ipcc2019: reuse n2o_efs_disaggregated's two climate-level rows (Tier_1 for
-# ATL, Med_average for MED) as the single source of truth for the flat
-# 0.010/0.005 factors -- the same 0.010 documented as EF1 in
-# build_crop_soil_n2o_extension(), not re-hardcoded here.
+# ipcc2019: the IPCC 2019 Tier 1 wet/dry factors of Table 11.1 (Updated),
+# p. 11.13, read from ipcc_2019_soil_n_ef. Excreta deposited by grazing
+# animals take the EF3PRP blend of their species share, every other input on
+# a rice item takes EF1FR, and the rest take EF1 split by moisture regime
+# (and, in wet climates, synthetic versus other N). Excreta labelled so only
+# as the fallback of a manure-type split is collected manure applied to the
+# land, so it is priced as applied manure, an "other" N input.
 .soil_n2o_ipcc2019 <- function(x) {
+  .n_check_moisture_regime(x)
+  .soil_n2o_check_ipcc2019_cols(x)
+  fert_type <- .human_legacy_fert_type(x$fert_type)
+  .soil_n2o_check_fert_type(fert_type)
+  fallback <- .n_excreta_fallback(x, fert_type)
+  excreta <- fert_type %in% .n_excreta_fert_types() & !fallback
+  rice <- !excreta & x$item_cbs_code %in% .n_rice_item_cbs_codes()
+  share <- .n_excreta_share(x, excreta, fert_type)
+  wet <- x$moisture_regime == "wet"
+  ef <- dplyr::case_when(
+    excreta ~ .soil_n2o_ef3prp(share, wet),
+    rice ~ .ipcc2019_soil_ef("EF1FR", "aggregated"),
+    wet & fert_type == "Synthetic" ~ .ipcc2019_soil_ef("EF1", "synthetic_wet"),
+    wet ~ .ipcc2019_soil_ef("EF1", "other_wet"),
+    .default = .ipcc2019_soil_ef("EF1", "all_dry")
+  )
+  method <- dplyr::case_when(
+    fallback ~ "ipcc2019_fallback_applied_manure",
+    excreta ~ "ipcc2019_ef3prp_blend",
+    rice ~ "ipcc2019_ef1fr",
+    .default = "ipcc2019_wet_dry"
+  )
+  x |>
+    dplyr::mutate(
+      n2o_direct_n_t = .data$n_input_t * .env$ef,
+      method_soil_n2o = .env$method
+    )
+}
+
+# The N-weighted EF3PRP of a row whose share `share` of excreta N comes from
+# cattle, poultry and pigs (EF3PRP,CPP, wet or dry) and the rest from sheep
+# and other animals (EF3PRP,SO, one value for both climates).
+.soil_n2o_ef3prp <- function(share, wet) {
+  cpp <- dplyr::if_else(
+    wet,
+    .ipcc2019_soil_ef("EF3PRP_CPP", "wet"),
+    .ipcc2019_soil_ef("EF3PRP_CPP", "dry")
+  )
+  share * cpp + (1 - share) * .ipcc2019_soil_ef("EF3PRP_SO", "aggregated")
+}
+
+.soil_n2o_check_ipcc2019_cols <- function(x) {
+  missing <- setdiff(c("fert_type", "item_cbs_code"), names(x))
+  if (length(missing) > 0L) {
+    cli::cli_abort(
+      c(
+        "{.arg x} is missing required column{?s} {.field {missing}}.",
+        i = "{.code method = \"ipcc2019\"} needs {.field fert_type} to tell
+             synthetic from other N and excreta, and {.field item_cbs_code}
+             to find rice."
+      ),
+      class = "whep_soil_n2o_columns"
+    )
+  }
+}
+
+# The inputs Equation 11.1 prices directly. BNF has no direct factor since
+# the 2006 Guidelines, and atmospheric deposition is an indirect source.
+.soil_n2o_check_fert_type <- function(fert_type) {
+  known <- c(
+    "Synthetic",
+    "Solid",
+    "Liquid",
+    "Human",
+    "Recycling",
+    "SOM",
+    .n_excreta_fert_types()
+  )
+  bad <- unique(fert_type[is.na(fert_type) | !fert_type %in% known])
+  if (length(bad) > 0L) {
+    cli::cli_abort(
+      c(
+        "No IPCC 2019 direct N2O factor for {.field fert_type}
+         {.val {bad}}.",
+        i = "Expected one of {.val {known}}."
+      ),
+      class = "whep_soil_n2o_fert_type"
+    )
+  }
+}
+
+# ipcc2019_atl_med: reuse n2o_efs_disaggregated's two climate-level rows
+# (Tier_1 for ATL, Med_average for MED) as the single source of truth for the
+# flat 0.010/0.005 factors -- the same 0.010 documented as EF1 in
+# build_crop_soil_n2o_extension(), not re-hardcoded here.
+.soil_n2o_ipcc2019_atl_med <- function(x) {
   .n_check_climate(x)
   ef_atl <- .n2o_disaggregated_row("Tier_1", "ATL")
   ef_med <- .n2o_disaggregated_row("Med_average", "MED")
@@ -588,7 +846,7 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
     dplyr::mutate(
       n2o_direct_n_t = .data$n_input_t *
         dplyr::if_else(.data$climate == "ATL", ef_atl, ef_med),
-      method_soil_n2o = "ipcc2019"
+      method_soil_n2o = "ipcc2019_atl_med"
     )
 }
 
@@ -628,18 +886,74 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   }
 }
 
-# ipcc_fracleach: the flat FracLEACH constant from
-# build_crop_soil_n2o_extension(), reused rather than re-derived.
+# ipcc_fracleach: FracLEACH-(H) of IPCC 2019 Section 11.2.2.2 (p. 11.25) and
+# EF5 of Table 11.3 (p. 11.26), read from ipcc_2019_soil_n_ef. Dry land
+# leaches only where it is irrigated, and every irrigated row is taken as
+# non-drip, the upper bound, because no layer says which irrigation is drip.
 .leaching_ipcc_fracleach <- function(x) {
-  frac_leach <- 0.24
-  ef5 <- .n_constant("ef5_no3_to_n2o")
+  .n_check_moisture_regime(x)
+  wet <- x$moisture_regime == "wet"
+  dry_irrigated <- .leaching_dry_irrigated(x)
+  frac_leach <- dplyr::case_when(
+    wet ~ .ipcc2019_soil_ef("FracLEACH_H", "wet"),
+    dry_irrigated ~ .ipcc2019_soil_ef("FracLEACH_H", "dry_irrigated_non_drip"),
+    .default = .ipcc2019_soil_ef("FracLEACH_H", "dry")
+  )
+  method <- dplyr::case_when(
+    wet ~ "ipcc_fracleach_wet",
+    dry_irrigated ~ "ipcc_fracleach_dry_irrigated",
+    .default = "ipcc_fracleach_dry_rainfed_retained"
+  )
+  dry_rainfed <- !wet & !dry_irrigated
+  ef5 <- .ipcc2019_soil_ef("EF5", "aggregated")
+  # FracLEACH 0 on dry rainfed land says the surplus does not leach, not that
+  # it denitrifies: no method here estimates its fate, so it is booked as
+  # retained in the profile and its denitrification is 0, a term not
+  # estimated rather than a measured zero. Elsewhere the non-leached surplus
+  # is denitrification, as in the Meisinger cascade, and nothing is retained.
+  no3 <- x$n_surplus_t * frac_leach
+  retained <- dplyr::if_else(dry_rainfed, x$n_surplus_t - no3, 0)
   x |>
     dplyr::mutate(
-      no3_n_t = .data$n_surplus_t * frac_leach,
-      denitrification_n_t = .data$n_surplus_t - .data$no3_n_t,
+      no3_n_t = .env$no3,
+      denitrification_n_t = .data$n_surplus_t - .env$no3 - .env$retained,
+      retained_profile_n_t = .env$retained,
       n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
-      method_leaching = "ipcc_fracleach"
+      method_leaching = .env$method
     )
+}
+
+# TRUE on the dry irrigated rows. A dry row must say which water regime it
+# is: the two leach 0.24 and 0 of their surplus, so no default is defensible.
+.leaching_dry_irrigated <- function(x) {
+  dry <- x$moisture_regime == "dry"
+  if (!any(dry)) {
+    return(dry)
+  }
+  if (!rlang::has_name(x, "water_regime")) {
+    cli::cli_abort(
+      c(
+        "{.arg x} has {sum(dry)} dry row{?s} but no {.field water_regime}.",
+        i = "IPCC 2019 leaches dry land only where it is irrigated; build
+             the balance at grid resolution with the rainfed/irrigated
+             split, or supply {.field water_regime}."
+      ),
+      class = c("whep_missing_water_regime", "whep_absent_input")
+    )
+  }
+  regime <- x$water_regime
+  bad <- dry & !regime %in% c("rainfed", "irrigated")
+  if (any(bad)) {
+    cli::cli_abort(
+      c(
+        "{sum(bad)} dry row{?s} of {.arg x} {?has/have} no valid
+         {.field water_regime}: {.val {unique(regime[bad])}}.",
+        i = "Expected {.val rainfed} or {.val irrigated}."
+      ),
+      class = "whep_water_regime_value"
+    )
+  }
+  dry & regime == "irrigated"
 }
 
 # meisinger_drainage: bin drainage + SOM, look up the topsoil
@@ -654,10 +968,13 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   raw_denit <- x$n_surplus_t * denit_share
   no3_n_t <- (x$n_surplus_t - raw_denit) * (1 - no3_red) * (1 - a_cn)
   ef5 <- .n_constant("ef5_no3_to_n2o")
+  # The cascade books every non-leached tonne as denitrified, so nothing is
+  # retained in the profile: a structural zero of the method.
   x |>
     dplyr::mutate(
       no3_n_t = .env$no3_n_t,
       denitrification_n_t = .data$n_surplus_t - .data$no3_n_t,
+      retained_profile_n_t = 0,
       n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
       method_leaching = "meisinger_drainage"
     )
@@ -810,6 +1127,190 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   invisible(NULL)
 }
 
+# One IPCC 2019 Tier 1 factor from ipcc_2019_soil_n_ef, by its parameter and
+# disaggregation. A lookup that does not return exactly one value is a broken
+# table, never a factor to guess.
+.ipcc2019_soil_ef <- function(parameter, disaggregation) {
+  table <- .ipcc2019_soil_ef_table()
+  value <- table$value[
+    table$parameter == parameter & table$disaggregation == disaggregation
+  ]
+  if (length(value) != 1L || is.na(value)) {
+    cli::cli_abort(
+      "{.code ipcc_2019_soil_n_ef} has {length(value)} value{?s} for
+       {.val {parameter}} / {.val {disaggregation}}; expected one.",
+      class = "whep_ipcc2019_ef_lookup"
+    )
+  }
+  value
+}
+
+# The factor table every IPCC 2019 Tier 1 lookup reads, one binding so a test
+# can hand the lookup a broken table.
+.ipcc2019_soil_ef_table <- function() {
+  whep::ipcc_2019_soil_n_ef
+}
+
+# The wet/dry class every IPCC 2019 wet/dry factor is keyed on. Its absence,
+# on the table or on a row, is refused rather than filled: which class a row
+# belongs to is decided where the drivers are built (build_cell_moisture_
+# regime()), and a default here would price the row as though it had been.
+.n_check_moisture_regime <- function(x) {
+  if (!rlang::has_name(x, "moisture_regime")) {
+    cli::cli_abort(
+      c(
+        "{.arg x} is missing required column {.field moisture_regime}.",
+        i = "The IPCC 2019 wet/dry factors need {.val wet} or {.val dry} on
+             every row; {.fn build_cell_moisture_regime} classifies cells.",
+        i = "The Atlantic/Mediterranean option, {.val ipcc2019_atl_med},
+             reads {.field climate} instead."
+      ),
+      class = c("whep_missing_moisture_regime", "whep_absent_input")
+    )
+  }
+  regime <- x$moisture_regime
+  missing <- is.na(regime)
+  if (any(missing)) {
+    cli::cli_abort(
+      c(
+        "{sum(missing)} row{?s} of {.arg x} {?has/have} no
+         {.field moisture_regime}.",
+        i = "Each row needs {.val wet} or {.val dry}; the driver builder
+             decides how a cell without a class is filled."
+      ),
+      class = c("whep_moisture_regime_na", "whep_absent_input")
+    )
+  }
+  bad <- setdiff(unique(regime), c("wet", "dry"))
+  if (length(bad) > 0L) {
+    cli::cli_abort(
+      c(
+        "Unexpected {.field moisture_regime} value{?s}: {.val {bad}}.",
+        i = "Expected {.val wet} or {.val dry}."
+      ),
+      class = "whep_moisture_regime_value"
+    )
+  }
+  invisible(NULL)
+}
+
+# fert_type labels of excreta deposited by grazing animals: the balance's own
+# "Excreta" (species carried as excreta_cpp_share) and the two species labels
+# of fertiliser_n2o_modifiers.
+.n_excreta_fert_types <- function() {
+  c("Excreta", "Excreta_cattle_monog", "Excreta_other")
+}
+
+# CBS items of the production items classed as rice in items_prod_full's
+# irrigation class (`Crop_irrig == "Rice"`): item 27 "Rice", whose CBS item
+# is 2807 "Rice and products", the code the balance key carries. The label
+# is asserted first, so a renamed class cannot silently empty the rice rule.
+.n_rice_item_cbs_codes <- function() {
+  items <- whep::items_prod_full
+  check_labels_supplied(items, "Crop_irrig", "Rice")
+  items$item_cbs_code[items$Crop_irrig %in% "Rice"] |>
+    stats::na.omit() |>
+    unique() |>
+    as.integer()
+}
+
+# TRUE on the excreta rows labelled excreta only as the fallback of a
+# manure-type split (`method_excreta_species == "fallback_label_no_species"`,
+# R/excreta_species_mix.R): collected manure with no type and no species,
+# which is not grazing deposition.
+.n_excreta_fallback <- function(x, fert_type) {
+  stamp <- if (rlang::has_name(x, "method_excreta_species")) {
+    x$method_excreta_species
+  } else {
+    rep(NA_character_, nrow(x))
+  }
+  fert_type %in% .n_excreta_fert_types() & .excreta_is_fallback(stamp)
+}
+
+# `excreta_cpp_share` on the rows flagged `excreta`, the share of their N
+# deposited by cattle, poultry and pigs (R/excreta_species_mix.R). A row
+# labelled by species (`fert_type`) takes the share its label states, and a
+# supplied share that contradicts the label aborts. A row with excreta N and
+# no share has no defensible factor and aborts; so does a share outside
+# [0, 1]. A row with no excreta N emits nothing whatever its mix, so its share
+# is structurally irrelevant and set to 0 to keep the product finite. Rows not
+# flagged keep NA.
+.n_excreta_share <- function(x, excreta, fert_type) {
+  share <- if (rlang::has_name(x, "excreta_cpp_share")) {
+    x$excreta_cpp_share
+  } else {
+    rep(NA_real_, nrow(x))
+  }
+  share <- .n_excreta_label_share(share, excreta, fert_type)
+  no_n <- excreta & x$n_input_t %in% 0
+  unknown <- excreta & !no_n & is.na(share)
+  if (any(unknown)) {
+    .abort_excreta_share_missing(x, unknown)
+  }
+  invalid <- excreta & !is.na(share) & (share < 0 | share > 1)
+  if (any(invalid)) {
+    cli::cli_abort(
+      "{sum(invalid)} excreta row{?s} carr{?ies/y} an
+       {.field excreta_cpp_share} outside 0 to 1:
+       {.val {unique(share[invalid])}}.",
+      class = "whep_excreta_share_invalid"
+    )
+  }
+  dplyr::if_else(no_n & is.na(share), 0, share)
+}
+
+# The CPP share a species label states: all of an "Excreta_cattle_monog"
+# row's N comes from cattle, poultry and pigs (EF3PRP,CPP) and none of an
+# "Excreta_other" row's. Rows flagged `excreta` with a species label take it;
+# a supplied share that says otherwise is a contradiction with no defensible
+# resolution, so it aborts.
+.n_excreta_label_share <- function(share, excreta, fert_type) {
+  label <- dplyr::case_when(
+    fert_type == "Excreta_cattle_monog" ~ 1,
+    fert_type == "Excreta_other" ~ 0,
+    .default = NA_real_
+  )
+  labelled <- excreta & !is.na(label)
+  conflict <- labelled &
+    !is.na(share) &
+    abs(share - label) > sqrt(.Machine$double.eps)
+  if (any(conflict)) {
+    cli::cli_abort(
+      c(
+        "{sum(conflict)} excreta row{?s} carr{?ies/y} an
+         {.field excreta_cpp_share} that contradicts {?its/their} species
+         label: {.val {unique(fert_type[conflict])}}.",
+        i = "{.val Excreta_cattle_monog} states a share of 1 and
+             {.val Excreta_other} a share of 0."
+      ),
+      class = "whep_excreta_share_label_conflict"
+    )
+  }
+  dplyr::if_else(labelled, label, share)
+}
+
+.abort_excreta_share_missing <- function(x, unknown) {
+  reasons <- if (rlang::has_name(x, "method_excreta_species")) {
+    unique(stats::na.omit(x$method_excreta_species[unknown]))
+  } else {
+    character()
+  }
+  cli::cli_abort(
+    c(
+      "{sum(unknown)} excreta row{?s} carr{?ies/y} N but no
+       {.field excreta_cpp_share} ({signif(sum(x$n_input_t[unknown]), 6)} t
+       N).",
+      x = "IPCC 2019 prices grazing excreta by species (EF3PRP,CPP versus
+           EF3PRP,SO), so a row without the mix has no defensible factor.",
+      i = if (length(reasons) > 0L) {
+        "{.field method_excreta_species}: {.val {reasons}}."
+      },
+      i = "{.fn build_n_inputs} carries the share on its excreta rows."
+    ),
+    class = c("whep_excreta_share_missing", "whep_absent_input")
+  )
+}
+
 # ---- Private helpers: examples -------------------------------------------
 
 .example_nh3 <- function() {
@@ -819,31 +1320,43 @@ calculate_indirect_n2o_nh3 <- function(x, example = FALSE) {
   )
 }
 
+# Wet synthetic N at EF1 0.016, dry other N at 0.005, flooded rice at EF1FR
+# 0.004, and grazing excreta at the EF3PRP blend 0.5 * 0.006 + 0.5 * 0.003.
 .example_soil_n2o <- function() {
   tibble::tribble(
-    ~n_input_t, ~climate, ~irrig_type, ~n2o_direct_n_t, ~method_soil_n2o,
-    10, "MED", "Med_average", 0.05, "ipcc2019"
+    ~n_input_t, ~fert_type, ~item_cbs_code, ~moisture_regime,
+    ~excreta_cpp_share, ~n2o_direct_n_t, ~method_soil_n2o,
+    10, "Synthetic", 2511L, "wet", NA, 0.16, "ipcc2019_wet_dry",
+    10, "Solid", 2511L, "dry", NA, 0.05, "ipcc2019_wet_dry",
+    10, "Synthetic", 2807L, "wet", NA, 0.04, "ipcc2019_ef1fr",
+    10, "Excreta", 3000L, "wet", 0.5, 0.045, "ipcc2019_ef3prp_blend"
   )
 }
 
 .example_n_leaching <- function() {
   tibble::tribble(
     ~n_surplus_t,
+    ~moisture_regime,
     ~no3_n_t,
     ~denitrification_n_t,
+    ~retained_profile_n_t,
     ~n2o_indirect_no3_n_t,
     ~method_leaching,
     100,
+    "wet",
     24,
     76,
+    0,
     0.264,
-    "ipcc_fracleach"
+    "ipcc_fracleach_wet"
   )
 }
 
 .example_indirect_n2o_nh3 <- function() {
   tibble::tribble(
-    ~nh3_n_t, ~climate, ~n2o_indirect_nh3_n_t,
-    1.1, "ATL", 0.0154
+    ~nh3_n_t, ~moisture_regime, ~n2o_indirect_nh3_n_t,
+    ~method_n2o_indirect_nh3,
+    1.1, "wet", 0.0154, "ipcc2019_wet_dry",
+    1.1, "dry", 0.0055, "ipcc2019_wet_dry"
   )
 }
