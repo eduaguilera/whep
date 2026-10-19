@@ -10,10 +10,26 @@ applies subsoil NO3 reduction
 and a carbon-to-nitrogen leaching attenuation, then re-derives
 `denitrification_n_t` as the residual of `n_surplus_t` minus the
 computed `no3_n_t` (the raw denitrification share is only an
-intermediate; see Details). `"ipcc_fracleach"` is a much simpler global
-fallback using the flat `FracLEACH = 0.24` constant already documented
-in
-[`build_crop_soil_n2o_extension()`](https://eduaguilera.github.io/whep/reference/build_crop_soil_n2o_extension.md).
+intermediate; see Details). `"ipcc_fracleach"` is the IPCC 2019 Tier 1
+leached fraction, keyed on `moisture_regime` and `water_regime`, with
+every factor read from
+[ipcc_2019_soil_n_ef](https://eduaguilera.github.io/whep/reference/ipcc_2019_soil_n_ef.md):
+`FracLEACH-(H)` is 0.24 on wet rows and on dry irrigated rows and 0 on
+dry rainfed rows (IPCC 2019 Refinement Vol 4 Ch 11 Section 11.2.2.2 p.
+11.25: 0.24 "for wet climates or in dry climate regions where irrigation
+(other than drip irrigation) is used"), and `EF5` is 0.011 (Table 11.3
+(Updated) p. 11.26). All irrigation is treated as non-drip, since no
+layer says which is drip: an upper-bound assumption for dry irrigated
+land. On wet and dry irrigated rows the rest of the surplus is booked as
+`denitrification_n_t`, as in the Meisinger cascade. On dry rainfed rows,
+where FracLEACH is 0, it is booked as `retained_profile_n_t`, nitrogen
+left in the soil profile, and `denitrification_n_t` is 0: FracLEACH says
+that surplus does not leach, not that it denitrifies, and no method here
+estimates its fate. Each row is stamped `"ipcc_fracleach_wet"`,
+`"ipcc_fracleach_dry_irrigated"` or
+`"ipcc_fracleach_dry_rainfed_retained"`. Under either method
+`no3_n_t + denitrification_n_t + retained_profile_n_t` equals
+`n_surplus_t`.
 
 ## Usage
 
@@ -26,13 +42,22 @@ calculate_n_leaching(
 )
 ```
 
+## Source
+
+IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for National
+Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2, p. 11.25
+(`FracLEACH-(H)`) and Table 11.3 (Updated), p. 11.26 (`EF5`).
+
 ## Arguments
 
 - x:
 
-  A tibble with `n_surplus_t`, `fert_type`, `climate`, `irrig_cat`,
-  `land_use`, `cn_input` (may be `NA`), `tillage` (checked only for
-  synthetic rows) and `som_share`.
+  A tibble with `n_surplus_t`. `method = "meisinger_drainage"` requires
+  `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input` (may be
+  `NA`), `tillage` (checked only for synthetic rows) and `som_share`;
+  `method = "ipcc_fracleach"` requires `moisture_regime` (`"wet"` or
+  `"dry"`) and, on dry rows, `water_regime` (`"rainfed"` or
+  `"irrigated"`).
 
 - drainage_mm:
 
@@ -52,8 +77,9 @@ calculate_n_leaching(
 
 ## Value
 
-`x` with `no3_n_t`, `denitrification_n_t`, `n2o_indirect_no3_n_t` and
-`method_leaching` appended.
+`x` with `no3_n_t`, `denitrification_n_t`, `retained_profile_n_t` (0
+under `"meisinger_drainage"`, which books every non-leached tonne as
+denitrified), `n2o_indirect_no3_n_t` and `method_leaching` appended.
 
 ## Details
 
@@ -75,12 +101,23 @@ other than `"Synthetic"`) always join the Meisinger table's
 rows join on `x$tillage`, but only `"Tillage"` exists in the source's
 synthetic block: a synthetic row with `tillage == "No_tillage"` aborts.
 
+For `method = "ipcc_fracleach"`, a missing or invalid `moisture_regime`
+aborts as in
+[`calculate_soil_n2o()`](https://eduaguilera.github.io/whep/reference/calculate_soil_n2o.md),
+and a dry row without a `water_regime` aborts
+(`whep_missing_water_regime` for an absent column,
+`whep_water_regime_value` for a missing or unknown value, naming the
+count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
+surplus, so a dry row of unknown regime has no defensible fraction. Wet
+rows need no `water_regime`.
+
 ## Examples
 
 ``` r
 calculate_n_leaching(example = TRUE)
-#> # A tibble: 1 × 5
-#>   n_surplus_t no3_n_t denitrification_n_t n2o_indirect_no3_n_t method_leaching
-#>         <dbl>   <dbl>               <dbl>                <dbl> <chr>          
-#> 1         100      24                  76                0.264 ipcc_fracleach 
+#> # A tibble: 1 × 7
+#>   n_surplus_t moisture_regime no3_n_t denitrification_n_t retained_profile_n_t
+#>         <dbl> <chr>             <dbl>               <dbl>                <dbl>
+#> 1         100 wet                  24                  76                    0
+#> # ℹ 2 more variables: n2o_indirect_no3_n_t <dbl>, method_leaching <chr>
 ```

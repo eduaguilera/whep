@@ -58,6 +58,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_carbon_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cbs_prices.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cell_climate_zone.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_cell_moisture_regime.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_cell_polity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_commodity_balances.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_constant_territory_series.html</loc></url>
@@ -99,6 +100,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_deposition.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_exceedance_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_inputs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_n_loss_drivers.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_pathway_exceedance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_percapita.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.html</loc></url>
@@ -286,6 +288,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/ipcc_2019_mcf_manure.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/ipcc_2019_n2o_ef_direct.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/ipcc_2019_n_excretion.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/ipcc_2019_soil_n_ef.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/ipcc_2019_ym.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/ipcc_enteric_ef_tier1.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/ipcc_manure_ef3.html</loc></url>

@@ -7,9 +7,24 @@ from meisinger_denitrification, applies subsoil NO3 reduction
 (subsoil_no3_reduction) and a carbon-to-nitrogen leaching attenuation,
 then re-derives denitrification_n_t as the residual of n_surplus_t
 minus the computed no3_n_t (the raw denitrification share is only an
-intermediate; see Details). "ipcc_fracleach" is a much simpler global
-fallback using the flat FracLEACH = 0.24 constant already documented
-in build_crop_soil_n2o_extension().'><meta property="og:description" content='Two methods for partitioning a nitrogen surplus into leached nitrate and
+intermediate; see Details). "ipcc_fracleach" is the IPCC 2019 Tier 1
+leached fraction, keyed on moisture_regime and water_regime, with
+every factor read from ipcc_2019_soil_n_ef: FracLEACH-(H) is 0.24 on
+wet rows and on dry irrigated rows and 0 on dry rainfed rows (IPCC 2019
+Refinement Vol 4 Ch 11 Section 11.2.2.2 p. 11.25: 0.24 "for wet climates
+or in dry climate regions where irrigation (other than drip irrigation)
+is used"), and EF5 is 0.011 (Table 11.3 (Updated) p. 11.26). All
+irrigation is treated as non-drip, since no layer says which is drip:
+an upper-bound assumption for dry irrigated land. On wet and dry irrigated
+rows the rest of the surplus is booked as denitrification_n_t, as in the
+Meisinger cascade. On dry rainfed rows, where FracLEACH is 0, it is booked
+as retained_profile_n_t, nitrogen left in the soil profile, and
+denitrification_n_t is 0: FracLEACH says that surplus does not leach,
+not that it denitrifies, and no method here estimates its fate. Each row
+is stamped "ipcc_fracleach_wet", "ipcc_fracleach_dry_irrigated" or
+"ipcc_fracleach_dry_rainfed_retained". Under either method
+no3_n_t + denitrification_n_t + retained_profile_n_t equals
+n_surplus_t.'><meta property="og:description" content='Two methods for partitioning a nitrogen surplus into leached nitrate and
 topsoil-denitrified nitrogen. "meisinger_drainage" (the default) is the
 full cascade of the source implementation: bins annual drainage
 and soil organic matter share, looks up a topsoil denitrification share
@@ -17,9 +32,24 @@ from meisinger_denitrification, applies subsoil NO3 reduction
 (subsoil_no3_reduction) and a carbon-to-nitrogen leaching attenuation,
 then re-derives denitrification_n_t as the residual of n_surplus_t
 minus the computed no3_n_t (the raw denitrification share is only an
-intermediate; see Details). "ipcc_fracleach" is a much simpler global
-fallback using the flat FracLEACH = 0.24 constant already documented
-in build_crop_soil_n2o_extension().'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+intermediate; see Details). "ipcc_fracleach" is the IPCC 2019 Tier 1
+leached fraction, keyed on moisture_regime and water_regime, with
+every factor read from ipcc_2019_soil_n_ef: FracLEACH-(H) is 0.24 on
+wet rows and on dry irrigated rows and 0 on dry rainfed rows (IPCC 2019
+Refinement Vol 4 Ch 11 Section 11.2.2.2 p. 11.25: 0.24 "for wet climates
+or in dry climate regions where irrigation (other than drip irrigation)
+is used"), and EF5 is 0.011 (Table 11.3 (Updated) p. 11.26). All
+irrigation is treated as non-drip, since no layer says which is drip:
+an upper-bound assumption for dry irrigated land. On wet and dry irrigated
+rows the rest of the surplus is booked as denitrification_n_t, as in the
+Meisinger cascade. On dry rainfed rows, where FracLEACH is 0, it is booked
+as retained_profile_n_t, nitrogen left in the soil profile, and
+denitrification_n_t is 0: FracLEACH says that surplus does not leach,
+not that it denitrifies, and no method here estimates its fate. Each row
+is stamped "ipcc_fracleach_wet", "ipcc_fracleach_dry_irrigated" or
+"ipcc_fracleach_dry_rainfed_retained". Under either method
+no3_n_t + denitrification_n_t + retained_profile_n_t equals
+n_surplus_t.'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -67,9 +97,24 @@ from <a href="meisinger_denitrification.html">meisinger_denitrification</a>, app
 (<a href="subsoil_no3_reduction.html">subsoil_no3_reduction</a>) and a carbon-to-nitrogen leaching attenuation,
 then re-derives <code>denitrification_n_t</code> as the residual of <code>n_surplus_t</code>
 minus the computed <code>no3_n_t</code> (the raw denitrification share is only an
-intermediate; see Details). <code>"ipcc_fracleach"</code> is a much simpler global
-fallback using the flat <code>FracLEACH = 0.24</code> constant already documented
-in <code><a href="build_crop_soil_n2o_extension.html">build_crop_soil_n2o_extension()</a></code>.</p>
+intermediate; see Details). <code>"ipcc_fracleach"</code> is the IPCC 2019 Tier 1
+leached fraction, keyed on <code>moisture_regime</code> and <code>water_regime</code>, with
+every factor read from <a href="ipcc_2019_soil_n_ef.html">ipcc_2019_soil_n_ef</a>: <code>FracLEACH-(H)</code> is 0.24 on
+wet rows and on dry irrigated rows and 0 on dry rainfed rows (IPCC 2019
+Refinement Vol 4 Ch 11 Section 11.2.2.2 p. 11.25: 0.24 "for wet climates
+or in dry climate regions where irrigation (other than drip irrigation)
+is used"), and <code>EF5</code> is 0.011 (Table 11.3 (Updated) p. 11.26). All
+irrigation is treated as non-drip, since no layer says which is drip:
+an upper-bound assumption for dry irrigated land. On wet and dry irrigated
+rows the rest of the surplus is booked as <code>denitrification_n_t</code>, as in the
+Meisinger cascade. On dry rainfed rows, where FracLEACH is 0, it is booked
+as <code>retained_profile_n_t</code>, nitrogen left in the soil profile, and
+<code>denitrification_n_t</code> is 0: FracLEACH says that surplus does not leach,
+not that it denitrifies, and no method here estimates its fate. Each row
+is stamped <code>"ipcc_fracleach_wet"</code>, <code>"ipcc_fracleach_dry_irrigated"</code> or
+<code>"ipcc_fracleach_dry_rainfed_retained"</code>. Under either method
+<code>no3_n_t + denitrification_n_t + retained_profile_n_t</code> equals
+<code>n_surplus_t</code>.</p>
     </div>
 
     <div class="section level2">
@@ -83,13 +128,22 @@ in <code><a href="build_crop_soil_n2o_extension.html">build_crop_soil_n2o_extens
     </div>
 
     <div class="section level2">
+    <h2 id="source">Source<a class="anchor" aria-label="anchor" href="#source"></a></h2>
+    <p>IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
+National Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2,
+p. 11.25 (<code>FracLEACH-(H)</code>) and Table 11.3 (Updated), p. 11.26 (<code>EF5</code>).</p>
+    </div>
+    <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
 
 
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
-<dd><p>A tibble with <code>n_surplus_t</code>, <code>fert_type</code>, <code>climate</code>,
-<code>irrig_cat</code>, <code>land_use</code>, <code>cn_input</code> (may be <code>NA</code>), <code>tillage</code> (checked
-only for synthetic rows) and <code>som_share</code>.</p></dd>
+<dd><p>A tibble with <code>n_surplus_t</code>. <code>method = "meisinger_drainage"</code>
+requires <code>fert_type</code>, <code>climate</code>, <code>irrig_cat</code>, <code>land_use</code>, <code>cn_input</code>
+(may be <code>NA</code>), <code>tillage</code> (checked only for synthetic rows) and
+<code>som_share</code>; <code>method = "ipcc_fracleach"</code> requires <code>moisture_regime</code>
+(<code>"wet"</code> or <code>"dry"</code>) and, on dry rows, <code>water_regime</code> (<code>"rainfed"</code> or
+<code>"irrigated"</code>).</p></dd>
 
 
 <dt id="arg-drainage-mm">drainage_mm<a class="anchor" aria-label="anchor" href="#arg-drainage-mm"></a></dt>
@@ -112,7 +166,9 @@ from <code>x</code>. Defaults to <code>FALSE</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>x</code> with <code>no3_n_t</code>, <code>denitrification_n_t</code>,
-<code>n2o_indirect_no3_n_t</code> and <code>method_leaching</code> appended.</p>
+<code>retained_profile_n_t</code> (0 under <code>"meisinger_drainage"</code>, which books
+every non-leached tonne as denitrified), <code>n2o_indirect_no3_n_t</code> and
+<code>method_leaching</code> appended.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -132,15 +188,23 @@ other than <code>"Synthetic"</code>) always join the Meisinger table's
 <code>tillage == "Not_specified"</code> row regardless of <code>x$tillage</code>. Synthetic
 rows join on <code>x$tillage</code>, but only <code>"Tillage"</code> exists in the source's
 synthetic block: a synthetic row with <code>tillage == "No_tillage"</code> aborts.</p>
+<p>For <code>method = "ipcc_fracleach"</code>, a missing or invalid <code>moisture_regime</code>
+aborts as in <code><a href="calculate_soil_n2o.html">calculate_soil_n2o()</a></code>, and a dry row without a
+<code>water_regime</code> aborts (<code>whep_missing_water_regime</code> for an absent column,
+<code>whep_water_regime_value</code> for a missing or unknown value, naming the
+count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
+surplus, so a dry row of unknown regime has no defensible fraction. Wet
+rows need no <code>water_regime</code>.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">calculate_n_leaching</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 5</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   n_surplus_t no3_n_t denitrification_n_t n2o_indirect_no3_n_t method_leaching</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>          </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>         100      24                  76                0.264 ipcc_fracleach </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 7</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_surplus_t moisture_regime no3_n_t denitrification_n_t retained_profile_n_t</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>         100 wet                  24                  76                    0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: n2o_indirect_no3_n_t &lt;dbl&gt;, method_leaching &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

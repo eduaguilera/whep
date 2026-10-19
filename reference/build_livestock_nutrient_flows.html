@@ -137,7 +137,16 @@ reader of <code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs
 <code>land_use x crop (x cell)</code> with <code>manure_type</code> (<code>"Excreta"</code>/<code>"Solid"</code>/
 <code>"Liquid"</code>) and all <code>method_*</code> provenance columns, including
 <code>method_transport_land_use</code>, the <code>land_split</code> used, <code>NA</code> unless the
-resolution is <code>"subnational"</code>), <code>losses</code>
+resolution is <code>"subnational"</code>; and the grazing-excreta species mix:
+<code>excreta_cpp_share</code>, the share of a row's N deposited by cattle,
+poultry and pigs, the IPCC 2019 EF3PRP,CPP animals (Vol 4, Ch 11,
+Table 11.1 (Updated), p. 11.13), with sheep and other animals (SO)
+making up the rest, and <code>method_excreta_species</code>, which records where
+the share came from (<code>"engine_livestock_category"</code>) or why an
+<code>"Excreta"</code> row has none (<code>"fallback_label_no_species"</code>, a row the
+manure-type split labelled <code>"Excreta"</code> for want of a share, which is not
+grazing deposition). Both are <code>NA</code> on <code>"Solid"</code> and <code>"Liquid"</code> rows),
+<code>losses</code>
 (management-loss side-streams per polity) and <code>excretion</code> (the
 per-category excretion totals).</p>
     </div>
@@ -159,7 +168,7 @@ per-category excretion totals).</p>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">build_livestock_nutrient_flows</span><span class="op">(</span><span class="va">intake</span>, gridded <span class="op">=</span> <span class="va">gridded</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $applied</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 28</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 30</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory land_use  crop  source_stream manure_type</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cropland  44    collected     Liquid     </span>
@@ -167,13 +176,13 @@ per-category excretion totals).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cropland  15    collected     Liquid     </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Cropland  15    collected     Solid      </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>020 203       <span style="color: #BB0000;">NA</span>            Grassland <span style="color: #BB0000;">NA</span>    grazing       Excreta    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 21 more variables: applied_n &lt;dbl&gt;, applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 23 more variables: applied_n &lt;dbl&gt;, applied_c &lt;dbl&gt;, applied_vs &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   over_cap &lt;lgl&gt;, method_allocation &lt;chr&gt;, method_cap &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   disposal_method &lt;chr&gt;, resolution &lt;chr&gt;, method_n_excretion &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   disposal_method &lt;chr&gt;, excreta_cpp_share &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_excreta_species &lt;chr&gt;, resolution &lt;chr&gt;, method_n_excretion &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_vs &lt;chr&gt;, method_digestibility &lt;chr&gt;, method_c_excretion &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_forage_n &lt;chr&gt;, method_mms &lt;chr&gt;, method_losses &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_bedding_c &lt;chr&gt;, method_indirect_n2o &lt;chr&gt;, method_direct_n2o &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_bedding_mms &lt;chr&gt;, method_transport &lt;chr&gt;, …</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_bedding_c &lt;chr&gt;, method_indirect_n2o &lt;chr&gt;, …</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $losses</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>

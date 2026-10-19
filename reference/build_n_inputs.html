@@ -372,16 +372,26 @@ uses <code>data$manure_method %||% "livestock_intake"</code>.</p></dd>
 <code>method_recycling_n</code>, <code>method_synthetic</code>, <code>method_deposition</code>,
 <code>method_deposition_scope</code>, <code>method_human_population</code>,
 <code>method_human_kgn_cap</code>, <code>method_unsupported</code>, <code>method_manure</code>,
-<code>method_unattributed</code>. At
+<code>excreta_cpp_share</code>, <code>method_excreta_species</code>, <code>method_unattributed</code>. At
 <code>resolution = "polity"</code>: <code>area_code</code>, <code>item_cbs_code</code>, <code>year</code>,
 <code>fert_type</code>, <code>method_recycling_n</code>, <code>method_synthetic</code>,
 <code>method_deposition</code>, <code>method_deposition_scope</code>,
 <code>method_human_population</code>, <code>method_human_kgn_cap</code>, <code>method_unsupported</code>,
-<code>method_manure</code>, <code>method_unattributed</code>, <code>n_input_t</code> (summed over cells).
+<code>method_manure</code>, <code>method_unattributed</code>, <code>n_input_t</code> (summed over cells),
+<code>excreta_cpp_share</code> (N-weighted over cells), <code>method_excreta_species</code>.
 <code>method_manure</code> records the source of the three manure terms
 (<code>"livestock_intake"</code>, <code>"faostat"</code>, or <code>"faostat_all_solid"</code> on applied
 manure booked as solid for want of an engine split) and is <code>NA</code> for every
 other <code>fert_type</code>.
+<code>excreta_cpp_share</code> is the share of an <code>"excreta"</code> row's N deposited by
+cattle, poultry and pigs, the animals of the IPCC 2019 EF3PRP,CPP factor
+(Vol 4, Ch 11, Table 11.1 (Updated), p. 11.13); sheep and other animals
+(EF3PRP,SO) deposit the rest. <code>method_excreta_species</code> records where the
+share came from (<code>"engine_livestock_category"</code>,
+<code>"faostat_species_group"</code>) or why the row has none
+(<code>"fallback_label_no_species"</code> for manure the engine labelled excreta
+only for want of a manure-type share, <code>"no_excreta_n"</code> for a row with no
+N). Both are <code>NA</code> for every other <code>fert_type</code>.
 <code>method_recycling_n</code> records which residue basis the <code>"recycling"</code> term
 used: <code>"residue_soil_returned"</code> when the upstream NPP input supplied
 <code>residue_soil_dm_t</code> (residue N net of removal for feed/fuel/burning) or
@@ -464,7 +474,7 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_inputs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 20</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 22</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
@@ -476,11 +486,12 @@ column.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">9</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 15 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 17 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, item_cbs_code &lt;int&gt;, fert_type &lt;chr&gt;, n_input_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_recycling_n &lt;chr&gt;, method_synthetic &lt;chr&gt;, method_deposition &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_deposition_scope &lt;chr&gt;, method_human_population &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_human_kgn_cap &lt;chr&gt;, method_unsupported &lt;chr&gt;, method_manure &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   excreta_cpp_share &lt;dbl&gt;, method_excreta_species &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_unattributed &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>

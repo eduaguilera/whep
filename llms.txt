@@ -534,6 +534,8 @@ bins, and the C:N leaching-attenuation and indirect-N2O constants.
   : Soil organic matter content bins.
 - [`n_attenuation_constants`](https://eduaguilera.github.io/whep/reference/n_attenuation_constants.md)
   : Nitrogen leaching-attenuation and indirect-N2O constants.
+- [`ipcc_2019_soil_n_ef`](https://eduaguilera.github.io/whep/reference/ipcc_2019_soil_n_ef.md)
+  : IPCC 2019 Tier 1 soil nitrogen emission and leaching factors.
 
 ## Human-population nitrogen coefficient tables
 
@@ -696,6 +698,8 @@ balance.
   : Build the gridded agricultural land support.
 - [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
   : Assemble gridded nitrogen inputs from every WHEP N-input source.
+- [`build_n_loss_drivers()`](https://eduaguilera.github.io/whep/reference/build_n_loss_drivers.md)
+  : Build the IPCC 2019 wet/dry drivers of the nitrogen loss cascade.
 - [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md)
   : Build the full nitrogen balance: inputs, outputs, losses and NUE.
 - [`calculate_n_surplus()`](https://eduaguilera.github.io/whep/reference/calculate_n_surplus.md)
@@ -1455,6 +1459,8 @@ methods for enteric methane, manure methane, and manure nitrous oxide.
 - [`build_cell_climate_zone()`](https://eduaguilera.github.io/whep/reference/build_cell_climate_zone.md)
   : Build the per-cell IPCC climate zone from CRU mean annual
   temperature.
+- [`build_cell_moisture_regime()`](https://eduaguilera.github.io/whep/reference/build_cell_moisture_regime.md)
+  : Build the IPCC 2019 wet/dry moisture regime of WHEP's crop land.
 - [`livestock_emissions_to_kt()`](https://eduaguilera.github.io/whep/reference/livestock_emissions_to_kt.md)
   : Convert IPCC per-animal livestock emissions from kilograms to
   kilotonnes.

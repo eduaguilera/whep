@@ -1697,7 +1697,9 @@
   the three `whep-polities` files existing. It skips on CI, r-universe
   and CRAN, where they do not, so the suite still reads no `WHEP_*` path
   and touches no network — but a maintainer who *can* re-sync now finds
-  out from `devtools::test()` rather than from a manual audit.
+  out from
+  [`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
+  rather than from a manual audit.
 
 - **The cell-polity crosswalk is a pin now, so no user regenerates it
   ([\#694](https://github.com/eduaguilera/whep/issues/694),

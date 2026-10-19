@@ -354,24 +354,34 @@ A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 `item_cbs_code`, `year`, `fert_type`, `n_input_t`, `method_recycling_n`,
 `method_synthetic`, `method_deposition`, `method_deposition_scope`,
 `method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
-`method_manure`, `method_unattributed`. At `resolution = "polity"`:
-`area_code`, `item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
+`method_manure`, `excreta_cpp_share`, `method_excreta_species`,
+`method_unattributed`. At `resolution = "polity"`: `area_code`,
+`item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
 `method_synthetic`, `method_deposition`, `method_deposition_scope`,
 `method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
-`method_manure`, `method_unattributed`, `n_input_t` (summed over cells).
+`method_manure`, `method_unattributed`, `n_input_t` (summed over cells),
+`excreta_cpp_share` (N-weighted over cells), `method_excreta_species`.
 `method_manure` records the source of the three manure terms
 (`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
 manure booked as solid for want of an engine split) and is `NA` for
-every other `fert_type`. `method_recycling_n` records which residue
-basis the `"recycling"` term used: `"residue_soil_returned"` when the
-upstream NPP input supplied `residue_soil_dm_t` (residue N net of
-removal for feed/fuel/burning) or `"total_residue"` when only gross
-residue N was available; it is `NA` for every other `fert_type`.
-`method_synthetic` records the synthetic crop-split basis (`"coello"` or
-`"area_share"`) on `"synthetic"` rows and is `NA` for every other
-`fert_type`. `method_deposition` records which deposition product the
-`"deposition"` term's field came from, read off the supplied `nhx`/`noy`
-by
+every other `fert_type`. `excreta_cpp_share` is the share of an
+`"excreta"` row's N deposited by cattle, poultry and pigs, the animals
+of the IPCC 2019 EF3PRP,CPP factor (Vol 4, Ch 11, Table 11.1 (Updated),
+p. 11.13); sheep and other animals (EF3PRP,SO) deposit the rest.
+`method_excreta_species` records where the share came from
+(`"engine_livestock_category"`, `"faostat_species_group"`) or why the
+row has none (`"fallback_label_no_species"` for manure the engine
+labelled excreta only for want of a manure-type share, `"no_excreta_n"`
+for a row with no N). Both are `NA` for every other `fert_type`.
+`method_recycling_n` records which residue basis the `"recycling"` term
+used: `"residue_soil_returned"` when the upstream NPP input supplied
+`residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
+`"total_residue"` when only gross residue N was available; it is `NA`
+for every other `fert_type`. `method_synthetic` records the synthetic
+crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows
+and is `NA` for every other `fert_type`. `method_deposition` records
+which deposition product the `"deposition"` term's field came from, read
+off the supplied `nhx`/`noy` by
 [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
 (`"hani"` for
 [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)'s
@@ -466,7 +476,7 @@ extra column.
 
 ``` r
 build_n_inputs(example = TRUE)
-#> # A tibble: 9 × 20
+#> # A tibble: 9 × 22
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020         1                1 ARM-1991-2025         Armenia              
@@ -478,10 +488,11 @@ build_n_inputs(example = TRUE)
 #> 7  2020         1                1 ARM-1991-2025         Armenia              
 #> 8  2020         1                1 ARM-1991-2025         Armenia              
 #> 9  2020         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 15 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 17 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, item_cbs_code <int>, fert_type <chr>, n_input_t <dbl>,
 #> #   method_recycling_n <chr>, method_synthetic <chr>, method_deposition <chr>,
 #> #   method_deposition_scope <chr>, method_human_population <chr>,
 #> #   method_human_kgn_cap <chr>, method_unsupported <chr>, method_manure <chr>,
+#> #   excreta_cpp_share <dbl>, method_excreta_species <chr>,
 #> #   method_unattributed <chr>
 ```

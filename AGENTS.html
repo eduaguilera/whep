@@ -109,13 +109,13 @@
 </div>
 <div class="section level2">
 <h2 id="running-things">Running things<a class="anchor" aria-label="anchor" href="#running-things"></a></h2>
-<p><code>.Rprofile</code> runs <code>devtools::load_all()</code> on session start, so a plain <code>Rscript</code>/<code>R</code> session already has the package loaded.</p>
+<p><code>.Rprofile</code> runs <code><a href="https://devtools.r-lib.org/reference/load_all.html" class="external-link">devtools::load_all()</a></code> on session start, so a plain <code>Rscript</code>/<code>R</code> session already has the package loaded.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span>filter <span class="op">=</span> <span class="st">"cbs"</span><span class="op">)</span>   <span class="co"># one test file — the cheap inner loop</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span>                 <span class="co"># whole suite, must be 100% green</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span>filter <span class="op">=</span> <span class="st">"cbs"</span><span class="op">)</span>   <span class="co"># one test file — the cheap inner loop</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span><span class="op">)</span>                 <span class="co"># whole suite, must be 100% green</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">air</span> format .                     <span class="co"># mandatory before committing</span></span></code></pre></div>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">document</span><span class="op">(</span><span class="op">)</span>             <span class="co"># after air, to refresh man/</span></span>
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/document.html" class="external-link">document</a></span><span class="op">(</span><span class="op">)</span>             <span class="co"># after air, to refresh man/</span></span>
 <span><span class="fu">rcmdcheck</span><span class="fu">::</span><span class="fu"><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck</a></span><span class="op">(</span></span>
 <span>  build_args <span class="op">=</span> <span class="st">"--no-build-vignettes"</span>,</span>
 <span>  args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"--no-tests"</span>, <span class="st">"--ignore-vignettes"</span><span class="op">)</span>,</span>
@@ -244,7 +244,7 @@
 <li>
 <strong>The suite must never reach the network or read a <code>WHEP_*</code> path.</strong> A test that does turns an unrelated outage into a hard <code>R CMD check</code> ERROR (#490). Stub the reader with <code><a href="https://testthat.r-lib.org/reference/local_mocked_bindings.html" class="external-link">testthat::local_mocked_bindings()</a></code> (43 call sites do this already) or use a fixture under <code>tests/testthat/fixtures/</code>.
 <ul><li>
-<code>skip_on_ci()</code> does <strong>not</strong> enforce this: r-universe runs its check without <code>CI</code> set, so a <code>skip_on_ci()</code> test runs there for real. Use <code>skip_on_cran()</code>, which fires wherever <code>NOT_CRAN</code> is unset (r-universe, CRAN) while <code>r-lib/actions/setup-r</code> and <code>devtools::test()</code> both set it. A real-data test that genuinely cannot be rescoped onto a fixture needs <strong>both</strong>. Guarding on a local file or <code>WHEP_*</code> env var is equally fine — that is what the LPJmL/HWSD/LUH2 smoke tests do.</li>
+<code>skip_on_ci()</code> does <strong>not</strong> enforce this: r-universe runs its check without <code>CI</code> set, so a <code>skip_on_ci()</code> test runs there for real. Use <code>skip_on_cran()</code>, which fires wherever <code>NOT_CRAN</code> is unset (r-universe, CRAN) while <code>r-lib/actions/setup-r</code> and <code><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">devtools::test()</a></code> both set it. A real-data test that genuinely cannot be rescoped onto a fixture needs <strong>both</strong>. Guarding on a local file or <code>WHEP_*</code> env var is equally fine — that is what the LPJmL/HWSD/LUH2 smoke tests do.</li>
 <li>The <code>offline-tests</code> job is the enforcement, and it only sees these tests because it unsets <code>CI</code>. If it fails alone, add a fixture — do not skip the test and do not relax the job.</li>
 </ul></li>
 <li>Access exported objects via <code><a href="https://rdrr.io/r/base/name.html" class="external-link">whep::name</a></code> — never <code>:::</code> or <code><a href="https://rdrr.io/r/utils/getFromNamespace.html" class="external-link">getFromNamespace()</a></code> for something exported. Private helpers are tested directly as <code>whep:::.helper()</code>, which is the established practice. For dynamic access in loops use <code>getExportedValue("whep", nm)</code>.</li>
@@ -275,7 +275,7 @@
 <span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="ex">air</span> format .</span></code></pre></div>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># 2. Document</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">document</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/document.html" class="external-link">document</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 3. Check — WITH TESTS. Do not pass `--no-tests`; see below.</span></span>
 <span><span class="fu">rcmdcheck</span><span class="fu">::</span><span class="fu"><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck</a></span><span class="op">(</span></span>
@@ -285,8 +285,8 @@
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 4. Test</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>Why a green <code>devtools::test()</code> is not a green CI — the three build layouts and how they disagree — moved to <code>agent-reference/build-verification-notes.md</code>. Read it if a change touches package data, a lazy-loaded object or anything under <code>inst/</code>.</p>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Why a green <code><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">devtools::test()</a></code> is not a green CI — the three build layouts and how they disagree — moved to <code>agent-reference/build-verification-notes.md</code>. Read it if a change touches package data, a lazy-loaded object or anything under <code>inst/</code>.</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml</span></span>
 <span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="co"># (compare outputs; empty = OK)</span></span>
 <span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="fu">comm</span> <span class="at">-23</span> <span class="dt">\</span></span>

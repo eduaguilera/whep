@@ -98,8 +98,17 @@ A named list with `applied` (manure applied per
 `land_use x crop (x cell)` with `manure_type` (`"Excreta"`/`"Solid"`/
 `"Liquid"`) and all `method_*` provenance columns, including
 `method_transport_land_use`, the `land_split` used, `NA` unless the
-resolution is `"subnational"`), `losses` (management-loss side-streams
-per polity) and `excretion` (the per-category excretion totals).
+resolution is `"subnational"`; and the grazing-excreta species mix:
+`excreta_cpp_share`, the share of a row's N deposited by cattle, poultry
+and pigs, the IPCC 2019 EF3PRP,CPP animals (Vol 4, Ch 11, Table 11.1
+(Updated), p. 11.13), with sheep and other animals (SO) making up the
+rest, and `method_excreta_species`, which records where the share came
+from (`"engine_livestock_category"`) or why an `"Excreta"` row has none
+(`"fallback_label_no_species"`, a row the manure-type split labelled
+`"Excreta"` for want of a share, which is not grazing deposition). Both
+are `NA` on `"Solid"` and `"Liquid"` rows), `losses` (management-loss
+side-streams per polity) and `excretion` (the per-category excretion
+totals).
 
 ## Examples
 
@@ -119,7 +128,7 @@ gridded <- list(
 )
 build_livestock_nutrient_flows(intake, gridded = gridded)
 #> $applied
-#> # A tibble: 5 × 28
+#> # A tibble: 5 × 30
 #>    year territory sub_territory land_use  crop  source_stream manure_type
 #>   <int> <chr>     <lgl>         <chr>     <chr> <chr>         <chr>      
 #> 1  2020 203       NA            Cropland  44    collected     Liquid     
@@ -127,13 +136,13 @@ build_livestock_nutrient_flows(intake, gridded = gridded)
 #> 3  2020 203       NA            Cropland  15    collected     Liquid     
 #> 4  2020 203       NA            Cropland  15    collected     Solid      
 #> 5  2020 203       NA            Grassland NA    grazing       Excreta    
-#> # ℹ 21 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
+#> # ℹ 23 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
-#> #   disposal_method <chr>, resolution <chr>, method_n_excretion <chr>,
+#> #   disposal_method <chr>, excreta_cpp_share <dbl>,
+#> #   method_excreta_species <chr>, resolution <chr>, method_n_excretion <chr>,
 #> #   method_vs <chr>, method_digestibility <chr>, method_c_excretion <chr>,
 #> #   method_forage_n <chr>, method_mms <chr>, method_losses <chr>,
-#> #   method_bedding_c <chr>, method_indirect_n2o <chr>, method_direct_n2o <chr>,
-#> #   method_bedding_mms <chr>, method_transport <chr>, …
+#> #   method_bedding_c <chr>, method_indirect_n2o <chr>, …
 #> 
 #> $losses
 #> # A tibble: 1 × 10

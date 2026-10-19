@@ -72,7 +72,8 @@ reconstruction.</p>
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_nitrogen_balance</span><span class="op">(</span></span>
-<span>  methods <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>nh3 <span class="op">=</span> <span class="st">"manner"</span>, n2o <span class="op">=</span> <span class="st">"ipcc2019"</span>, leaching <span class="op">=</span> <span class="st">"meisinger_drainage"</span><span class="op">)</span>,</span>
+<span>  methods <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>nh3 <span class="op">=</span> <span class="st">"manner"</span>, n2o <span class="op">=</span> <span class="st">"ipcc2019"</span>, n2o_indirect <span class="op">=</span> <span class="st">"ipcc2019"</span>, leaching <span class="op">=</span></span>
+<span>    <span class="st">"meisinger_drainage"</span><span class="op">)</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
 <span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
@@ -88,11 +89,17 @@ reconstruction.</p>
 <dl><dt id="arg-methods">methods<a class="anchor" aria-label="anchor" href="#arg-methods"></a></dt>
 <dd><p>A named list of method choices: <code>nh3</code> (forwarded to
 <code><a href="calculate_nh3.html">calculate_nh3()</a></code>, default <code>"manner"</code>), <code>n2o</code> (forwarded to
-<code><a href="calculate_soil_n2o.html">calculate_soil_n2o()</a></code>, default <code>"ipcc2019"</code>, the globally applicable
-IPCC 2019 Tier 1 method), <code>leaching</code> (forwarded to
-<code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code>, default <code>"meisinger_drainage"</code>) and <code>regime</code>,
-how each grid row is split into a rainfed and an irrigated part (see
-Details): <code>"yield_split"</code> (default), <code>"area_split"</code> or <code>"none"</code>.</p></dd>
+<code><a href="calculate_soil_n2o.html">calculate_soil_n2o()</a></code>, default <code>"ipcc2019"</code>, the IPCC 2019 Tier 1
+wet/dry factors of Table 11.1 (Updated) p. 11.13; <code>"ipcc2019_atl_med"</code>,
+<code>"aguilera"</code> and <code>"ipcc2006"</code> are selectable), <code>n2o_indirect</code>
+(forwarded to <code><a href="calculate_indirect_n2o_nh3.html">calculate_indirect_n2o_nh3()</a></code>, default <code>"ipcc2019"</code>, the
+wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or <code>"ipcc2019_atl_med"</code>),
+<code>leaching</code> (forwarded to <code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code>, default
+<code>"meisinger_drainage"</code>, or <code>"ipcc_fracleach"</code>, the wet/dry
+FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and <code>regime</code>, how each grid
+row is split into a rainfed and an irrigated part (see Details):
+<code>"yield_split"</code> (default), <code>"area_split"</code> or <code>"none"</code>. The IPCC 2019
+wet/dry methods read <code>moisture_regime</code> from the driver tables in <code>data</code>.</p></dd>
 
 
 <dt id="arg-resolution">resolution<a class="anchor" aria-label="anchor" href="#arg-resolution"></a></dt>
@@ -142,18 +149,34 @@ The bedded straw also comes back as a manure input, through
 <li><p><code>livestock_intake</code>: shared with <code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s manure term;
 its <code>"grass"</code> <code>feed_quality</code> rows drive <code>grazed_weeds_n_t</code>.</p></li>
 <li><p><code>carbon_balance</code>: shared with <code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s <code>"som_ mineralization"</code> term; its <code>son_change_kgn_ha</code> drives <code>som_ sequestration_n_t</code>.</p></li>
+<li><p><code>n_balance_drivers</code> and <code>n_balance_leaching_drivers</code>: the loss
+drivers. At grid resolution each one left <code>NULL</code> is built by
+<code><a href="build_n_loss_drivers.html">build_n_loss_drivers()</a></code> on the split balance's own rows (the IPCC 2019
+wet/dry class and the ATL/MED drivers mapped from it; see its table of
+which methods it supplies), and <code>method_drivers</code> says so. That needs
+the rainfed/irrigated split (<code>methods$regime</code> other than <code>"none"</code>);
+<code>leaching = "meisinger_drainage"</code> and the MANNER <code>nh3</code> methods read
+drivers it does not supply and are refused before any input is
+assembled unless their table is supplied. At polity resolution both
+must be supplied.</p></li>
+<li><p><code>n_loss_driver_inputs</code>: optional list passed as <code>data</code> to
+<code><a href="build_n_loss_drivers.html">build_n_loss_drivers()</a></code> when it runs (<code>climate</code>, <code>crop_depth</code>,
+<code>lpjml_years</code>, <code>lpjml_grid</code>, <code>regime_areas</code>, <code>moisture_regime</code>); the
+balance's own <code>country_grid</code> is shared with it.</p></li>
 <li><p><code>n_balance_drivers</code>: additional per-<code>(key, fert_type)</code> driver
 columns <code><a href="calculate_nh3.html">calculate_nh3()</a></code>/<code><a href="calculate_soil_n2o.html">calculate_soil_n2o()</a></code>/
 <code><a href="calculate_indirect_n2o_nh3.html">calculate_indirect_n2o_nh3()</a></code> need beyond <code>n_input_t</code>/<code>fert_type</code>
-(<code>climate</code>, <code>irrig_type</code>, plus every MANNER driver column when
-<code>methods$nh3 == "manner"</code>), joined by the balance key AND
-<code>fert_type</code> (the Title-case vocabulary from <code><a href="calculate_nh3.html">calculate_nh3()</a></code>'s own
-documentation, e.g. <code>"Synthetic"</code>, <code>"Solid"</code>, <code>"Excreta_other"</code>; see
-the file-level "fert_type vocabulary bridge" note for the exact
-mapping from <code><a href="build_n_inputs.html">build_n_inputs()</a></code>'s lowercase values). A second set of
-balance-key-only driver columns (<code>fert_type</code>, <code>climate</code>, <code>irrig_cat</code>,
-<code>tillage</code>, <code>som_share</code>, <code>cn_input</code>, <code>land_use</code>) for
-<code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code> is read from
+(<code>moisture_regime</code> for the IPCC 2019 wet/dry methods, <code>climate</code> and
+<code>irrig_type</code> for the ATL/MED ones, plus every MANNER driver column
+when <code>methods$nh3 == "manner"</code>), joined by the balance key AND
+<code>fert_type</code> (the Title-case vocabulary of the loss functions:
+<code>"Synthetic"</code>, <code>"Solid"</code>, <code>"Liquid"</code>, <code>"Excreta"</code>, <code>"Human"</code>,
+<code>"Recycling"</code>, <code>"SOM"</code>). The excreta rows' species mix,
+<code>excreta_cpp_share</code>, comes from <code><a href="build_n_inputs.html">build_n_inputs()</a></code>, N-weighted over
+the rows pooled into each loss row. A second set of
+balance-key-only driver columns (<code>moisture_regime</code>, <code>fert_type</code>,
+<code>climate</code>, <code>irrig_cat</code>, <code>tillage</code>, <code>som_share</code>, <code>cn_input</code>,
+<code>land_use</code>) for <code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code> is read from
 <code>n_balance_leaching_drivers</code>, which must hold at most one row per
 balance key (a many-to-one join aborts on duplicate keys rather than
 fanning the rows out and misaligning <code>drainage_mm</code>). Missing required
@@ -195,11 +218,23 @@ per-hectare rate), the input aggregates
 (<code>n_output_residues_t</code>, <code>n_output_som_t</code>, <code>n_output_useful_t</code>,
 <code>n_output_std_t</code>, <code>n_output_full_t</code>), the loss terms (<code>nh3_n_t</code>,
 <code>n2o_direct_n_t</code>, <code>no3_n_t</code>, <code>denitrification_n_t</code>,
-<code>n2o_indirect_no3_n_t</code>, <code>n2o_indirect_nh3_n_t</code>), the (post-cap)
+<code>retained_profile_n_t</code>, <code>n2o_indirect_no3_n_t</code>, <code>n2o_indirect_nh3_n_t</code>;
+<code>no3_n_t + denitrification_n_t + retained_profile_n_t</code> is the surplus,
+see <code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code>), the (post-cap)
 <code>som_sequestration_n_t</code>, <code>n_balance_t</code>, <code>surplus_t</code>, <code>surplus_share</code>,
 the five NUE ratios (<code>nue_std</code>, <code>nue_residues</code>, <code>nue_som</code>,
 <code>nue_useful</code>, <code>nue_full</code>), <code>total_gwp_co2e_kg</code>, and the <code>method_nh3</code>/
-<code>method_soil_n2o</code>/<code>method_leaching</code> provenance columns, <code>method_regime</code>
+<code>method_soil_n2o</code>/<code>method_n2o_indirect_nh3</code>/<code>method_leaching</code>
+provenance columns (the per-row stamps of the loss functions; a balance
+row pooling loss rows priced differently lists them joined by <code>"|"</code>,
+and a row with no N2O-relevant input, which emits no direct or
+NH3-indirect N2O, carries the method chosen suffixed <code>"_no_loss_row"</code>,
+e.g. <code>"ipcc2019_no_loss_row"</code>),
+<code>method_drivers</code> (<code>"whep_built"</code>, <code>"supplied"</code> or
+<code>"supplied|whep_built"</code>), and, when the leaching drivers carry them (as
+built ones do), the row's wet/dry <code>moisture_regime</code>, how it was obtained
+(<code>method_moisture_regime</code>) and <code>climate_fill_km</code>,
+<code>method_regime</code>
 and <code>method_regime_split</code> when the split ran (<code>"yield_ratio"</code>;
 <code>"area_no_production"</code> where the crop's production could not be
 expressed in fresh weight and the area share was used for everything;
@@ -243,6 +278,24 @@ own call with its own choice, and the balance rows derived from it still get
 this argument's fate at the tail.</p>
     </div>
     <div class="section level2">
+    <h2 id="loss-drivers">Loss drivers<a class="anchor" aria-label="anchor" href="#loss-drivers"></a></h2>
+
+
+<p>Which driver columns each loss method reads, and whether
+<code><a href="build_n_loss_drivers.html">build_n_loss_drivers()</a></code> supplies them. At grid resolution that function
+builds each driver table left <code>NULL</code>; at polity resolution both tables must
+be supplied.</p><table class="table table"><tr><td>Method</td><td>Driver columns</td><td>Supplied</td><td>Status</td></tr><tr><td><code>nh3</code>: <code>"ipcc"</code></td><td><code>fert_type</code></td><td>yes</td><td>built</td></tr><tr><td><code>nh3</code>: <code>"manner"</code>, <code>"manner_default"</code></td><td>MANNER's</td><td>no</td><td>note 1</td></tr><tr><td><code>n2o</code>: <code>"ipcc2019"</code></td><td><code>moisture_regime</code></td><td>yes</td><td>built</td></tr><tr><td><code>n2o</code>: <code>"ipcc2019_atl_med"</code></td><td><code>climate</code></td><td>yes</td><td>built</td></tr><tr><td><code>n2o</code>: <code>"aguilera"</code>, <code>"ipcc2006"</code></td><td><code>climate</code>, <code>irrig_type</code></td><td>yes</td><td>built</td></tr><tr><td><code>n2o_indirect</code>: <code>"ipcc2019"</code></td><td><code>moisture_regime</code></td><td>yes</td><td>built</td></tr><tr><td><code>n2o_indirect</code>: <code>"ipcc2019_atl_med"</code></td><td><code>climate</code>, <code>irrig_type</code></td><td>yes</td><td>built</td></tr><tr><td><code>leaching</code>: <code>"ipcc_fracleach"</code></td><td><code>moisture_regime</code>, <code>water_regime</code></td><td>yes</td><td>built</td></tr><tr><td><code>leaching</code>: <code>"meisinger_drainage"</code></td><td>Meisinger's</td><td>no</td><td>note 2</td></tr></table><ul><li><p>Note 1: MANNER reads <code>manner_fertiliser</code>, <code>soil_ph</code>, <code>rate_kg_ha</code>,
+<code>rainfall_mm</code>, <code>irrigated</code>, <code>temp_c</code>, <code>temp_c_annual_mean</code>, <code>windspeed_ms</code>,
+<code>technique</code>, <code>system</code>, <code>incorporation_delay_h</code> and <code>species</code> (see
+<code><a href="calculate_nh3.html">calculate_nh3()</a></code>). Drivers must be supplied; global drivers planned.</p></li>
+<li><p>Note 2: Meisinger reads <code>fert_type</code>, <code>climate</code>, <code>irrig_cat</code>, <code>land_use</code>,
+<code>cn_input</code>, <code>tillage</code>, <code>som_share</code> and <code>drainage_mm</code> (see
+<code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code>). Drivers must be supplied; global drivers
+planned.</p></li>
+</ul><p><code>build_nitrogen_balance()</code> refuses a method of note 1 or note 2 before
+assembling any input unless its driver table is supplied.</p>
+    </div>
+    <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
 
 
@@ -284,11 +337,11 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_nitrogen_balance</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 42</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 45</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020        10               10 AUS-1901-2025         Australia            </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 37 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 40 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, area_ha &lt;dbl&gt;, n_input_full_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_input_full_nosom_t &lt;dbl&gt;, n_input_std_t &lt;dbl&gt;, n_input_som_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_input_for_n2o_t &lt;dbl&gt;, prod_n_t &lt;dbl&gt;, used_residue_n_t &lt;dbl&gt;,</span></span>

@@ -54,7 +54,7 @@ and
 # This package's own registry is itself a valid registry.
 system.file("extdata", "whep_inputs.csv", package = "whep") |>
   whep_registry()
-#> # A tibble: 86 × 3
+#> # A tibble: 87 × 3
 #>    alias                   board_url                                     version
 #>    <chr>                   <chr>                                         <chr>  
 #>  1 commodity_balance_sheet https://saco.csic.es/public.php/dav/files/nr… 202507…
@@ -67,5 +67,5 @@ system.file("extdata", "whep_inputs.csv", package = "whep") |>
 #>  8 faostat-production      https://saco.csic.es/public.php/dav/files/nr… 202603…
 #>  9 faostat-production-old  https://saco.csic.es/public.php/dav/files/nr… 202603…
 #> 10 faostat-landuse         https://saco.csic.es/public.php/dav/files/nr… 202610…
-#> # ℹ 76 more rows
+#> # ℹ 77 more rows
 ```

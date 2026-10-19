@@ -19,7 +19,8 @@ equations of an earlier regional historical reconstruction.
 
 ``` r
 build_nitrogen_balance(
-  methods = list(nh3 = "manner", n2o = "ipcc2019", leaching = "meisinger_drainage"),
+  methods = list(nh3 = "manner", n2o = "ipcc2019", n2o_indirect = "ipcc2019", leaching =
+    "meisinger_drainage"),
   resolution = c("grid", "polity"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
@@ -36,12 +37,19 @@ build_nitrogen_balance(
   [`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md),
   default `"manner"`), `n2o` (forwarded to
   [`calculate_soil_n2o()`](https://eduaguilera.github.io/whep/reference/calculate_soil_n2o.md),
-  default `"ipcc2019"`, the globally applicable IPCC 2019 Tier 1
-  method), `leaching` (forwarded to
+  default `"ipcc2019"`, the IPCC 2019 Tier 1 wet/dry factors of Table
+  11.1 (Updated) p. 11.13; `"ipcc2019_atl_med"`, `"aguilera"` and
+  `"ipcc2006"` are selectable), `n2o_indirect` (forwarded to
+  [`calculate_indirect_n2o_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_indirect_n2o_nh3.md),
+  default `"ipcc2019"`, the wet/dry EF4 of Table 11.3 (Updated) p.
+  11.26, or `"ipcc2019_atl_med"`), `leaching` (forwarded to
   [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md),
-  default `"meisinger_drainage"`) and `regime`, how each grid row is
-  split into a rainfed and an irrigated part (see Details):
-  `"yield_split"` (default), `"area_split"` or `"none"`.
+  default `"meisinger_drainage"`, or `"ipcc_fracleach"`, the wet/dry
+  FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and `regime`, how each
+  grid row is split into a rainfed and an irrigated part (see Details):
+  `"yield_split"` (default), `"area_split"` or `"none"`. The IPCC 2019
+  wet/dry methods read `moisture_regime` from the driver tables in
+  `data`.
 
 - resolution:
 
@@ -115,21 +123,41 @@ build_nitrogen_balance(
     `"som_ mineralization"` term; its `son_change_kgn_ha` drives
     `som_ sequestration_n_t`.
 
+  - `n_balance_drivers` and `n_balance_leaching_drivers`: the loss
+    drivers. At grid resolution each one left `NULL` is built by
+    [`build_n_loss_drivers()`](https://eduaguilera.github.io/whep/reference/build_n_loss_drivers.md)
+    on the split balance's own rows (the IPCC 2019 wet/dry class and the
+    ATL/MED drivers mapped from it; see its table of which methods it
+    supplies), and `method_drivers` says so. That needs the
+    rainfed/irrigated split (`methods$regime` other than `"none"`);
+    `leaching = "meisinger_drainage"` and the MANNER `nh3` methods read
+    drivers it does not supply and are refused before any input is
+    assembled unless their table is supplied. At polity resolution both
+    must be supplied.
+
+  - `n_loss_driver_inputs`: optional list passed as `data` to
+    [`build_n_loss_drivers()`](https://eduaguilera.github.io/whep/reference/build_n_loss_drivers.md)
+    when it runs (`climate`, `crop_depth`, `lpjml_years`, `lpjml_grid`,
+    `regime_areas`, `moisture_regime`); the balance's own `country_grid`
+    is shared with it.
+
   - `n_balance_drivers`: additional per-`(key, fert_type)` driver
     columns
     [`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md)/[`calculate_soil_n2o()`](https://eduaguilera.github.io/whep/reference/calculate_soil_n2o.md)/
     [`calculate_indirect_n2o_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_indirect_n2o_nh3.md)
-    need beyond `n_input_t`/`fert_type` (`climate`, `irrig_type`, plus
-    every MANNER driver column when `methods$nh3 == "manner"`), joined
-    by the balance key AND `fert_type` (the Title-case vocabulary from
-    [`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md)'s
-    own documentation, e.g. `"Synthetic"`, `"Solid"`, `"Excreta_other"`;
-    see the file-level "fert_type vocabulary bridge" note for the exact
-    mapping from
-    [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)'s
-    lowercase values). A second set of balance-key-only driver columns
-    (`fert_type`, `climate`, `irrig_cat`, `tillage`, `som_share`,
-    `cn_input`, `land_use`) for
+    need beyond `n_input_t`/`fert_type` (`moisture_regime` for the IPCC
+    2019 wet/dry methods, `climate` and `irrig_type` for the ATL/MED
+    ones, plus every MANNER driver column when
+    `methods$nh3 == "manner"`), joined by the balance key AND
+    `fert_type` (the Title-case vocabulary of the loss functions:
+    `"Synthetic"`, `"Solid"`, `"Liquid"`, `"Excreta"`, `"Human"`,
+    `"Recycling"`, `"SOM"`). The excreta rows' species mix,
+    `excreta_cpp_share`, comes from
+    [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md),
+    N-weighted over the rows pooled into each loss row. A second set of
+    balance-key-only driver columns (`moisture_regime`, `fert_type`,
+    `climate`, `irrig_cat`, `tillage`, `som_share`, `cn_input`,
+    `land_use`) for
     [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)
     is read from `n_balance_leaching_drivers`, which must hold at most
     one row per balance key (a many-to-one join aborts on duplicate keys
@@ -174,22 +202,35 @@ per-hectare rate), the input aggregates (`n_input_full_t`,
 `n_input_for_n2o_t`), the output aggregates (`n_output_residues_t`,
 `n_output_som_t`, `n_output_useful_t`, `n_output_std_t`,
 `n_output_full_t`), the loss terms (`nh3_n_t`, `n2o_direct_n_t`,
-`no3_n_t`, `denitrification_n_t`, `n2o_indirect_no3_n_t`,
-`n2o_indirect_nh3_n_t`), the (post-cap) `som_sequestration_n_t`,
-`n_balance_t`, `surplus_t`, `surplus_share`, the five NUE ratios
-(`nue_std`, `nue_residues`, `nue_som`, `nue_useful`, `nue_full`),
-`total_gwp_co2e_kg`, and the `method_nh3`/
-`method_soil_n2o`/`method_leaching` provenance columns, `method_regime`
-and `method_regime_split` when the split ran (`"yield_ratio"`;
-`"area_no_production"` where the crop's production could not be
-expressed in fresh weight and the area share was used for everything;
-`"regime_shares"` for shares supplied as `data$regime_shares`; or
-`"no_regime_share"` for a row booked wholly rainfed because the regime
-layer does not cover it), plus the polity columns below. When the
-supplied `n_inputs` carry them, the `method_recycling_n`,
-`method_synthetic`, `method_deposition`, `method_deposition_scope`,
-`method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
-`method_manure` and `method_unattributed` stamps from
+`no3_n_t`, `denitrification_n_t`, `retained_profile_n_t`,
+`n2o_indirect_no3_n_t`, `n2o_indirect_nh3_n_t`;
+`no3_n_t + denitrification_n_t + retained_profile_n_t` is the surplus,
+see
+[`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)),
+the (post-cap) `som_sequestration_n_t`, `n_balance_t`, `surplus_t`,
+`surplus_share`, the five NUE ratios (`nue_std`, `nue_residues`,
+`nue_som`, `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the
+`method_nh3`/
+`method_soil_n2o`/`method_n2o_indirect_nh3`/`method_leaching` provenance
+columns (the per-row stamps of the loss functions; a balance row pooling
+loss rows priced differently lists them joined by `"|"`, and a row with
+no N2O-relevant input, which emits no direct or NH3-indirect N2O,
+carries the method chosen suffixed `"_no_loss_row"`, e.g.
+`"ipcc2019_no_loss_row"`), `method_drivers` (`"whep_built"`,
+`"supplied"` or `"supplied|whep_built"`), and, when the leaching drivers
+carry them (as built ones do), the row's wet/dry `moisture_regime`, how
+it was obtained (`method_moisture_regime`) and `climate_fill_km`,
+`method_regime` and `method_regime_split` when the split ran
+(`"yield_ratio"`; `"area_no_production"` where the crop's production
+could not be expressed in fresh weight and the area share was used for
+everything; `"regime_shares"` for shares supplied as
+`data$regime_shares`; or `"no_regime_share"` for a row booked wholly
+rainfed because the regime layer does not cover it), plus the polity
+columns below. When the supplied `n_inputs` carry them, the
+`method_recycling_n`, `method_synthetic`, `method_deposition`,
+`method_deposition_scope`, `method_human_population`,
+`method_human_kgn_cap`, `method_unsupported`, `method_manure` and
+`method_unattributed` stamps from
 [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
 are carried through as well, so a balance names the input conventions
 that produced it. Gains `reporting_polity_out_of_span` when
@@ -230,6 +271,41 @@ and
 the whole build (whep#727). A `data$n_inputs` table supplied directly is
 left alone: it was built by its own call with its own choice, and the
 balance rows derived from it still get this argument's fate at the tail.
+
+## Loss drivers
+
+Which driver columns each loss method reads, and whether
+[`build_n_loss_drivers()`](https://eduaguilera.github.io/whep/reference/build_n_loss_drivers.md)
+supplies them. At grid resolution that function builds each driver table
+left `NULL`; at polity resolution both tables must be supplied.
+
+|  |  |  |  |
+|----|----|----|----|
+| Method | Driver columns | Supplied | Status |
+| `nh3`: `"ipcc"` | `fert_type` | yes | built |
+| `nh3`: `"manner"`, `"manner_default"` | MANNER's | no | note 1 |
+| `n2o`: `"ipcc2019"` | `moisture_regime` | yes | built |
+| `n2o`: `"ipcc2019_atl_med"` | `climate` | yes | built |
+| `n2o`: `"aguilera"`, `"ipcc2006"` | `climate`, `irrig_type` | yes | built |
+| `n2o_indirect`: `"ipcc2019"` | `moisture_regime` | yes | built |
+| `n2o_indirect`: `"ipcc2019_atl_med"` | `climate`, `irrig_type` | yes | built |
+| `leaching`: `"ipcc_fracleach"` | `moisture_regime`, `water_regime` | yes | built |
+| `leaching`: `"meisinger_drainage"` | Meisinger's | no | note 2 |
+
+- Note 1: MANNER reads `manner_fertiliser`, `soil_ph`, `rate_kg_ha`,
+  `rainfall_mm`, `irrigated`, `temp_c`, `temp_c_annual_mean`,
+  `windspeed_ms`, `technique`, `system`, `incorporation_delay_h` and
+  `species` (see
+  [`calculate_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_nh3.md)).
+  Drivers must be supplied; global drivers planned.
+
+- Note 2: Meisinger reads `fert_type`, `climate`, `irrig_cat`,
+  `land_use`, `cn_input`, `tillage`, `som_share` and `drainage_mm` (see
+  [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)).
+  Drivers must be supplied; global drivers planned.
+
+`build_nitrogen_balance()` refuses a method of note 1 or note 2 before
+assembling any input unless its driver table is supplied.
 
 ## Polity columns
 
@@ -286,11 +362,11 @@ extra column.
 
 ``` r
 build_nitrogen_balance(example = TRUE)
-#> # A tibble: 1 × 42
+#> # A tibble: 1 × 45
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020        10               10 AUS-1901-2025         Australia            
-#> # ℹ 37 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 40 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_cbs_code <int>, area_ha <dbl>, n_input_full_t <dbl>,
 #> #   n_input_full_nosom_t <dbl>, n_input_std_t <dbl>, n_input_som_t <dbl>,
 #> #   n_input_for_n2o_t <dbl>, prod_n_t <dbl>, used_residue_n_t <dbl>,

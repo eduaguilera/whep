@@ -174,8 +174,10 @@ does not depend on the answer while it is outstanding.
 
 ## Running things
 
-`.Rprofile` runs `devtools::load_all()` on session start, so a plain
-`Rscript`/`R` session already has the package loaded.
+`.Rprofile` runs
+[`devtools::load_all()`](https://devtools.r-lib.org/reference/load_all.html)
+on session start, so a plain `Rscript`/`R` session already has the
+package loaded.
 
 ``` r
 
@@ -533,10 +535,11 @@ Conventions of the codebase (follow them; they are how the code reads):
     without `CI` set, so a `skip_on_ci()` test runs there for real. Use
     `skip_on_cran()`, which fires wherever `NOT_CRAN` is unset
     (r-universe, CRAN) while `r-lib/actions/setup-r` and
-    `devtools::test()` both set it. A real-data test that genuinely
-    cannot be rescoped onto a fixture needs **both**. Guarding on a
-    local file or `WHEP_*` env var is equally fine — that is what the
-    LPJmL/HWSD/LUH2 smoke tests do.
+    [`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
+    both set it. A real-data test that genuinely cannot be rescoped onto
+    a fixture needs **both**. Guarding on a local file or `WHEP_*` env
+    var is equally fine — that is what the LPJmL/HWSD/LUH2 smoke tests
+    do.
   - The `offline-tests` job is the enforcement, and it only sees these
     tests because it unsets `CI`. If it fails alone, add a fixture — do
     not skip the test and do not relax the job.
@@ -636,9 +639,10 @@ rcmdcheck::rcmdcheck(
 devtools::test()
 ```
 
-Why a green `devtools::test()` is not a green CI — the three build
-layouts and how they disagree — moved to
-`agent-reference/build-verification-notes.md`. Read it if a change
+Why a green
+[`devtools::test()`](https://devtools.r-lib.org/reference/test.html) is
+not a green CI — the three build layouts and how they disagree — moved
+to `agent-reference/build-verification-notes.md`. Read it if a change
 touches package data, a lazy-loaded object or anything under `inst/`.
 
 ``` bash
