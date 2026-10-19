@@ -880,7 +880,7 @@ testthat::test_that("a run file with no source stamp is refused", {
   cube <- .lpjml_hydro_stamped_cube(source = NULL)
   testthat::expect_error(
     whep:::.hydro_seepage_layer(cube$dir, years = 1901L),
-    class = "whep_lpjml_seepage_vintage"
+    class = "whep_lpjml_irrig_depth_vintage"
   )
 })
 

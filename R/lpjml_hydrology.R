@@ -451,58 +451,16 @@ read_lpjml_hydrology <- function(
     )
 }
 
-# The run's vintage from one output's global attributes: `source` (the model
-# version), `GIT_hash` and `history` (start time and command). A file with no
-# `source` cannot say which model wrote it, so it is refused rather than
-# stamped NA.
+# The run's vintage from mseepage.nc's global attributes, with the helpers the
+# irrigation-depth pin stamps its rows with (R/lpjml_irrig_depth.R), so both
+# pins name a run the same way. A file with no `source` attribute is refused.
 .hydro_run_vintage <- function(run_dir, file) {
-  rlang::check_installed("ncdf4")
-  path <- file.path(run_dir, file)
-  nc <- ncdf4::nc_open(path)
-  on.exit(ncdf4::nc_close(nc))
-  attrs <- purrr::map_chr(
-    c(source = "source", GIT_hash = "GIT_hash", history = "history"),
-    \(name) .hydro_global_attr(ncdf4::ncatt_get(nc, 0), name)
-  )
-  if (is.na(attrs[["source"]])) {
-    cli::cli_abort(
-      c(
-        "{.file {file}} carries no {.field source} attribute, so the LPJmL
-         version that wrote it is unknown.",
-        i = "Every LPJmL output stamps it; this file may not come from a
-             finished run. Run directory: {.file {run_dir}}."
-      ),
-      class = "whep_lpjml_seepage_vintage"
-    )
-  }
+  attrs <- .lid_file_attrs(file.path(run_dir, file))
   tibble::tibble(
-    lpjml_version = attrs[["source"]],
-    lpjml_git_hash = attrs[["GIT_hash"]],
-    lpjml_run = .hydro_run_label(run_dir, attrs[["history"]])
+    lpjml_version = attrs$source,
+    lpjml_git_hash = attrs$GIT_hash,
+    lpjml_run = .lid_run_label(run_dir, attrs$history)
   )
-}
-
-# One global attribute as a string; NA when the file does not carry it.
-.hydro_global_attr <- function(attrs, name) {
-  as.character(attrs[[name]] %||% NA_character_)
-}
-
-# The run's name (the directory above `output/` in an LPJmL run layout, plus
-# the simulation's own folder) and the time the simulation started, from the
-# `history` attribute ("Mon Aug 31 14:13:10 2026: ./bin/lpjml ...").
-.hydro_run_label <- function(run_dir, history) {
-  path <- normalizePath(run_dir, winslash = "/", mustWork = FALSE)
-  parent <- dirname(path)
-  name <- if (identical(basename(parent), "output")) {
-    paste0(basename(dirname(parent)), "/", basename(path))
-  } else {
-    basename(path)
-  }
-  started <- stringr::str_match(history, "^(.+?\\d{4}):")[, 2]
-  if (is.na(started)) {
-    return(name)
-  }
-  paste0(name, ", started ", started)
 }
 
 # Resolve the run directory from the argument, else the environment variable.
