@@ -1027,11 +1027,9 @@
 #' - `region_IPCC`: IPCC regional grouping used in climate assessments.
 #' - `region_labour`: Labour-focused regional grouping.
 #' - `region_labour_agg`: Aggregated labour-focused regional grouping.
-#' - `region_labour_mech`: Labour mechanisation regional grouping. Angola
-#'   (code 7) holds the sub-region name `"Middle Africa"` rather than a
-#'   mechanisation class, inherited from [regions_full]; the other damaged row
-#'   there, Northern Mariana Islands (163), is not a polity, so this table has
-#'   no row to inherit it into. See [regions_full] (whep#855).
+#' - `region_labour_mech`: Labour mechanisation regional grouping, `"mech"`
+#'   or `"no_mech"`, inherited from [regions_full] (see there for the Angola
+#'   cell repaired in whep#855).
 #' @inheritSection regions_full Which regional groupings WHEP reads
 #' @source Compiled from [FAOSTAT](https://www.fao.org/faostat/), UN M49,
 #'   ILO, IEA, and other international statistical sources.
@@ -1142,24 +1140,20 @@
 #' - `region_labour`: Labour-focused region.
 #' - `region_labour_agg`: Aggregated labour region, one of `"SAA"`, `"LACA"`,
 #'   `"Europe"`, `"AUS"`, `"SE-Asia"`, `"MENA"`, `"FSU"`, `"NAME"` or `"RoW"`.
-#'   Northern Mariana Islands (code 163) instead holds `"Micronesia"`, its own
-#'   `region_UN_sub` value.
 #' - `region_labour_mech`: Labour mechanisation region, `"mech"` or
-#'   `"no_mech"`. Two cells hold a sub-region name instead -- Angola (code 7)
-#'   `"Middle Africa"` and Northern Mariana Islands (163) `"Micronesia"`, each
-#'   its own `region_labour`-family value -- which looks like a column shift in
-#'   the source spreadsheet. At code 163 the shift is two columns wide, since
-#'   `region_labour_agg` is damaged in the same row; Angola's
-#'   `region_labour_agg` is intact. Nothing here reads either column, so
-#'   nothing computes on the bad cells; which class each belongs in is not
-#'   recoverable from anything shipped with the package, and no public
-#'   taxonomy defines this mechanised/not-mechanised split, so they are pinned
-#'   in `test_region_classifications.R` rather than guessed at (whep#855).
-#'   Group agreement is suggestive but not deductive: the other eight
-#'   `region_labour == "Middle Africa"` rows are all `"no_mech"` and the other
-#'   eight `region_UN_sub == "Micronesia"` rows are all `"mech"`, yet the
-#'   column is not a function of either grouping -- `"Pacific"`, `"FSU"` and
-#'   `"South America - South Cone"` each split across both classes.
+#'   `"no_mech"`. Three cells held the row's UN M49 region name instead of
+#'   a class, in the source spreadsheet too: Angola (code 7)
+#'   `region_labour_mech` `"Middle Africa"`, and Northern Mariana Islands
+#'   (163) `"Micronesia"` in both `region_labour_agg` and
+#'   `region_labour_mech`. They were filled with the class every other member
+#'   of that region carries: Angola `"no_mech"` (the other eight Middle
+#'   Africa countries), Northern Mariana Islands `"mech"` and `"AUS"` (the
+#'   other Micronesia rows, all `"mech"` and all `"AUS"` except the US Minor
+#'   Outlying Islands, `"NAME"`). The column is not strictly a function of
+#'   region -- `"Pacific"`, `"FSU"` and `"South America - South Cone"` each
+#'   split across both classes -- so this is a region-analogy fill, not a
+#'   recovered source value (whep#855). Nothing in the package reads either
+#'   column.
 #' @section Which regional groupings WHEP reads:
 #' The grouping columns are not all inputs to this package. Six have a consumer
 #' in the tree, measured over `R/`, `data-raw/`, `tests/`, `vignettes/` and
