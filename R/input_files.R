@@ -118,13 +118,14 @@
 #' [get_primary_residues()] undoes the recovery exactly, dividing by the same
 #' rate, but cannot recompute the predecessor's residue from production. It
 #' then re-keys the regional ratio on Wirsenius's own region membership, and
-#' estimates cereal residue from the pin's production and harvested area
-#' instead of reading it (#1448).
+#' estimates cereal residue (#1448), and that of the non-cereal crops with
+#' their own IPCC Table 11.2 line (#1518), from the pin's production and
+#' harvested area instead of reading it.
 #'
 #' It is not a small input. The pin holds 7.63 Gt of recovered residue for
 #' 2010 (Straw 3.60 Gt, Other crop residues 2.49 Gt, Firewood 1.54 Gt) and
-#' 327.7 Gt over 1961--2021, which [get_primary_residues()] turns into 8.73
-#' Gt (Straw 3.84 Gt, Other crop residues 3.14 Gt, Firewood 1.76 Gt) and 395
+#' 327.7 Gt over 1961--2021, which [get_primary_residues()] turns into 7.64
+#' Gt (Straw 3.92 Gt, Other crop residues 2.82 Gt, Firewood 0.90 Gt) and 366
 #' Gt of residue produced. 3,998 of its 249,095 output rows carry `NA` polity
 #' columns because the pin is name-keyed.
 #'
@@ -141,8 +142,9 @@
 #' build is close to twice the pin on every forage and silage item, the pin
 #' predating that work. Replacing the pin therefore means choosing a residue
 #' model, which is a science decision and not a refresh. For cereals that
-#' model is chosen by `get_primary_residues(cereal_residue = )`; it still
-#' runs on the pin's production.
+#' model is chosen by `get_primary_residues(cereal_residue = )`, and for the
+#' non-cereals with an IPCC line by `non_cereal_residue =`; both still run on
+#' the pin's production.
 #'
 #' ## `bilateral_trade` is built by [build_detailed_trade()]
 #'

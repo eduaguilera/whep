@@ -351,12 +351,13 @@
      alone. The year is applied BEFORE this join, not after: the label is
      resolved per (label, year) by `resolve_polity_label()`, which is what
      keeps pre-union Tanganyika out of the United Republic.",
-    ".residue_cereal_from_products", "left_join", "area_code", 1L,
+    ".residue_from_yield", "left_join", "area_code", 1L,
     "time_invariant",
     "Attaches the area's HANPP region, which keys the modern-variety
-     harvest-index correction of `calculate_crop_residues()` (whep#1448). The
-     region is published once per area in `regions_full`, as for
-     `.sci_crop_regions`; the production rows carry `year` through the join.",
+     harvest-index correction of `calculate_crop_residues()` (whep#1448,
+     whep#1518). The region is published once per area in `regions_full`, as
+     for `.sci_crop_regions`; the production rows carry `year` through the
+     join.",
     ".residue_cereal_wirsenius", "left_join", "item_prod, area_code", 1L,
     "time_invariant",
     "Attaches the Wirsenius (2000) Table 3.16 residue:product ratios of a
