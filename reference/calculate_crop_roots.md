@@ -52,5 +52,5 @@ calculate_crop_roots(
 #> # A tibble: 1 × 6
 #>   item_prod_code product_dm_t residue_dm_t area_ha root_dm_t method_root
 #>   <chr>                 <dbl>        <dbl>   <dbl>     <dbl> <chr>      
-#> 1 15                     87.9         136.      40      66.3 ensemble   
+#> 1 15                     87.9         136.      40      67.4 ensemble   
 ```
