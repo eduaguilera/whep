@@ -38,7 +38,8 @@ test_that("legacy below-ground fields stay retired from biomass_coefs", {
   ) |>
     dplyr::select(!dplyr::starts_with("..."))
 
-  testthat::expect_equal(dim(source_coefs), c(421L, 63L))
+  # 422 rows since the Aquatic Plants row was added (whep#970).
+  testthat::expect_equal(dim(source_coefs), c(422L, 63L))
   testthat::expect_identical(names(source_coefs), names(whep::biomass_coefs))
   testthat::expect_false(any(legacy %in% names(source_coefs)))
   testthat::expect_false(any(legacy %in% names(whep::biomass_coefs)))
