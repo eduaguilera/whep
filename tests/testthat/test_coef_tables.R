@@ -139,3 +139,94 @@ test_that("unknown coefficient table errors", {
     "Unknown coefficient table"
   )
 })
+
+# Cereal root:shoot and N contents as printed in IPCC (2006) Vol. 4 Ch. 11
+# Table 11.2 (pp. 11.17-11.18) and IPCC (2019) Table 11.1a (p. 11.18); the two
+# agree on every value both list. NA marks a crop the tables give no value for
+# (whep#1520). `Other_cereals` is the "Grains" / "Generic Grains" row.
+.ipcc_cereal_reference <- function() {
+  tibble::tribble(
+    ~ipcc_crop,      ~rs,  ~n_ag, ~n_bg,
+    "Wheat",         0.24, 0.006, 0.009,
+    "Winter_wheat",  0.23, 0.006, 0.009,
+    "Spring_wheat",  0.28, 0.006, 0.009,
+    "Maize",         0.22, 0.006, 0.007,
+    "Rice",          0.16, 0.007, NA,
+    "Barley",        0.22, 0.007, 0.014,
+    "Oats",          0.25, 0.007, 0.008,
+    "Millet",        NA,   0.007, NA,
+    "Sorghum",       NA,   0.007, 0.006,
+    "Rye",           NA,   0.005, 0.011,
+    "Other_cereals", 0.22, 0.006, 0.009
+  )
+}
+
+.ipcc_cereal_long <- function() {
+  res <- whep::whep_coef_table("ipcc_residue_coefs")
+  columns <- tibble::tribble(
+    ~quantity, ~value_col,      ~source_col,
+    "rs",      "rs_ratio_ipcc", "source_rs_ratio",
+    "n_ag",    "n_ag_residue",  "source_n_ag",
+    "n_bg",    "n_bg_residue",  "source_n_bg"
+  )
+  purrr::pmap(columns, function(quantity, value_col, source_col) {
+    .ipcc_cereal_reference() |>
+      dplyr::select(ipcc_crop, ipcc = dplyr::all_of(quantity)) |>
+      dplyr::left_join(
+        dplyr::select(
+          res,
+          ipcc_crop,
+          whep = dplyr::all_of(value_col),
+          source = dplyr::all_of(source_col)
+        ),
+        by = "ipcc_crop"
+      ) |>
+      dplyr::mutate(quantity = quantity)
+  }) |>
+    purrr::list_rbind()
+}
+
+test_that("cereal root:shoot and N match the IPCC tables they cite", {
+  long <- .ipcc_cereal_long()
+  sourced <- dplyr::filter(long, !is.na(ipcc))
+  testthat::expect_equal(sourced$whep, sourced$ipcc)
+  testthat::expect_false(any(stringr::str_detect(sourced$source, "^fill")))
+})
+
+test_that("cereal values IPCC does not give are declared generic fills", {
+  long <- .ipcc_cereal_long()
+  filled <- dplyr::filter(long, is.na(ipcc))
+  # IPCC (2019) Table 11.1a note e: "No estimate is available. The most
+  # appropriate generic value can be used"; Generic Grains is 0.22 and 0.009.
+  generic <- c(rs = 0.22, n_ag = 0.006, n_bg = 0.009)
+  testthat::expect_equal(filled$whep, unname(generic[filled$quantity]))
+  testthat::expect_true(all(stringr::str_detect(filled$source, "^fill")))
+})
+
+test_that("ipcc_residue_coefs labels every value with its own source", {
+  res <- whep::whep_coef_table("ipcc_residue_coefs")
+  cols <- c(
+    "source_slope_intercept",
+    "source_rs_ratio",
+    "source_n_ag",
+    "source_n_bg"
+  )
+  testthat::expect_true(all(cols %in% names(res)))
+  testthat::expect_false("source" %in% names(res))
+  for (col in cols) {
+    testthat::expect_false(any(is.na(res[[col]]) | res[[col]] == ""))
+  }
+})
+
+test_that("the live root table carries the corrected cereal root:shoot", {
+  root <- whep::whep_coef_table("ipcc_root_coefs")
+  res <- whep::whep_coef_table("ipcc_residue_coefs")
+  cereals <- setdiff(.ipcc_cereal_reference()$ipcc_crop, "Other_cereals")
+  joined <- dplyr::inner_join(
+    dplyr::filter(root, ipcc_crop %in% cereals),
+    res,
+    by = "ipcc_crop"
+  )
+  testthat::expect_equal(nrow(joined), length(cereals))
+  testthat::expect_equal(joined$rs_default, joined$rs_ratio_ipcc)
+})
