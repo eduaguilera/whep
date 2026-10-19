@@ -7,15 +7,18 @@ Actual evapotranspiration (`aet_mm`) is the sum of the transpiration,
 evaporation and interception components (LPJmL has no direct AET, PET or
 temperature output). Water input is precipitation plus irrigation.
 `drainage_mm` is LPJmL deep seepage, the leaching driver downstream;
-`runoff_mm` is LPJmL total runoff (surface plus lateral), which leaves
-the cell laterally and is not a leaching term but must appear in the
-budget. Drainage defaults to native seepage; the `"residual"` method
-instead reconstructs seepage as
-`water_input - aet - runoff - soil_water_change`, for use only when the
-seepage file is absent (it equals seepage when the balance closes).
-Evapotranspiration is split into a blue (irrigation-sourced) and green
-(rain-sourced) part. The result is returned per grid cell, or aggregated
-to polity totals when `resolution = "polity"`.
+`runoff_mm` is the runoff that does not pass through that seepage, which
+leaves the cell laterally and is not a leaching term but must appear in
+the budget. LPJmL's own total runoff (`mrunoff.nc`) is not used as
+`runoff_mm` directly, because it already contains the seepage: the
+seepage recharges groundwater and LPJmL adds the groundwater outflow to
+runoff, so adding seepage on top of it books that water twice. Drainage
+defaults to native seepage; the `"residual"` method instead reconstructs
+it as `water_input - aet - runoff - soil_water_change`, for use only
+when the seepage file is absent. Evapotranspiration is split into a blue
+(irrigation-sourced) and green (rain-sourced) part. The result is
+returned per grid cell, or aggregated to polity totals when
+`resolution = "polity"`.
 
 The output also exposes the footprint-relevant terms folded into the
 budget: `prec_mm` (precipitation) and `irrig_mm` (applied irrigation,
@@ -51,7 +54,10 @@ build_water_balance(
   Named list selecting the estimation method for each term: `aet`
   (`"components"`, the only method), `drainage` (`"seepage"` default,
   LPJmL native seepage, or `"residual"`, a seepage reconstruction from
-  the budget residual usable only when the seepage file is absent) and
+  the budget residual usable only when the seepage file is absent),
+  `runoff` (`"total_minus_seepage"` default, LPJmL total runoff less the
+  seepage it already contains, or `"surface_lateral"`, the sum of
+  LPJmL's surface and lateral runoff outputs; see *Runoff* below) and
   `blue_green` (`"cft_native"` default, per-crop blue/green consumptive
   water, or `"irrig_share"`, the irrigation share of water input).
   Members left out take their default. `"cft_native"` warns when the
@@ -70,6 +76,26 @@ build_water_balance(
   `method_water` as `partial:<choice>` only when it is not the default,
   because `"abort"` and `"warn"` return byte-identical numbers and only
   `"drop"` removes rows a reader could not otherwise account for.
+
+  *Runoff.* The two `runoff` methods are two ways of removing the
+  seepage from LPJmL's total runoff, and they differ in what else they
+  keep. `"total_minus_seepage"` keeps every other runoff component LPJmL
+  routes (surface, lateral, snow, TOPMODEL baseflow and the
+  lateral-water overflow), and treats this year's seepage as this year's
+  groundwater outflow. Where groundwater storage changes within the year
+  that difference lands in `runoff_mm`, which can then be negative (2.1%
+  of cells in 2009 and 2.2% in 2010 on the LPJmL 6.1.1 run).
+  `"surface_lateral"` reads `mrunoff_surf.nc` and `mrunoff_lat.nc`,
+  never negative, but LPJmL does not write its baseflow or overflow, so
+  they fall out of the budget. On that run, summed over 58,795 cells,
+  the budget residual is +3.6% (2009) and +1.3% (2010) of water input
+  with `"total_minus_seepage"`, and +6.8% and +4.2% with
+  `"surface_lateral"`, against -19.2% and -21.4% when the seepage was
+  counted twice. `drainage = "residual"` requires `"surface_lateral"`:
+  `"total_minus_seepage"` needs the seepage that the residual method
+  exists to do without. Because it then also absorbs the baseflow and
+  overflow, the residual exceeds seepage (by 30% in 2009 and 19% in 2010
+  on that run).
 
 - resolution:
 
@@ -94,15 +120,17 @@ build_water_balance(
 
   Optional named list of pre-loaded inputs to avoid NetCDF reads:
   hydrology tibbles `transp`, `evap`, `interc`, `prec`, `irrig`,
-  `runoff` and `seepage` (each `lon`, `lat`, `year`, `value`;
-  annual-summed automatically when a `month` column is present), `swc`
-  (`lon`, `lat`, `year`, `month`, `layer`, `value` fractional
-  saturation), optional per-crop consumptive water `cft_consump_water_b`
-  and `cft_consump_water_g` (each `lon`, `lat`, `year`, `value` mm/yr),
-  an optional `cft_nir` net-irrigation-requirement input (`lon`, `lat`,
-  `year`, `value` mm/yr, summed to cell level when supplied; exposed as
-  `cft_nir_mm`, else `NA`) and a `cell_polity` crosswalk (`lon`, `lat`,
-  `area_code`, `polity_frac`, `cell_area_ha`). Each falls back to
+  `runoff` (LPJmL total runoff), `runoff_surf` and `runoff_lat` (read
+  only for `runoff = "surface_lateral"`) and `seepage` (each `lon`,
+  `lat`, `year`, `value`; annual-summed automatically when a `month`
+  column is present), `swc` (`lon`, `lat`, `year`, `month`, `layer`,
+  `value` fractional saturation), optional per-crop consumptive water
+  `cft_consump_water_b` and `cft_consump_water_g` (each `lon`, `lat`,
+  `year`, `value` mm/yr), an optional `cft_nir`
+  net-irrigation-requirement input (`lon`, `lat`, `year`, `value` mm/yr,
+  summed to cell level when supplied; exposed as `cft_nir_mm`, else
+  `NA`) and a `cell_polity` crosswalk (`lon`, `lat`, `area_code`,
+  `polity_frac`, `cell_area_ha`). Each falls back to
   [`read_lpjml_hydrology()`](https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.md)
   when absent, except `cft_nir` (see Details), `pet` and the
   consumptive-water inputs. Read the latter with

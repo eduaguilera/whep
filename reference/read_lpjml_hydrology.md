@@ -13,8 +13,9 @@ components (transpiration, evaporation, interception).
 ``` r
 read_lpjml_hydrology(
   var = c("drainage", "transp", "evap", "interc", "aet", "prec", "rain", "irrig",
-    "runoff", "discharge", "swc", "pet", "soiltemp1", "soiltemp2", "stand_frac",
-    "cft_nir", "cft_airrig_month", "cft_consump_water_b", "cft_consump_water_g"),
+    "runoff", "runoff_surf", "runoff_lat", "discharge", "swc", "pet", "soiltemp1",
+    "soiltemp2", "stand_frac", "cft_nir", "cft_airrig_month", "cft_consump_water_b",
+    "cft_consump_water_g"),
   run_dir = NULL,
   years = NULL,
   first_year = NULL,
@@ -31,16 +32,19 @@ read_lpjml_hydrology(
 - var:
 
   Logical variable name, one of `"drainage"`, `"transp"`, `"evap"`,
-  `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
-  `"discharge"`, `"swc"`, `"pet"` (potential evapotranspiration),
-  `"soiltemp1"` and `"soiltemp2"` (soil temperature by layer),
-  `"stand_frac"` (per-CFT stand area fraction, from `cftfrac.nc`: the
-  weight every other per-CFT cube needs before it can be summed to a
-  cell), `"cft_nir"` (per-CFT net irrigation requirement),
-  `"cft_airrig_month"` (per-CFT APPLIED irrigation by month) or the
-  per-CFT consumptive-water cubes `"cft_consump_water_b"` (blue) and
-  `"cft_consump_water_g"` (green). The per-CFT variables keep their
-  `band` dimension, and carry `band_name` when the file names its bands.
+  `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"` (total
+  runoff, which already contains the groundwater outflow the
+  `"drainage"` seepage feeds), `"runoff_surf"` and `"runoff_lat"`
+  (surface and lateral soil runoff, which do not), `"discharge"`,
+  `"swc"`, `"pet"` (potential evapotranspiration), `"soiltemp1"` and
+  `"soiltemp2"` (soil temperature by layer), `"stand_frac"` (per-CFT
+  stand area fraction, from `cftfrac.nc`: the weight every other per-CFT
+  cube needs before it can be summed to a cell), `"cft_nir"` (per-CFT
+  net irrigation requirement), `"cft_airrig_month"` (per-CFT APPLIED
+  irrigation by month) or the per-CFT consumptive-water cubes
+  `"cft_consump_water_b"` (blue) and `"cft_consump_water_g"` (green).
+  The per-CFT variables keep their `band` dimension, and carry
+  `band_name` when the file names its bands.
 
   `"pet"` and the two soil temperatures exist because the SOC drivers
   take both from CRU instead, mixing two models' quantities in one

@@ -81,6 +81,7 @@ destiny filling, and final balancing.</p></li>
 <span>  aggregate_proxy <span class="op">=</span> <span class="fu">.cbs_aggregate_proxy_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  unmatched_processing <span class="op">=</span> <span class="fu">.cbs_unmatched_proc_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  silk_basis <span class="op">=</span> <span class="fu">.silk_basis_choices</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  silk_duplicate_use <span class="op">=</span> <span class="fu">.silk_duplicate_use_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  tobacco_leaf_use <span class="op">=</span> <span class="fu">.tobacco_leaf_use_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  .fixed_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -496,6 +497,26 @@ booking (whep#1281); world Silk <code>stock_variation</code> at 2020 moves from
 -170 kt to -13 kt under <code>"cocoon"</code>. No non-Silk row moves. Years before 2014 come from the aggregated old Commodity Balances,
 which carry no link breakdown, and are unchanged, so under <code>"cocoon"</code> the
 2013-2014 seam steps by roughly the raw silk production.</p></dd>
+
+
+<dt id="arg-silk-duplicate-use">silk_duplicate_use<a class="anchor" aria-label="anchor" href="#arg-silk-duplicate-use"></a></dt>
+<dd><p>One of <code>"residual"</code> (default) or <code>"equal_only"</code>,
+selecting which silk cocoon uses from 2014 on are read as a second
+booking of the same cocoons (whep#1456). FAOSTAT's own balance of a
+cocoon record ends in a <code>Residuals</code> element; where it is minus one of
+the two uses, <code>Processed</code> or <code>Other uses</code>, FAOSTAT's balance closes on
+the other use alone. <code>"residual"</code> drops the use the residual cancels and
+keeps the one that closes the balance. <code>"equal_only"</code> drops it only when
+the two uses are equal (whep#1281) and otherwise leaves the record as
+published, so the cancelled use stays in Silk <code>other_uses</code> and the
+balance closes through a Silk stock withdrawal.</p>
+<p>In the pinned <code>faostat-cbs-new</code> the two differ for Viet Nam 2014-2015,
+whose 45,073 and 43,620 t processed exceed its 6,761 and 6,543 t of
+production, Indonesia 2015-2018 and Italy 2019 (also more processed than
+supplied), Afghanistan 2015-2018 (<code>Processed</code> dropped) and China
+mainland 2022-2023 (18,721 t of <code>Other uses</code> dropped on top of
+processing that already equals supply). Only Silk rows of those
+country-years move.</p></dd>
 
 
 <dt id="arg-tobacco-leaf-use">tobacco_leaf_use<a class="anchor" aria-label="anchor" href="#arg-tobacco-leaf-use"></a></dt>
