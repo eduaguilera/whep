@@ -371,7 +371,11 @@ test_that("the enumerated baseline can only shrink", {
   # (crop, area), and the HANPP region of each cereal area (+4). Re-derived by
   # running
   # `sum(.territorial_join_baseline()$n)` on the merged tree.
-  expect_lte(sum(baseline$n), 120L)
+  # 121 with whep#1495, on top of the 120 above: the FBS 2551 rebase puts
+  # each area's 2010-2013 overlap ratio on the new vintage
+  # (`time_invariant`). Re-derived by running
+  # `sum(.territorial_join_baseline()$n)`.
+  expect_lte(sum(baseline$n), 121L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -658,7 +662,10 @@ test_that("every year-free territorial grouping is classified", {
   # (`year_axis`, +1); one region row per area and one ratio lookup per
   # (crop, area) pair (+2). Re-derived by running
   # `sum(.territorial_grouping_baseline()$n)` on the merged tree.
-  expect_lte(sum(full$n), 149L)
+  # 150 with whep#1495, on top of the 149 above: the FBS 2551 rebase takes
+  # the median of each area's ratio over the 2010-2013 overlap (`year_axis`).
+  # Re-derived by running `sum(.territorial_grouping_baseline()$n)`.
+  expect_lte(sum(full$n), 150L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

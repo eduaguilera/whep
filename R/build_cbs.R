@@ -414,6 +414,36 @@
 #'   product was found, and a cigarette also holds paper and filter. Where the
 #'   products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
 #'   remainder stays as stock change. Only Tobacco rows from 2014 on move.
+#' @param nut_basis One of `"rebased"` (default) or `"as_published"`,
+#'   selecting how the trade of FBS item 2551 `Nuts and products` is taken
+#'   from FAOSTAT's new food balance sheets, 2010 on (whep#1495). Their nut
+#'   trade is not one mass basis: at 2010 world imports are 13.57 Mt against
+#'   7.69 Mt of world exports (1.76x; 1.65x at 2022), and the excess goes on
+#'   into food, 19.47 Mt against 14.29 Mt of nuts the world grew in shell,
+#'   with about the old vintage's protein. Regressed on species-level trade,
+#'   importers convert kernels and prepared nuts to in-shell equivalent with
+#'   factors 2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one
+#'   flow lands on two bases. The old vintage closes (6.45 vs 6.51 Mt).
+#'
+#'   `"rebased"` multiplies each area's import and export by its median
+#'   old/new ratio over 2010-2013, clamped to `[0.2, 1]` -- the old
+#'   vintage's level with the new one's change over time, as the palm-kernel
+#'   fix already joins them -- and takes the net trade removed out of food
+#'   and domestic supply, so every row keeps its supply-use identity and
+#'   production and stock change do not move. A row whose net cut is not
+#'   positive or exceeds its food is left as published. The moved rows are
+#'   labelled `"FAOSTAT_FBS_New_rebased"`, and the ratio is read from the
+#'   pins whatever years are built. `"as_published"` keeps FAOSTAT's figures,
+#'   the behaviour before whep#1495; the old vintage is scaled to whichever
+#'   level is chosen, so 1961-2009 follows it. **The default moves published
+#'   values**, all of them in item 2551. Measured on a real 2009-2016
+#'   build at 2010, world imports fall from 13.85 to 7.16 Mt and exports
+#'   from 7.83 to 6.51 Mt (imports/exports 1.77x to 1.10x; 1.61x to 1.02x
+#'   at 2016), and food from 19.79 to 14.43 Mt against 14.60 Mt of
+#'   production; the 5.37 Mt drop is 0.11% of the 4,692 Mt of all-item food.
+#'   Production and stock change do not move from 2010 on. FBS's own 2551
+#'   protein over the pin's food rises from 45.6 to 62.9 g/kg, against FAO's
+#'   in-shell basket of 64.7 that [build_food_supply()] applies.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -466,6 +496,7 @@ build_commodity_balances <- function(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -482,6 +513,7 @@ build_commodity_balances <- function(
   silk_basis <- rlang::arg_match(silk_basis)
   silk_duplicate_use <- rlang::arg_match(silk_duplicate_use)
   tobacco_leaf_use <- rlang::arg_match(tobacco_leaf_use)
+  nut_basis <- rlang::arg_match(nut_basis)
   if (example) {
     return(
       if (format == "wide") {
@@ -511,7 +543,8 @@ build_commodity_balances <- function(
       aggregate_proxy = aggregate_proxy,
       silk_basis = silk_basis,
       silk_duplicate_use = silk_duplicate_use,
-      tobacco_leaf_use = tobacco_leaf_use
+      tobacco_leaf_use = tobacco_leaf_use,
+      nut_basis = nut_basis
     )
     scale_log <- attr(raw, ".hist_trade_scale_log")
     fixed <- raw |>
@@ -601,6 +634,11 @@ build_commodity_balances <- function(
       cli::cli_warn(
         "{.arg tobacco_leaf_use} is ignored when {.arg .fixed_data} is \
          supplied."
+      )
+    }
+    if (nut_basis != "rebased") {
+      cli::cli_warn(
+        "{.arg nut_basis} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -848,7 +886,8 @@ build_commodity_balances <- function(
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
-  tobacco_leaf_use = .tobacco_leaf_use_choices()
+  tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -870,7 +909,8 @@ build_commodity_balances <- function(
     hist_trade_scale = hist_trade_scale,
     silk_basis = silk_basis,
     silk_duplicate_use = silk_duplicate_use,
-    tobacco_leaf_use = tobacco_leaf_use
+    tobacco_leaf_use = tobacco_leaf_use,
+    nut_basis = nut_basis
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -1310,13 +1350,15 @@ build_processing_coefs <- function(
   hist_trade_scale = .hist_trade_scale_choices(),
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
-  tobacco_leaf_use = .tobacco_leaf_use_choices()
+  tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
     hist_trade_scale,
     .hist_trade_scale_choices()
   )
   silk_basis <- rlang::arg_match(silk_basis, .silk_basis_choices())
+  nut_basis <- rlang::arg_match(nut_basis, .nut_basis_choices())
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
   if (!is.null(cb)) {
@@ -1330,6 +1372,9 @@ build_processing_coefs <- function(
     cbs_crops <- .extract_cb("faostat-cbs-old-crops", years = years)
     cbs_animals <- .extract_cb("faostat-cbs-old-animal", years = years)
   }
+  # Which vintage sets the level of FBS item 2551 (whep#1495).
+  fbs_rebase <- .fbs_rebase_factors(fbs_new, fbs_old, nut_basis)
+  .warn_fbs_rebase_absent(fbs_new, fbs_rebase, nut_basis)
   # "Processed" and "Residuals" are read only for the silk chain and removed
   # again by `.cbs_silk_mass_basis()`, whatever the method (whep#1251,
   # whep#1281).
@@ -1382,7 +1427,8 @@ build_processing_coefs <- function(
     primary_cbs = primary_cbs,
     primary_cbs_area = primary_cbs_area,
     crop_residues = crop_residues,
-    land_areas_wide = land_areas_wide
+    land_areas_wide = land_areas_wide,
+    fbs_rebase = fbs_rebase
   )
 }
 
@@ -2571,7 +2617,7 @@ build_processing_coefs <- function(
   dplyr::case_when(
     year < 1961L & stringr::str_starts(source, "historical_") ~ 1L,
     source == "FAOSTAT_prod" ~ 2L,
-    source == "FAOSTAT_FBS_New" ~ 3L,
+    source %in% c("FAOSTAT_FBS_New", "FAOSTAT_FBS_New_rebased") ~ 3L,
     source == "FAOSTAT_FBS_Old_scaled" ~ 4L,
     source == "FAOSTAT_FBS_Old" ~ 5L,
     source == "FAOSTAT_CBS" ~ 6L,
@@ -2918,6 +2964,9 @@ build_processing_coefs <- function(
     items
   )
 
+  # FBS 2551 trade on the old vintage's level (whep#1495)
+  inputs$fbs_new <- .rebase_fbs_trade(inputs$fbs_new, inputs$fbs_rebase)
+
   # Combine all sources
   cbs_raw_all <- .assemble_cbs_sources(
     inputs,
@@ -2928,7 +2977,10 @@ build_processing_coefs <- function(
   )
 
   # Select best value among sources
-  .select_best_source(cbs_raw_all)
+  .select_best_source(
+    cbs_raw_all,
+    rebased = attr(inputs$fbs_new, "rebased_keys")
+  )
 }
 
 .fix_palm_kernels <- function(inputs) {
@@ -3308,7 +3360,7 @@ build_processing_coefs <- function(
   dt
 }
 
-.select_best_source <- function(cbs_raw_all) {
+.select_best_source <- function(cbs_raw_all, rebased = NULL) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
   # Key on the integer `area_code`, not the `area` name: sources disagree on
   # the name for the same code (plain name vs periodized polity name, e.g.
@@ -3538,6 +3590,7 @@ build_processing_coefs <- function(
     value := 0
   ]
 
+  wide <- .label_fbs_rebased(wide, rebased)
   wide[area_lookup, area := i.area, on = "area_code"]
   wide <- .add_best_source_flag(wide, dt_raw, key_cols, primary_sources)
 
@@ -3585,13 +3638,18 @@ build_processing_coefs <- function(
     )
   ]
   flags <- .fold_flags_by(flags, c(key_cols, "source_group"))
-  # The scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
-  # FBS_Old's flag; every other label is the group name already.
+  # A scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
+  # FBS_Old's flag, and a rebased FBS_New value keeps FBS_New's; every other
+  # label is the group name already.
   wide[,
     source_group := data.table::fifelse(
       source == "FAOSTAT_FBS_Old_scaled",
       "FAOSTAT_FBS_Old",
-      source
+      data.table::fifelse(
+        source == "FAOSTAT_FBS_New_rebased",
+        "FAOSTAT_FBS_New",
+        source
+      )
     )
   ]
   wide[flags, fao_flag := i.fao_flag, on = c(key_cols, "source_group")]
