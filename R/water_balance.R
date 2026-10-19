@@ -6,10 +6,15 @@
 # (transpiration, evaporation, interception; there is no direct LPJmL AET, PET
 # or temperature output) and water_input is precipitation plus irrigation.
 # drainage_mm is LPJmL deep seepage (mseepage.nc): the deep-drainage term that
-# soil-nitrogen leaching consumes downstream. runoff_mm is LPJmL total runoff
-# (mrunoff.nc, surface + lateral): it leaves the cell laterally and is NOT a
-# leaching term, but it must appear in the budget for it to close. A second
-# resolution aggregates the grid to polity totals.
+# soil-nitrogen leaching consumes downstream. runoff_mm is the water that leaves
+# the cell as runoff WITHOUT passing through that seepage: it is NOT a leaching
+# term, but it must appear in the budget for it to close. LPJmL's mrunoff.nc is
+# total runoff and already contains the seepage (it recharges groundwater, whose
+# outflow LPJmL adds to runoff), so runoff_mm is never mrunoff.nc itself: until
+# whep#1530 it was, and the budget counted the seepage twice, missing closure by
+# -19% (2009) and -21% (2010) of water input on the 6.1.1 run. See the header of
+# R/lpjml_hydrology.R for the LPJmL source lines. A second resolution aggregates
+# the grid to polity totals.
 #
 # CONFIRMED LPJmL FACTS are documented at the top of R/lpjml_hydrology.R; this
 # file only combines the variables that reader returns.
@@ -23,14 +28,18 @@
 #' transpiration, evaporation and interception components (LPJmL has no direct
 #' AET, PET or temperature output). Water input is precipitation plus
 #' irrigation. `drainage_mm` is LPJmL deep seepage, the leaching driver
-#' downstream; `runoff_mm` is LPJmL total runoff (surface plus lateral), which
-#' leaves the cell laterally and is not a leaching term but must appear in the
-#' budget. Drainage defaults to native seepage; the `"residual"` method instead
-#' reconstructs seepage as `water_input - aet - runoff - soil_water_change`, for
-#' use only when the seepage file is absent (it equals seepage when the balance
-#' closes). Evapotranspiration is split into a blue (irrigation-sourced) and
-#' green (rain-sourced) part. The result is returned per grid cell, or
-#' aggregated to polity totals when `resolution = "polity"`.
+#' downstream; `runoff_mm` is the runoff that does not pass through that
+#' seepage, which leaves the cell laterally and is not a leaching term but must
+#' appear in the budget. LPJmL's own total runoff (`mrunoff.nc`) is not used as
+#' `runoff_mm` directly, because it already contains the seepage: the seepage
+#' recharges groundwater and LPJmL adds the groundwater outflow to runoff, so
+#' adding seepage on top of it books that water twice. Drainage defaults to
+#' native seepage; the `"residual"` method instead reconstructs it as
+#' `water_input - aet - runoff - soil_water_change`, for use only when the
+#' seepage file is absent. Evapotranspiration is split into a blue
+#' (irrigation-sourced) and green (rain-sourced) part. The result is
+#' returned per grid cell, or aggregated to polity totals when
+#' `resolution = "polity"`.
 #'
 #' The output also exposes the footprint-relevant terms folded into the budget:
 #' `prec_mm` (precipitation) and `irrig_mm` (applied irrigation, the gross
@@ -48,7 +57,10 @@
 #' @param method Named list selecting the estimation method for each term:
 #'   `aet` (`"components"`, the only method), `drainage` (`"seepage"` default,
 #'   LPJmL native seepage, or `"residual"`, a seepage reconstruction from the
-#'   budget residual usable only when the seepage file is absent) and
+#'   budget residual usable only when the seepage file is absent), `runoff`
+#'   (`"total_minus_seepage"` default, LPJmL total runoff less the seepage it
+#'   already contains, or `"surface_lateral"`, the sum of LPJmL's surface and
+#'   lateral runoff outputs; see *Runoff* below) and
 #'   `blue_green` (`"cft_native"` default, per-crop blue/green consumptive
 #'   water, or `"irrig_share"`, the irrigation share of water input). Members
 #'   left out take their default. `"cft_native"` warns when the per-CFT cubes
@@ -66,6 +78,25 @@
 #'   `partial:<choice>` only when it is not the default, because `"abort"` and
 #'   `"warn"` return byte-identical numbers and only `"drop"` removes rows a
 #'   reader could not otherwise account for.
+#'
+#'   *Runoff.* The two `runoff` methods are two ways of removing the seepage
+#'   from LPJmL's total runoff, and they differ in what else they keep.
+#'   `"total_minus_seepage"` keeps every other runoff component LPJmL routes
+#'   (surface, lateral, snow, TOPMODEL baseflow and the lateral-water
+#'   overflow), and treats this year's seepage as this year's groundwater
+#'   outflow. Where groundwater storage changes within the year that
+#'   difference lands in `runoff_mm`, which can then be negative (2.1% of
+#'   cells in 2009 and 2.2% in 2010 on the LPJmL 6.1.1 run). `"surface_lateral"`
+#'   reads `mrunoff_surf.nc` and `mrunoff_lat.nc`, never negative, but LPJmL
+#'   does not write its baseflow or overflow, so they fall out of the budget.
+#'   On that run, summed over 58,795 cells, the budget residual is +3.6% (2009)
+#'   and +1.3% (2010) of water input with `"total_minus_seepage"`, and +6.8%
+#'   and +4.2% with `"surface_lateral"`, against -19.2% and -21.4% when the
+#'   seepage was counted twice. `drainage = "residual"` requires
+#'   `"surface_lateral"`: `"total_minus_seepage"` needs the seepage that the
+#'   residual method exists to do without. Because it then also absorbs the
+#'   baseflow and overflow, the residual exceeds seepage (by 30% in 2009 and
+#'   19% in 2010 on that run).
 #' @param resolution `"grid"` (per cell, default) or `"polity"` (aggregated to
 #'   `year` and `area_code`).
 #' @param bands Optional character vector of LPJmL crop-functional-type band
@@ -102,7 +133,9 @@
 #'   already-built table.
 #' @param data Optional named list of pre-loaded inputs to avoid NetCDF reads:
 #'   hydrology tibbles `transp`, `evap`, `interc`, `prec`, `irrig`, `runoff`
-#'   and `seepage` (each `lon`, `lat`, `year`, `value`; annual-summed
+#'   (LPJmL total runoff), `runoff_surf` and `runoff_lat` (read only for
+#'   `runoff = "surface_lateral"`) and `seepage` (each `lon`, `lat`, `year`,
+#'   `value`; annual-summed
 #'   automatically when a `month` column is present), `swc` (`lon`, `lat`,
 #'   `year`, `month`, `layer`, `value` fractional saturation), optional
 #'   per-crop consumptive water `cft_consump_water_b` and `cft_consump_water_g`
@@ -323,6 +356,7 @@ get_soc_climate_drivers <- function(
   list(
     aet = c("components"),
     drainage = c("seepage", "residual"),
+    runoff = c("total_minus_seepage", "surface_lateral"),
     blue_green = c("cft_native", "irrig_share"),
     partial_year = c("abort", "warn", "drop")
   )
@@ -331,9 +365,35 @@ get_soc_climate_drivers <- function(
 # Fill missing method members with their defaults and validate each choice.
 .wb_resolve_method <- function(method) {
   choices <- .wb_method_choices()
-  purrr::imap(choices, function(allowed, key) {
+  resolved <- purrr::imap(choices, function(allowed, key) {
     rlang::arg_match0(method[[key]] %||% allowed[[1]], allowed, arg_nm = key)
   })
+  .wb_check_runoff_drainage(resolved)
+  resolved
+}
+
+# Residual drainage exists for a run without the seepage file, and
+# total_minus_seepage subtracts exactly that file, so the pair has no answer:
+# the residual would cancel to input - aet - total runoff - storage change,
+# whatever the seepage is. Refuse rather than pick a runoff for the caller.
+.wb_check_runoff_drainage <- function(method) {
+  if (method$drainage != "residual") {
+    return(invisible(NULL))
+  }
+  if (method$runoff == "surface_lateral") {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(
+    c(
+      "{.code drainage = \"residual\"} needs
+       {.code runoff = \"surface_lateral\"}.",
+      i = "{.code runoff = \"{method$runoff}\"} subtracts the seepage the
+           residual method is meant to reconstruct.",
+      i = "Pass {.code method = list(drainage = \"residual\",
+           runoff = \"surface_lateral\")}."
+    ),
+    class = "whep_wb_runoff_drainage"
+  )
 }
 
 # Read each hydrology flux (from data$<var> or the NetCDF reader), annual-sum
@@ -341,19 +401,7 @@ get_soc_climate_drivers <- function(
 # the reader's logical "drainage" var (mseepage.nc) but the data override key is
 # `seepage`. The soil-water-change term is appended from the layered swc.
 .wb_read_inputs <- function(data, method, bands = NULL) {
-  # name -> reader logical var; data overrides use the name (e.g. data$seepage).
-  flux_vars <- c(
-    transp = "transp",
-    evap = "evap",
-    interc = "interc",
-    prec = "prec",
-    irrig = "irrig",
-    runoff = "runoff",
-    seepage = "drainage"
-  )
-  if (method$drainage == "residual") {
-    flux_vars <- flux_vars[names(flux_vars) != "seepage"]
-  }
+  flux_vars <- .wb_flux_vars(method)
   parts <- purrr::imap(flux_vars, function(reader_var, name) {
     raw <- data[[name]] %||%
       read_lpjml_hydrology(
@@ -373,6 +421,28 @@ get_soc_climate_drivers <- function(
     by = c("lon", "lat", "year")
   )
   .wb_attach_cft_consump(wide, data, bands, method)
+}
+
+# The fluxes a method set reads: name -> reader logical var; data overrides use
+# the name (e.g. data$seepage). The runoff method decides which runoff files are
+# read; the seepage is read whenever drainage is native seepage, which is also
+# every case total_minus_seepage is allowed (.wb_check_runoff_drainage()).
+.wb_flux_vars <- function(method) {
+  runoff <- switch(
+    method$runoff,
+    total_minus_seepage = c(runoff = "runoff"),
+    surface_lateral = c(runoff_surf = "runoff_surf", runoff_lat = "runoff_lat")
+  )
+  seepage <- if (method$drainage == "seepage") c(seepage = "drainage")
+  c(
+    transp = "transp",
+    evap = "evap",
+    interc = "interc",
+    prec = "prec",
+    irrig = "irrig",
+    runoff,
+    seepage
+  )
 }
 
 # Warn when the per-CFT consumptive-water cubes carry the LPJmL 6.x green/blue
@@ -865,9 +935,10 @@ get_soc_climate_drivers <- function(
 
 # Combine components into the closing terms: AET sums transp, evap and interc;
 # water input sums prec and irrig (also exposed as prec_mm and irrig_mm);
-# runoff carried through; drainage by method; pet placeholder (no LPJmL PET).
-# The 4-term identity is water input equals aet plus runoff plus drainage plus
-# soil-water change, and the additive identity water_input == prec + irrig holds.
+# runoff by method (.wb_runoff_mm()); drainage by method; pet placeholder (no
+# LPJmL PET). The 4-term identity is water input equals aet plus runoff plus
+# drainage plus soil-water change, and the additive identity
+# water_input == prec + irrig holds.
 .wb_compute_terms <- function(wide, method) {
   out <- dplyr::mutate(
     wide,
@@ -875,7 +946,7 @@ get_soc_climate_drivers <- function(
     prec_mm = prec,
     irrig_mm = irrig,
     water_input_mm = prec + irrig,
-    runoff_mm = runoff,
+    runoff_mm = .wb_runoff_mm(wide, method),
     pet_mm = NA_real_
   )
   drainage_mm <- if (method$drainage == "residual") {
@@ -884,6 +955,19 @@ get_soc_climate_drivers <- function(
     out$seepage
   }
   dplyr::mutate(out, drainage_mm = drainage_mm)
+}
+
+# The runoff that does not pass through the seepage (whep#1530). LPJmL's total
+# runoff already holds the seepage's groundwater outflow, so it is either
+# netted of the seepage or rebuilt from the surface and lateral outputs, which
+# never held it. Never the bare total: with drainage_mm = seepage beside it,
+# that counts the seepage twice.
+.wb_runoff_mm <- function(wide, method) {
+  switch(
+    method$runoff,
+    total_minus_seepage = wide$runoff - wide$seepage,
+    surface_lateral = wide$runoff_surf + wide$runoff_lat
+  )
 }
 
 # Split AET into blue (irrigation-sourced) and green (rain-sourced) parts and
@@ -1101,12 +1185,13 @@ get_soc_climate_drivers <- function(
   stats::weighted.mean(col, weight, na.rm = TRUE)
 }
 
-# "aet:<aet>|drain:<drainage>|bg:<blue_green>" provenance label for the
-# method_water column. `bg_realized` is the blue_green method actually used
-# (cft_native, irrig_share, or irrig_share_fallback when cft_native degraded).
+# "aet:<aet>|drain:<drainage>|runoff:<runoff>|bg:<blue_green>" provenance label
+# for the method_water column. `bg_realized` is the blue_green method actually
+# used (cft_native, irrig_share, or irrig_share_fallback when cft_native
+# degraded).
 #
 # partial_year appends "|partial:<choice>" ONLY when it is not the default.
-# Unlike the other three it is a refusal policy rather than an estimation
+# Unlike the other members it is a refusal policy rather than an estimation
 # method: on "abort" and "warn" the numbers are byte-identical, so stamping the
 # default would change a published provenance string for every caller and say
 # nothing. On "drop" it is the one thing a reader cannot recover from the
@@ -1123,6 +1208,8 @@ get_soc_climate_drivers <- function(
     method$aet,
     "|drain:",
     method$drainage,
+    "|runoff:",
+    method$runoff,
     "|bg:",
     bg_realized,
     partial
