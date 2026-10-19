@@ -110,7 +110,14 @@ reader behind them -- \code{excreta} is a livestock-pipeline output, not a
 readable input -- so under the default \code{method_grazing = "whep"} a
 call that omits either is refused straight away, before any input is read.
 Pass \code{method_grazing = "lpjml"} to charge the grassland the model's
-own grazing and need neither.}
+own grazing and need neither. Two optional entries are forwarded to
+\code{\link{build_carbon_inputs}} for the rainfed/irrigated yield split
+of crop groups, also only when \code{c_inputs} is not supplied:
+\code{regime_ratio} (the \code{\link{build_regime_yield_ratio}} table;
+pass the one \code{\link{build_nitrogen_balance}} used so both chains
+apply one ratio) and \code{regime_production} (the
+\code{\link{get_primary_production}} table the national yields and the
+yield bounds come from). Each is built when absent.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the inputs cover, but reading the full LUH2 range
@@ -132,7 +139,14 @@ cover of 0.85, an ASSUMED value with no sourced constant behind it yet.
 Soil cover is computed once per cover profile and joined to the classes,
 so the class count does not multiply the monthly climate table.
 \code{list(method = "none")} keeps the single \code{cropland} class the package
-used before.}
+used before. The default \code{regime = "yield_split"} builds the
+irrigated:rainfed yield ratio when \code{data$regime_ratio} is not supplied
+(and \code{c_inputs} is not), which needs SPAM2010 (downloaded into the user
+cache on first use, so the first run needs network), the
+\code{lpjml-crop-regime-yield} pin (or \code{WHEP_LPJML_RUN_DIR}) and the FAOSTAT
+production, fertiliser and land-use pins plus \code{luh2-areas}; see
+\code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{list(regime = "area_split")} needs none of
+them.}
 
 \item{class_water}{How a cell's applied irrigation is shared among its
 land-use classes in the moisture term. \code{"cell"} (default) gives every

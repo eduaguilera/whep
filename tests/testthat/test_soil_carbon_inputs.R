@@ -827,6 +827,36 @@ testthat::test_that("the input C:N is formed from matched carbon and nitrogen", 
   testthat::expect_equal(per_ha$input_cn, 1100 / 30)
 })
 
+testthat::test_that("the layer carries the residue, root and input nitrogen per hectare", {
+  # The regime split re-forms each part's input C:N from its own residue and
+  # root, so the layer has to say how much of the input nitrogen is theirs.
+  # A component whose nitrogen is unknown stays unknown, not zero.
+  gridded <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2000L,
+    crop_area_ha = 10,
+    input_type = c("crop_residue", "root", "manure"),
+    c_mass_mg = c(800, 200, 300),
+    n_mass_mg = c(10, NA, 20)
+  )
+  keys <- c("lon", "lat", "area_code", "item_prod_code", "year")
+  out <- whep:::.sci_sum_components(gridded, keys) |>
+    whep:::.sci_per_hectare() |>
+    whep:::.sci_humified_fraction(keys, whep::residue_humification)
+  testthat::expect_equal(out$residue_n_mgn_ha_yr, 1)
+  testthat::expect_true(is.na(out$root_n_mgn_ha_yr))
+  testthat::expect_equal(out$input_n_mgn_ha_yr, 3)
+  # The input C:N is still the matched ratio, now readable from the layer.
+  testthat::expect_equal(out$input_cn, 1100 / 30)
+  testthat::expect_equal(
+    out$input_cn * out$input_n_mgn_ha_yr,
+    (800 + 300) / 10
+  )
+})
+
 testthat::test_that("components with no nitrogen at all give an absent ratio", {
   # Absent, not infinite: an all-unknown nitrogen must not read as zero, which
   # would peg the derived SOM C:N at its ceiling.

@@ -2690,6 +2690,12 @@ utils::globalVariables(
     "live",
     "rank_key",
     "live_first",
+    # soil_carbon_inputs.R (issue 1233) -- the residue and root nitrogen the
+    # rainfed/irrigated split re-forms each part's input C:N from
+    ".residue_n",
+    ".root_n",
+    "residue_n_mg",
+    "root_n_mg",
     # moisture_regime.R (issue 359) -- IPCC 2019 wet/dry classifier inputs,
     # its window-mean water terms and the internal stamp fields
     "mat_c",

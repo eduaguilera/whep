@@ -46,6 +46,19 @@ and Hemp dominance.
 fractions \code{stand_frac_rainfed}, \code{stand_frac_irrigated}. Only rows in
 1994-2023 are used.
 \item \code{lpjml_grid}: the cells (\code{lon}, \code{lat}) the LPJmL run's output covers.
+\item \code{cache}: an environment (\code{new.env()}) that keeps what the inputs that do
+not depend on the cells are reduced to: the SPAM2010 country totals, the
+synthetic nitrogen series, the LUH2 cropland, the Linum and Hemp
+production, and the LPJmL 1994-2023 stand sums and grid. The first call
+that needs one reads it and stores it, and a later call with the same
+\code{cache} reuses it instead of reading it again, so a build that calls
+this function once per year reads each of them once. Every call must
+share \code{run_dir} and the \code{spam}, \code{fertilizer}, \code{luh2},
+\code{faostat_production}, \code{lpjml_window} and \code{lpjml_grid} members, because
+the cache is not keyed by them. \code{cropland} and \code{lpjml} depend on the
+years of \code{cells} and are not kept, and neither is the country LPJmL
+normaliser, which pools the cells of each call: the ratio of a call is
+the same with or without a \code{cache}.
 }}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of building the

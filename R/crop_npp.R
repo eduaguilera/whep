@@ -424,6 +424,38 @@ calculate_npp_carbon_nitrogen <- function(x) {
   )
 }
 
+# Provenance of the irrigation coefficients (checked 2026-10-14; ASSUMED,
+# UNVERIFIED, see whep#1536). `irrigation_adj` cites "Sadras 2007; Zhang et
+# al. 2019" for the irrigated residue ratio factor of 0.9 and root:shoot
+# factor of 0.85; the afsetools original also cites Benjamin et al. 2014.
+# - Sadras, V. O. (2007). Evolutionary aspects of the trade-off between seed
+#   size and number in crops. Field Crops Research 100, 125-138,
+#   doi 10.1016/j.fcr.2006.07.004. Full text read: its subject is seed size
+#   against seed number, and it gives no irrigated residue or harvest index
+#   factor.
+# - "Benjamin et al. 2014" as cited in afsetools (Agronomy Journal
+#   106:2033-2040) does not exist; it merges two real papers:
+#   Benjamin, J. G. and Nielsen, D. C. (2006). Water deficit effects on root
+#   distribution of soybean, field pea and chickpea. Field Crops Research
+#   97, 248-253, doi 10.1016/j.fcr.2005.10.005. Irrigation kept more chickpea
+#   and field pea roots in the top 0.23 m (about 80% against 66% rainfed),
+#   soybean unchanged; it measures no shoot mass, so no root:shoot ratio.
+#   Benjamin, J. G., Nielsen, D. C., Vigil, M. F., Mikha, M. M. and
+#   Calderon, F. (2014). Water deficit stress effects on corn root:shoot
+#   ratio. Open Journal of Soil Science 4, 151-160, doi 10.4236/ojss.2014.44018.
+#   Maize root:shoot rises with stress; unstressed over stressed ranges
+#   about 0.45 to 0.79, not 0.85.
+# - "Zhang et al. 2019" matches no paper. The closest, Zhang, H., Han, K.,
+#   Gu, S. and Wang, D. (2019), Agricultural Water Management 214, 1-8,
+#   doi 10.1016/j.agwat.2018.12.028, finds a LOWER harvest index under
+#   supplemental irrigation of wheat, the opposite of the 0.9 factor.
+# - The rs_irrigated and rs_rainfed columns of ipcc_root_coefs are not in
+#   IPCC 2019 Table 11.1a, which has one root:shoot column; nothing reads them.
+# The Mixed row is labelled an intermediate assumption. The per-group
+# sensitivities in `irr_residue_crop_adj` cite "Ludemann 2025", the Dryad
+# dataset of Ludemann et al. (2025), doi 10.5061/dryad.djh9w0w4m. Its maize
+# residue ratios show no irrigation effect (median 1.28 irrigated, 1.30
+# rainfed), so the cited 1.50 against 1.74 is not reproduced from it.
 .residue_irrigation_factor <- function(x) {
   if (!rlang::has_name(x, "water_regime")) {
     return(dplyr::mutate(x, residue_ratio_factor = 1))
@@ -618,6 +650,8 @@ calculate_npp_carbon_nitrogen <- function(x) {
     )
 }
 
+# The rs_ratio_factor provenance is unverified; see the note above
+# .residue_irrigation_factor().
 .root_irrigation_factor <- function(x) {
   if (!rlang::has_name(x, "water_regime")) {
     return(dplyr::mutate(x, rs_ratio_factor = 1))

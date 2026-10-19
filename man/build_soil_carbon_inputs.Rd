@@ -142,8 +142,13 @@ A tibble keyed by \verb{(lon, lat, area_code, item_prod_code, year)} at
 \code{"grid"} resolution (or \verb{(area_code, item_prod_code, year)} at
 \code{"polity"}), with \code{residue_c_mgc_ha_yr}, \code{root_c_mgc_ha_yr},
 \code{weed_c_mgc_ha_yr}, \code{manure_c_mgc_ha_yr}, \code{total_c_input_mgc_ha_yr},
-\code{humified_fraction}, \code{method_c_input}, \code{method_unspatialized},
-\code{method_crop_weights}, \code{method_manure_placement} and
+\code{input_cn} (the C:N of the components whose nitrogen is known),
+\code{input_n_mgn_ha_yr} (their nitrogen, Mg N per hectare per year, so
+\code{input_cn} times it is their carbon), \code{residue_n_mgn_ha_yr} and
+\code{root_n_mgn_ha_yr} (the soil-returned residue and root nitrogen within
+it, \code{NA} where unknown), \code{humified_fraction}, \code{method_c_input},
+\code{method_unspatialized}, \code{method_crop_weights}, \code{method_manure_placement}
+and
 \code{crop_area_ha} -- the crop's area at that grain on the basis the
 densities are computed on: the FAOSTAT-renormalised cell area where a
 national harvested area was supplied, the spatialized area otherwise, so

@@ -362,13 +362,16 @@ test_that("the enumerated baseline can only shrink", {
   # 114 with whep#1195, on top of whep#1317's 112: the residue pin's legacy
   # recovery rate, attached per (crop, area) and keyed on the area's year-free
   # HANPP region. Re-derived by running the audit on the merged tree.
-  # 119 with build_cell_moisture_regime() and whep#1448, on top of whep#1195's
-  # 114: the outside-run depth fill joins a country's mean over one requested
-  # year's window (`single_year`, +1), and the residue base reads the
-  # Wirsenius (2000) Table 3.16 ratios and region membership per (crop, area),
-  # and the HANPP region of each cereal area (+4). Re-derived by running
+  # 120 with build_cell_moisture_regime(), the per-part residue re-evaluation
+  # of the rainfed/irrigated split (whep#1233) and whep#1448, on top of
+  # whep#1195's 114: the outside-run depth fill joins a country's mean over one
+  # requested year's window (`single_year`, +1); `.rr_model_rows()` attaches
+  # the HANPP region by area, one time-invariant join (+1); the residue base
+  # reads the Wirsenius (2000) Table 3.16 ratios and region membership per
+  # (crop, area), and the HANPP region of each cereal area (+4). Re-derived by
+  # running
   # `sum(.territorial_join_baseline()$n)` on the merged tree.
-  expect_lte(sum(baseline$n), 119L)
+  expect_lte(sum(baseline$n), 120L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting

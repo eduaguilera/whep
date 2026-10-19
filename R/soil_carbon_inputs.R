@@ -147,8 +147,13 @@
 #'   `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 #'   `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 #'   `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-#'   `humified_fraction`, `method_c_input`, `method_unspatialized`,
-#'   `method_crop_weights`, `method_manure_placement` and
+#'   `input_cn` (the C:N of the components whose nitrogen is known),
+#'   `input_n_mgn_ha_yr` (their nitrogen, Mg N per hectare per year, so
+#'   `input_cn` times it is their carbon), `residue_n_mgn_ha_yr` and
+#'   `root_n_mgn_ha_yr` (the soil-returned residue and root nitrogen within
+#'   it, `NA` where unknown), `humified_fraction`, `method_c_input`,
+#'   `method_unspatialized`, `method_crop_weights`, `method_manure_placement`
+#'   and
 #'   `crop_area_ha` -- the crop's area at that grain on the basis the
 #'   densities are computed on: the FAOSTAT-renormalised cell area where a
 #'   national harvested area was supplied, the spatialized area otherwise, so
@@ -1146,7 +1151,16 @@ build_soil_carbon_inputs <- function(
     # much carbon those were, so the ratio below is formed from a matched pair
     # rather than dividing all the carbon by some of the nitrogen.
     .n_known = data.table::fifelse(is.na(n_mass_mg), 0, n_mass_mg),
-    .c_with_n = data.table::fifelse(is.na(n_mass_mg), 0, c_mass_mg)
+    .c_with_n = data.table::fifelse(is.na(n_mass_mg), 0, c_mass_mg),
+    # The residue and root nitrogen on their own, NA where unknown: the
+    # rainfed/irrigated split of build_carbon_inputs() moves them with the
+    # residue and root carbon and re-forms each part's input C:N from them.
+    .residue_n = data.table::fifelse(
+      input_type == "crop_residue",
+      n_mass_mg,
+      0
+    ),
+    .root_n = data.table::fifelse(input_type == "root", n_mass_mg, 0)
   )]
   per_cell <- dt[,
     .(
@@ -1156,7 +1170,9 @@ build_soil_carbon_inputs <- function(
       weed_c_mg = sum(.weed),
       manure_c_mg = sum(.manure),
       input_n_mg = sum(.n_known),
-      input_c_with_n_mg = sum(.c_with_n)
+      input_c_with_n_mg = sum(.c_with_n),
+      residue_n_mg = sum(.residue_n),
+      root_n_mg = sum(.root_n)
     ),
     by = cell_keys
   ]
@@ -1168,7 +1184,9 @@ build_soil_carbon_inputs <- function(
       weed_c_mg = sum(weed_c_mg),
       manure_c_mg = sum(manure_c_mg),
       input_n_mg = sum(input_n_mg),
-      input_c_with_n_mg = sum(input_c_with_n_mg)
+      input_c_with_n_mg = sum(input_c_with_n_mg),
+      residue_n_mg = sum(residue_n_mg),
+      root_n_mg = sum(root_n_mg)
     ),
     by = keys
   ]
@@ -1198,6 +1216,11 @@ build_soil_carbon_inputs <- function(
       .sci_safe_div(.data$input_c_with_n_mg, .data$input_n_mg),
       NA_real_
     ),
+    # The nitrogen the input C:N is formed with, and the residue and root
+    # nitrogen within it (NA where that component's nitrogen is unknown).
+    input_n_mgn_ha_yr = .sci_safe_div(.data$input_n_mg, .data$crop_area_ha),
+    residue_n_mgn_ha_yr = .sci_safe_div(.data$residue_n_mg, .data$crop_area_ha),
+    root_n_mgn_ha_yr = .sci_safe_div(.data$root_n_mg, .data$crop_area_ha),
     total_c_input_mgc_ha_yr = .data$residue_c_mgc_ha_yr +
       .data$root_c_mgc_ha_yr +
       .data$weed_c_mgc_ha_yr +
@@ -1239,6 +1262,9 @@ build_soil_carbon_inputs <- function(
       "manure_c_mgc_ha_yr",
       "total_c_input_mgc_ha_yr",
       "input_cn",
+      "input_n_mgn_ha_yr",
+      "residue_n_mgn_ha_yr",
+      "root_n_mgn_ha_yr",
       "humified_fraction"
     )
 }
