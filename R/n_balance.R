@@ -283,6 +283,15 @@
 #' own call with its own choice, and the balance rows derived from it still get
 #' this argument's fate at the tail.
 #'
+#' **Grazing excreta.** The `"excreta"` input is the N grazing animals deposit
+#' on pasture, range and paddock, and its N2O is in `n2o_direct_n_t`,
+#' `n2o_indirect_nh3_n_t` and `total_gwp_co2e_kg`, as the field loss it is.
+#' [calculate_livestock_emissions()] prices the same emission and reports it
+#' as `manure_n2o_direct_pasture` and `manure_n2o_indirect_pasture`, and that
+#' is the chain WHEP's GHG footprint takes it from. So these balance columns
+#' are not to be added to livestock manure N2O: subtract the pasture columns
+#' from one of the two first (whep#1524).
+#'
 #' @section Loss drivers:
 #' Which driver columns each loss method reads, and whether
 #' [build_n_loss_drivers()] supplies them. At grid resolution that function
