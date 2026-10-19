@@ -2681,6 +2681,10 @@ utils::globalVariables(
     # silk_mass_basis.R (whep#1281) -- FAO's own residual of a cocoon row,
     # which confirms a duplicated use
     "residual",
+    # silk_mass_basis.R (whep#1456) -- which cocoon use the residual cancels
+    "equal",
+    "minus_processed",
+    "minus_other",
     # R/build_production.R, flax fibre basis (whep#1351)
     "ElementCode",
     "fibre_t",
