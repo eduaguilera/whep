@@ -1041,28 +1041,27 @@ build_primary_production <- function(
 
 # Each span with the pin's own yield the year before and the year after it.
 .basis_span_ends <- function(spans, kept) {
+  keys <- c("area_code", "item_prod_code", "year")
   at <- tibble::as_tibble(kept[, .(area_code, item_prod_code, year, yield)])
   spans |>
-    dplyr::mutate(from_year = year_from - 1, to_year = year_to + 1) |>
-    dplyr::left_join(
-      dplyr::rename(at, from_year = year, from_yield = yield),
-      by = c("area_code", "item_prod_code", "from_year")
-    ) |>
-    dplyr::left_join(
-      dplyr::rename(at, to_year = year, to_yield = yield),
-      by = c("area_code", "item_prod_code", "to_year")
-    )
+    dplyr::mutate(year = year_from - 1) |>
+    dplyr::left_join(dplyr::rename(at, from_yield = yield), by = keys) |>
+    dplyr::mutate(from_year = year, year = year_to + 1) |>
+    dplyr::left_join(dplyr::rename(at, to_yield = yield), by = keys) |>
+    dplyr::rename(to_year = year)
 }
 
 # Linear in year between the values either side of the span, at the years the
 # pin reported. A span with no value before it is left empty, which the
 # back-cast reads as "hold the nearest anchored yield".
 .bridge_basis_spans <- function(dropped, ends) {
-  tibble::as_tibble(dropped[, .(year, area_code, item_prod_code)]) |>
-    dplyr::inner_join(
-      dplyr::filter(ends, !is.na(from_yield), !is.na(to_yield)),
-      by = c("area_code", "item_prod_code"),
-      relationship = "many-to-one"
+  ends |>
+    dplyr::filter(!is.na(from_yield), !is.na(to_yield)) |>
+    tidyr::expand_grid(year = unique(dropped$year)) |>
+    dplyr::filter(year >= year_from, year <= year_to) |>
+    dplyr::semi_join(
+      tibble::as_tibble(dropped),
+      by = c("area_code", "item_prod_code", "year")
     ) |>
     dplyr::mutate(
       yield = from_yield +
