@@ -606,3 +606,95 @@ testthat::test_that("get_primary_residues rejects an unknown oil palm method", {
     class = "rlang_error"
   )
 })
+
+# Sugar cane trash (whep#1551) -------------------------------------------------
+
+# Brazil 2010 as the pin carries it: a recovered trash row and FAOSTAT's cane
+# tonnes. A Spanish rapeseed row stands for every other crop on the pin.
+sugar_cane_pin <- function(residue = 150e6) {
+  cane <- tibble::tibble(
+    Area = "Brazil",
+    Item_prod = "Sugar cane",
+    Item_cbs_crop = "Sugar cane",
+    Name_biomass = "Sugarcane"
+  )
+  residue_pin(
+    dplyr::bind_rows(
+      dplyr::mutate(
+        cane,
+        Item_cbs = "Other crop residues",
+        Prod_ygpit_Mg = residue
+      ),
+      crop_rows("rapeseed", "Spain", 70)
+    ),
+    dplyr::mutate(
+      cane,
+      Item_cbs = "Sugar cane",
+      Prod_ygpit_Mg = 717462101,
+      Area_ygpit_ha = 9076706
+    )
+  ) |>
+    dplyr::mutate(Year = 2010L)
+}
+
+testthat::test_that("sugar cane trash is 0.14 t of dry matter per t of cane", {
+  # whep#1551. The pin's ratio put world cane trash at 0.206 t DM per t of
+  # cane, 1.47 times Hassuani et al. (2005). The default anchors it on their
+  # 140 kg DM per t of stalk, whatever the pin's own residue figure, and the
+  # anchor is not divided by the pin's recovery rate on top.
+  local_mocked_bindings(whep_read_file = function(name, ...) sugar_cane_pin())
+
+  out <- whep::get_primary_residues()
+
+  cane <- out[out$item_cbs_code_crop == 2536, ]
+  testthat::expect_equal(cane$value_dm, 0.14 * 717462101)
+  testthat::expect_equal(
+    cane$value,
+    0.14 * 717462101 / biomass_coef("Sugarcane", "Residue_kgDM_kgFM")
+  )
+  testthat::expect_equal(cane$item_cbs_code_residue, 2106)
+  testthat::expect_equal(cane$method_residue, "field_trash_per_product")
+  rape <- out[out$item_cbs_code_crop != 2536, ]
+  testthat::expect_equal(rape$method_residue, "pin")
+
+  # The pin's residue figure does not reach the anchored rows.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    sugar_cane_pin(residue = 1)
+  })
+  testthat::expect_equal(
+    whep::get_primary_residues()$value_dm[out$item_cbs_code_crop == 2536],
+    0.14 * 717462101
+  )
+})
+
+testthat::test_that("sugar cane trash can be kept as the pin's", {
+  local_mocked_bindings(whep_read_file = function(name, ...) sugar_cane_pin())
+
+  out <- whep::get_primary_residues(sugar_cane_residue = "pin")
+
+  cane <- out[out$item_cbs_code_crop == 2536, ]
+  testthat::expect_equal(cane$method_residue, "pin")
+  testthat::expect_false(isTRUE(all.equal(cane$value_dm, 0.14 * 717462101)))
+})
+
+testthat::test_that("sugar cane trash without its cane row aborts", {
+  # Without the cane row the anchor would come out NA, then be summed to zero
+  # and dropped: a missing input turned into no residue.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    dplyr::filter(sugar_cane_pin(), Product_residue == "Residue")
+  })
+
+  testthat::expect_error(
+    whep::get_primary_residues(),
+    class = "whep_residue_anchor_no_product"
+  )
+  out <- whep::get_primary_residues(sugar_cane_residue = "pin")
+  testthat::expect_true(any(out$item_cbs_code_crop == 2536))
+})
+
+testthat::test_that("get_primary_residues rejects an unknown cane method", {
+  testthat::expect_error(
+    whep::get_primary_residues(sugar_cane_residue = "per_hectare"),
+    class = "rlang_error"
+  )
+})
