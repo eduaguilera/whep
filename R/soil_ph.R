@@ -15,8 +15,9 @@
 #   texture class) and then spatially aggregated with terra.
 # - Dominant texture per map unit = texture class with the largest summed
 #   `share`; that class's own pH is used (not an area-weighted pH across
-#   all classes). Missing pH defaults to 7.0 (neutral), matching the
-#   existing pipeline's own documented fallback.
+#   all classes). A map unit whose dominant class has no pH carries none: it
+#   drops out of its block's mean, and a cell left with no pH at all is
+#   gap-filled from its neighbours (whep#1034).
 # - Soil pH is a static property of the HWSD map (no time dimension): this
 #   reader returns no `year` column, the same convention used for other
 #   static coefficient tables (e.g. `whep::soil_cn_ratios`).
@@ -392,7 +393,17 @@ read_hwsd_topsoil_soc <- function(
 }
 
 # For each map unit, pick the pH of its dominant (largest-share) USDA
-# texture class, defaulting missing pH to 7.0 (neutral).
+# texture class.
+#
+# A unit whose dominant class has no pH is LEFT OUT, not given a neutral 7.0.
+# The 7.0 averaged into the unit's 0.5-degree block as though it had been
+# measured, so a block of pH 5 soils with one unrecorded unit read higher than
+# any of its soils, and nothing downstream could tell (whep#1034). Leaving it
+# out reaches the classify step's `others = NA`, so the block mean is taken
+# over the pixels that do carry a pH and a cell with none is gap-filled from
+# its neighbours -- the same route `.derive_map_unit_hydraulic()` gives a unit
+# its crosswalk cannot reach. On the HWSD2 extract read here every textured
+# row carries a pH (0 of 57,116), so no published grid moves.
 .derive_dominant_soil <- function(hwsd_attr) {
   soils <- hwsd_attr |> dplyr::filter(!is.na(.data$t_usda_tex))
   dom_tex <- .derive_dominant_texture(soils)
@@ -406,10 +417,8 @@ read_hwsd_topsoil_soc <- function(
     ) |>
     dplyr::select("mu_global", "t_ph_h2o")
   dom_tex |>
-    dplyr::left_join(ph_data, by = "mu_global") |>
-    dplyr::mutate(
-      t_ph_h2o = dplyr::if_else(is.na(.data$t_ph_h2o), 7.0, .data$t_ph_h2o)
-    ) |>
+    dplyr::inner_join(ph_data, by = "mu_global") |>
+    dplyr::filter(!is.na(.data$t_ph_h2o)) |>
     dplyr::select("mu_global", "t_ph_h2o")
 }
 

@@ -579,6 +579,7 @@ build_gridded_livestock <- function(
         dplyr::select(grass_productivity, lon, lat, grass_npp),
         by = c("lon", "lat")
       ) |>
+      .check_proxy_layer_joined("grass_npp", "grass_productivity") |>
       dplyr::mutate(
         weight = dplyr::if_else(is.na(grass_npp), weight, weight * grass_npp)
       ) |>
@@ -593,6 +594,11 @@ build_gridded_livestock <- function(
         dplyr::select(manure_pattern, lon, lat, manure_intensity),
         by = c("lon", "lat")
       ) |>
+      .check_proxy_layer_joined("manure_intensity", "manure_pattern") |>
+      # A cell the reference pattern does not cover takes the blend's floor,
+      # 0.7 of its land-use weight: the pattern is read as recording no manure
+      # there, not as missing. Whether the pattern reached the grid at all is
+      # the check above.
       dplyr::mutate(manure_intensity = dplyr::coalesce(manure_intensity, 0))
     max_intensity <- if (nrow(grid) > 0L) max(grid$manure_intensity) else 0
     if (max_intensity > 0) {
@@ -615,6 +621,51 @@ build_gridded_livestock <- function(
       lat,
       weight
     )
+}
+
+
+# A proxy layer that was passed but joins no cell of a non-empty grid is a key
+# mismatch -- a pattern on another lattice, or keyed on rounded coordinates --
+# and it leaves no trace. A manure pattern that matches nothing has nothing to
+# blend, so the weights quietly revert to land use alone; a grass-productivity
+# table that matches nothing multiplies nothing, yet every grazer row is still
+# stamped `"luh2_grass"`. Heads are conserved exactly either way, so no total
+# can see that the layer was never applied (whep#1034). The test is on the
+# join, not on the values: a cell the layer covers with a zero is an answer,
+# and a layer that covers only some cells is the documented partial case.
+.check_proxy_layer_joined <- function(grid, value_col, arg) {
+  if (nrow(grid) == 0L) {
+    return(grid)
+  }
+  joined <- dplyr::mutate(
+    grid,
+    layer_joined = as.numeric(!is.na(.data[[value_col]]))
+  )
+  check_inputs_supplied(
+    joined,
+    rlang::set_names("layer_joined", arg),
+    details = .proxy_layer_remedy(arg)
+  )
+  grid
+}
+
+# Static, so nothing is interpolated in a scope that cannot see `arg`.
+.proxy_layer_remedy <- function(arg) {
+  switch(
+    arg,
+    manure_pattern = c(
+      i = "No {.arg manure_pattern} cell shares a {.field lon} and
+           {.field lat} with the proxy grid.",
+      i = "Key it on the 0.5-degree cell centres of {.arg country_grid}, or
+           pass {.code manure_pattern = NULL} to allocate without it."
+    ),
+    grass_productivity = c(
+      i = "No {.arg grass_productivity} cell shares a {.field lon} and
+           {.field lat} with the proxy grid.",
+      i = "Key it on the 0.5-degree cell centres of {.arg country_grid}, or
+           pass {.code grass_productivity = NULL} to allocate without it."
+    )
+  )
 }
 
 
