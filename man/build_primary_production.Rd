@@ -91,10 +91,11 @@ FAOSTAT never gives an item area for in that country is split evenly.
 \item{meat_nes_backcast}{Character. What the pre-1962 back-cast does with
 item 1166, "Meat nes". FAO defines it as "including frog legs, marine
 mammals, etc." (FAO 1994, \emph{Definition and Classification of
-Commodities}, chapter 17, p. 92), so in whaling countries its 1961 anchor
-is mostly whale meat: Japan reports 193 kt in 1963 against 186,501 t of
-whale meat in its own statistics for that year (whep#1538). WHEP has no
-whaling series to split the item on.
+Commodities}, chapter 17), so in whaling countries its 1961 anchor is
+mostly whale meat: FAOSTAT has 193 kt for Japan in 1963, against 186,501
+t of whale meat in Japan's own 1963 statistics (Shapiro, \emph{The Fisheries
+of Japan}, US Fish and Wildlife Service Circular 233, Table 8, p. 13;
+whep#1538). WHEP has no whaling series to split the item on.
 \itemize{
 \item \code{"agriland"} (default, current published behaviour) scales the first
 reported value back on agricultural land like any herdless livestock

@@ -1005,8 +1005,7 @@ test_that(".extend_historical takes a historical land table at the seam", {
 })
 
 test_that(".extend_historical can leave pre-1962 meat nes (1166) un-back-cast", {
-  # whep#1538: FAO's 1166 "Meat nes" includes marine mammals (FAO 1994, ch. 17,
-  # p. 92), and in whaling countries its 1961 anchor is mostly whale meat. The
+  # whep#1538: FAO's 1166 "Meat nes" includes marine mammals (FAO 1994, ch. 17), and in whaling countries its 1961 anchor is mostly whale meat. The
   # default carries that anchor back on agricultural land; `"none"` leaves the
   # back-cast years empty while every other item, and 1166's own reported
   # years, are untouched.

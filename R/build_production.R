@@ -67,10 +67,11 @@
 #' @param meat_nes_backcast Character. What the pre-1962 back-cast does with
 #'   item 1166, "Meat nes". FAO defines it as "including frog legs, marine
 #'   mammals, etc." (FAO 1994, *Definition and Classification of
-#'   Commodities*, chapter 17, p. 92), so in whaling countries its 1961 anchor
-#'   is mostly whale meat: Japan reports 193 kt in 1963 against 186,501 t of
-#'   whale meat in its own statistics for that year (whep#1538). WHEP has no
-#'   whaling series to split the item on.
+#'   Commodities*, chapter 17), so in whaling countries its 1961 anchor is
+#'   mostly whale meat: FAOSTAT has 193 kt for Japan in 1963, against 186,501
+#'   t of whale meat in Japan's own 1963 statistics (Shapiro, *The Fisheries
+#'   of Japan*, US Fish and Wildlife Service Circular 233, Table 8, p. 13;
+#'   whep#1538). WHEP has no whaling series to split the item on.
 #'   * `"agriland"` (default, current published behaviour) scales the first
 #'     reported value back on agricultural land like any herdless livestock
 #'     product, so its rows read `"LUH2_agriland"`. Whatever marine-mammal
@@ -3560,8 +3561,9 @@ build_primary_production <- function(
     .drop_meat_nes_backcast(meat_nes_backcast)
 }
 
-# Item 1166 "Meat nes" holds marine-mammal meat by FAO's definition (FAO 1994,
-# ch. 17, p. 92), and in whaling countries its 1961 anchor is mostly whale meat
+# Item 1166 "Meat nes" holds marine-mammal meat by FAO's definition ("including
+# frog legs, marine mammals, etc.", FAO 1994, Definition and Classification of
+# Commodities, ch. 17), and in whaling countries its 1961 anchor is mostly whale meat
 # (whep#1538), which agricultural land cannot drive. Under `"none"` the rows the
 # agriland proxy produced are removed; every label `.fill_pre_faostat()` gives
 # such a row ends in `_agriland`, while an observed row keeps its own source.
