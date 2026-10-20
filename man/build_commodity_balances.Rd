@@ -363,11 +363,11 @@ gives it no proxy, so its series starts in 1961.
 
 \strong{The default moves published values}, for area 999 before 1961 only.
 Measured on a real 1955-1965 build with the default \code{residue_backcast},
-73 rows differ from \code{"none"} and no other value changes: 77.8 Mt of
-residue \code{production} and \code{domestic_supply} over 1955-1960 (12.2 Mt in
-1955, 13.8 Mt in 1960, then 22.6 Mt in 1961), of which 47.1 Mt is
-\code{other_uses} and 30.7 Mt \code{feed}. That raises world residue use by
-0.48-0.50\% in those years. The step at 1961 is the members' crops: six
+73 rows differ from \code{"none"} and no other value changes: 75.0 Mt of
+residue \code{production} and \code{domestic_supply} over 1955-1960 (11.7 Mt in
+1955, 13.3 Mt in 1960, then 21.2 Mt in 1961), of which 44.1 Mt is
+\code{other_uses} and 31.0 Mt \code{feed}. That raises world residue use by
+0.44-0.46\% in those years. The step at 1961 is the members' crops: six
 of the eleven report no production before 1961. Under \code{"none"} area 999
 carries no rows before 1961.}
 
@@ -509,28 +509,30 @@ production equals feed plus other uses in every year. Rows carry the
 source \code{"historical_residue_<method>"}.
 
 \code{"own_method"} grows each row along the basis its 1961 value was built
-on: cereal residue along \code{\link[=calculate_crop_residues]{calculate_crop_residues()}} applied to the
-year's production and harvested area, the estimator that computes it from
-1961 on, and every other row along its crop's production, since the pin's
-non-cereal residue is a residue:product ratio. \code{"production_ratio"} grows
+on: residue computed from yield (cereals, and the non-cereals with an
+IPCC Table 11.2 line, whep#1561) along \code{\link[=calculate_crop_residues]{calculate_crop_residues()}}
+applied to the year's production and harvested area, the estimator that
+computes it from 1961 on, and every other row along its crop's
+production, since the pin's remaining residue is a residue:product
+ratio. \code{"production_ratio"} grows
 every row along production, holding residue per tonne of crop; it puts
-1955-1960 cereal residue 1.6-5.6\% below the estimator. \code{"area_rate"}
-grows every row along harvested area, holding residue per hectare; it
-puts it 0.3-2.7\% above.
+1955-1960 residue computed from yield 1.5-5.7\% below the estimator.
+\code{"area_rate"} grows every row along harvested area, holding residue per
+hectare; it puts it 0.3-2.6\% above.
 
 \strong{The default moves published values}, for residue items before 1961
 only. Before it, the extension grew residue uses along population and
 agricultural land and gave the residue no production, so the whole use
 was booked as a stock draw. Measured on a real 1955-1965 build, world
-residue production in 1955 / 1960 goes from none to 2,195 / 2,386 Mt
-(\code{"production_ratio"} 2,121 / 2,361, \code{"area_rate"} 2,300 / 2,411),
-against 2,928 Mt in 1961, and residue \code{stock_variation} from
--2,587 / -2,803 Mt to -368 / -399 Mt under all three. What remains is
+residue production in 1955 / 1960 goes from none to 2,301 / 2,486 Mt
+(\code{"production_ratio"} 2,209 / 2,454, \code{"area_rate"} 2,392 / 2,506),
+against 3,038 Mt in 1961, and residue \code{stock_variation} from
+-2,681 / -2,906 Mt to -375 / -407 Mt under all three. What remains is
 the Soviet Union, Yugoslavia, Czechoslovakia and Belgium-Luxembourg,
 whose crop production does not reach before 1961 either (whep#102):
 their residue keeps the population and land fill, like their crops.
-World \code{stock_variation} over all items moves from -2,963 / -3,119 Mt to
--744 / -715 Mt. No 1961-or-later value and no other item moves.}
+World \code{stock_variation} over all items moves from -3,057 / -3,222 Mt to
+-751 / -723 Mt. No 1961-or-later value and no other item moves.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When

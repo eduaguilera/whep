@@ -2,8 +2,8 @@
 #
 # The `crop_residues` pin starts in 1961. Before this, the historical
 # extension grew residue USES along population and land and gave the residue
-# no PRODUCTION, so the balance closed through a stock draw: 2.59 Gt in 1955
-# and 2.80 Gt in 1960 on a real 1955-1965 build. The residue now grows back
+# no PRODUCTION, so the balance closed through a stock draw: 2.68 Gt in 1955
+# and 2.91 Gt in 1960 on a real 1955-1965 build. The residue now grows back
 # along the crop it comes from.
 
 # One first-year residue row of the `get_primary_residues()` schema.
