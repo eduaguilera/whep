@@ -583,7 +583,8 @@ testthat::test_that("ipcc2019_atl_med reproduces the former ipcc2019 output", {
     0.25900000000000001
   )
   out <- whep::calculate_soil_n2o(x, method = "ipcc2019_atl_med")
-  testthat::expect_identical(out$n2o_direct_n_t, golden)
+  # Tolerance, not identical: macOS arm64 differs in the last bit.
+  testthat::expect_equal(out$n2o_direct_n_t, golden, tolerance = 1e-12)
   testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_atl_med"))
 })
 
@@ -1101,7 +1102,8 @@ testthat::test_that("calculate_indirect_n2o_nh3 ipcc2019_atl_med reproduces the 
     0.048499999999999995
   )
   out <- whep::calculate_indirect_n2o_nh3(x, method = "ipcc2019_atl_med")
-  testthat::expect_identical(out$n2o_indirect_nh3_n_t, golden)
+  # Tolerance, not identical: macOS arm64 differs in the last bit.
+  testthat::expect_equal(out$n2o_indirect_nh3_n_t, golden, tolerance = 1e-12)
   testthat::expect_true(all(out$method_n2o_indirect_nh3 == "ipcc2019_atl_med"))
 })
 
