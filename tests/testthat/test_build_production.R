@@ -183,6 +183,148 @@ test_that(".add_historical_yields back-casts a periodized-name country", {
   expect_equal(tonnes_1960, 4800)
 })
 
+# -- Sugar cane yield basis in the international-yields pin (whep#1544) --------
+
+# The pin's sugar cane (156) rows for India (100), Pakistan (165) and Myanmar
+# (28), with a wheat control that must pass through untouched.
+.cane_basis_pin <- function() {
+  tibble::tribble(
+    ~year, ~item_code, ~area_code, ~yield,
+    1948L, 156,        100,        30.99,
+    1949L, 156,        100,        32.52,
+    1950L, 156,        100,        10.56,
+    1955L, 156,        100,        14.32,
+    1959L, 156,        100,        16.15,
+    1960L, 156,        100,        44.69,
+    1961L, 156,        100,        45.59,
+    1958L, 156,        165,        4.47,
+    1959L, 156,        165,        4.70,
+    1960L, 156,        165,        29.40,
+    1961L, 156,        165,        29.99,
+    1959L, 156,        28,         6.33,
+    1960L, 156,        28,         29.39,
+    1961L, 156,        28,         29.98,
+    1959L, 15,         100,        0.80,
+    1960L, 15,         100,        0.85
+  )
+}
+
+.mock_cane_basis_pin <- function(env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    .read_input = function(name, years = NULL, year_col = NULL, ...) {
+      pin <- .cane_basis_pin()
+      if (!is.null(years)) {
+        pin <- dplyr::filter(pin, dplyr::between(year, min(years), max(years)))
+      }
+      data.table::as.data.table(pin)
+    },
+    .env = env
+  )
+}
+
+.int_yield_of <- function(int_yields, area, item, yr) {
+  int_yields |>
+    tibble::as_tibble() |>
+    dplyr::filter(
+      area_code == area,
+      item_prod_code == item,
+      year %in% yr
+    ) |>
+    dplyr::arrange(year) |>
+    dplyr::pull(yield)
+}
+
+test_that("pre-1962 sugar cane yields carry no basis break at 1960", {
+  # The pin's 1950-1959 India and pre-1960 Pakistan/Myanmar cane rows are on a
+  # basis a third to a sixth of the 1960 rows, and the back-cast chains them
+  # to the 1961 anchor, so every year before the break fell by that factor.
+  .mock_cane_basis_pin()
+  int_yields <- suppressMessages(whep:::.read_int_yields())
+  df <- tidyr::expand_grid(
+    area_code = c(100L, 165L, 28L),
+    year = 1955:1961,
+    unit = c("tonnes", "ha")
+  ) |>
+    dplyr::mutate(
+      area = as.character(area_code),
+      item_prod = "Sugar cane",
+      item_prod_code = "156",
+      item_cbs = "Sugar cane",
+      item_cbs_code = 2536L,
+      land_use = "cropland",
+      live_anim = NA_character_,
+      live_anim_code = NA_integer_,
+      # Before 1961 the tonnes are the land-driven extension, so a year the
+      # proxy cannot reach keeps the anchor yield (45 t/ha).
+      value = dplyr::if_else(unit == "ha", 1000, 45000),
+      source = "FAOSTAT_prod"
+    )
+
+  out <- whep:::.add_historical_yields(df, int_yields) |>
+    tibble::as_tibble() |>
+    dplyr::arrange(area_code, year) |>
+    dplyr::mutate(ratio = t_ha / dplyr::lag(t_ha), .by = area_code)
+
+  # One year cannot move a cane yield by half; the break moved it by 2.8-6.3x.
+  expect_true(all(dplyr::between(out$ratio, 0.8, 1.25), na.rm = TRUE))
+  expect_equal(sum(!is.na(out$ratio)), 18L)
+})
+
+test_that(".read_int_yields bridges India's off-basis 1950s cane rows", {
+  .mock_cane_basis_pin()
+  int_yields <- suppressMessages(whep:::.read_int_yields())
+
+  # 1950-1959 lie on the line between the consistent 1949 and 1960 values, so
+  # the chain through them still reaches 1949 at the pin's own ratio.
+  expect_equal(
+    .int_yield_of(int_yields, 100L, "156", 1950:1959),
+    32.52 + (44.69 - 32.52) * c(1, 6, 10) / 11
+  )
+  expect_equal(
+    .int_yield_of(int_yields, 100L, "156", c(1948:1949, 1960:1961)),
+    c(30.99, 32.52, 44.69, 45.59)
+  )
+  # No consistent earlier value to bridge to: the rows are dropped.
+  expect_equal(
+    .int_yield_of(int_yields, 165L, "156", 1958:1961),
+    c(29.40, 29.99)
+  )
+  expect_equal(.int_yield_of(int_yields, 28L, "156", 1959:1961), c(29.39, 29.98))
+  # Other items in the same country are untouched.
+  expect_equal(.int_yield_of(int_yields, 100L, "15", 1959:1960), c(0.80, 0.85))
+})
+
+test_that(".read_int_yields bridges India's 1950s from outside a scoped read", {
+  # A 1955-1965 build reads the pin from 1955; the bridge still needs 1949.
+  .mock_cane_basis_pin()
+  int_yields <- suppressMessages(whep:::.read_int_yields(years = 1955:1965))
+
+  expect_equal(range(int_yields$year), c(1955L, 1961L))
+  expect_equal(
+    .int_yield_of(int_yields, 100L, "156", c(1955L, 1959L)),
+    32.52 + (44.69 - 32.52) * c(6, 10) / 11
+  )
+})
+
+test_that(".read_int_yields warns once a corrected span is no longer broken", {
+  # A regenerated pin may fix the rows at source; the correction then
+  # overwrites good data and must say so.
+  fixed <- .cane_basis_pin() |>
+    dplyr::mutate(
+      yield = dplyr::case_when(
+        area_code == 165 & year < 1960 ~ 28,
+        area_code == 100 & dplyr::between(year, 1950, 1959) ~ 36,
+        .default = yield
+      )
+    )
+  local_mocked_bindings(
+    .read_input = function(...) data.table::as.data.table(fixed)
+  )
+  expect_warning(
+    suppressMessages(whep:::.read_int_yields()),
+    class = "whep_warn_stale_yield_basis_span"
+  )
+})
 
 # -- merge_euadb_fodder --------------------------------------------------------
 

@@ -947,7 +947,14 @@ build_primary_production <- function(
   # The raw `area_code` is already a `polity_area_code`, matching the
   # production `area_code`. Key the proxy by code (not by the periodized
   # polity name) so the merge in `.add_historical_yields()` matches.
-  dt <- .read_input("international-yields", years = years, year_col = "year")
+  # The read reaches back to the years a basis bridge is anchored on, so a
+  # scoped build bridges exactly as the full one does (whep#1544).
+  read_years <- if (is.null(years)) NULL else c(years, .basis_bridge_years())
+  dt <- .read_input(
+    "international-yields",
+    years = read_years,
+    year_col = "year"
+  )
   dt[, item_prod_code := as.character(item_code)]
   dt[, area_code := as.integer(area_code)]
   dt[, item_code := NULL]
@@ -960,7 +967,133 @@ build_primary_production <- function(
     by = c("year", "area_code", "item_prod_code")
   ]
   dt <- dt[!is.nan(yield)]
+  dt <- .fix_int_yield_basis(dt)
+  if (!is.null(years)) {
+    dt <- dt[year >= min(years) & year <= max(years)]
+  }
   dt
+}
+
+# -- Sugar cane yield basis (whep#1544) ---------------------------------------
+
+# The back-cast only uses the pin's year-on-year movement: a pre-1961 yield is
+# the 1961 anchor times `yield[year] / yield[1961]`. A change of basis inside a
+# series therefore becomes a level shift of every year before it. The sugar
+# cane (156) series of three countries change basis at 1960 (India also at
+# 1950), so their 1850-1959 cane came out a third to a sixth of the 1960 level.
+#
+# The rows inside the spans below are not cane per hectare on any one basis.
+# FAO's own Production Yearbooks (vol. 12, 1958, table 18, pp. 66-67; vol. 15,
+# 1961, table 20, pp. 68-69; production over area planted) give:
+#
+#   t/ha                1955   1956   1957  1958/59 1959/60
+#   India     FAO PY    32.8   33.3   32.0   36.8    36.2
+#             pin       14.3   15.7   16.5   16.5    16.2
+#   Pakistan  FAO PY    31.2   30.7   29.6   29.9    28.1
+#             pin        2.2    3.0    3.1    4.5     4.7
+#
+# The FAO/pin ratio is about 2.2 for India and 6-15 for Pakistan, drifting
+# year by year, so no conversion factor recovers cane from them. Myanmar's rows
+# swing from 0.8 to 11.4 t/ha over 1946-1959 against FAO's 41-54 t/ha for
+# factory cane. Before 1946 Pakistan's and Myanmar's rows are Australia's
+# series times a constant (0.0246 and 0.203), not their own data.
+#
+# India's rows up to 1949 are consistent with 1960: 30.99 t/ha in 1948 against
+# 32.2 in FAO's 1948/49-1952/53 average. So India's span is bridged by a line
+# from 1949 to 1960, which leaves every pre-1950 year exactly where the pin put
+# it. Pakistan and Myanmar have no consistent earlier value; their rows are
+# dropped and the back-cast holds the 1960 yield.
+.int_yield_basis_spans <- function() {
+  tibble::tribble(
+    ~area_code, ~item_prod_code, ~year_from, ~year_to,
+    100L,       "156",           1950,       1959,
+    165L,       "156",           -Inf,       1959,
+    28L,        "156",           -Inf,       1959
+  )
+}
+
+# The years a bridged span is anchored on, which a scoped read must include.
+.basis_bridge_years <- function(spans = .int_yield_basis_spans()) {
+  bounded <- spans[is.finite(spans$year_from), ]
+  c(bounded$year_from - 1, bounded$year_to + 1)
+}
+
+.fix_int_yield_basis <- function(dt, spans = .int_yield_basis_spans()) {
+  keys <- c("area_code", "item_prod_code", "year")
+  span_rows <- tidyr::expand_grid(spans, year = unique(dt$year)) |>
+    dplyr::filter(year >= year_from, year <= year_to) |>
+    data.table::as.data.table()
+  dropped <- dt[span_rows, on = keys, nomatch = NULL]
+  if (nrow(dropped) == 0L) {
+    return(dt)
+  }
+  kept <- dt[!span_rows, on = keys]
+  ends <- .basis_span_ends(spans, kept)
+  .warn_stale_basis_spans(dropped, ends)
+  bridged <- .bridge_basis_spans(dropped, ends)
+  cli::cli_inform(
+    "Replacing {nrow(dropped)} off-basis sugar cane yield row{?s}:
+     {nrow(bridged)} bridged, the rest dropped (whep#1544)."
+  )
+  data.table::rbindlist(list(kept, bridged), use.names = TRUE)
+}
+
+# Each span with the pin's own yield the year before and the year after it.
+.basis_span_ends <- function(spans, kept) {
+  at <- tibble::as_tibble(kept[, .(area_code, item_prod_code, year, yield)])
+  spans |>
+    dplyr::mutate(from_year = year_from - 1, to_year = year_to + 1) |>
+    dplyr::left_join(
+      dplyr::rename(at, from_year = year, from_yield = yield),
+      by = c("area_code", "item_prod_code", "from_year")
+    ) |>
+    dplyr::left_join(
+      dplyr::rename(at, to_year = year, to_yield = yield),
+      by = c("area_code", "item_prod_code", "to_year")
+    )
+}
+
+# Linear in year between the values either side of the span, at the years the
+# pin reported. A span with no value before it is left empty, which the
+# back-cast reads as "hold the nearest anchored yield".
+.bridge_basis_spans <- function(dropped, ends) {
+  tibble::as_tibble(dropped[, .(year, area_code, item_prod_code)]) |>
+    dplyr::inner_join(
+      dplyr::filter(ends, !is.na(from_yield), !is.na(to_yield)),
+      by = c("area_code", "item_prod_code"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      yield = from_yield +
+        (to_yield - from_yield) * (year - from_year) / (to_year - from_year)
+    ) |>
+    dplyr::select(year, area_code, item_prod_code, yield) |>
+    data.table::as.data.table()
+}
+
+# A regenerated pin may carry these rows on the right basis. A span's last
+# value then sits near the value after it, and the correction would overwrite
+# good data.
+.warn_stale_basis_spans <- function(dropped, ends) {
+  stale <- tibble::as_tibble(dropped[, .(area_code, item_prod_code, year, yield)]) |>
+    dplyr::inner_join(
+      dplyr::select(ends, area_code, item_prod_code, year = year_to, to_yield),
+      by = c("area_code", "item_prod_code", "year")
+    ) |>
+    dplyr::filter(yield / to_yield > 0.5)
+  if (nrow(stale) == 0L) {
+    return(invisible())
+  }
+  areas <- as.character(stale$area_code)
+  cli::cli_warn(
+    c(
+      "A sugar cane yield basis span no longer looks broken (whep#1544).",
+      "i" = "The span{?s} for area code{?s} {.val {areas}} end{?s/} within
+        half of the next year's yield; check the pin and drop the span from
+        {.fn .int_yield_basis_spans}."
+    ),
+    class = "whep_warn_stale_yield_basis_span"
+  )
 }
 
 # -- Flax fibre basis (whep#1351) ---------------------------------------------
