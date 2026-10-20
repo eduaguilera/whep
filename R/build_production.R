@@ -1824,8 +1824,11 @@ build_primary_production <- function(
   # last report falls before it has a tail.
   horizon <- max(reported$year, -Inf)
   tail <- !is.na(last) & last < horizon & df$year > last
-  if (any(tail)) {
-    .inform_stock_tail(df[tail, ], last[tail])
+  # Named only where a herd went: the completion fills the tail of an area
+  # reported for 40 years or less with zeros, and dropping those moves nothing.
+  named <- tail & !is.na(df$value) & df$value != 0
+  if (any(named)) {
+    .inform_stock_tail(df[named, ], last[named])
   }
   df[!tail, ]
 }

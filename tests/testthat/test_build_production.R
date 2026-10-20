@@ -144,6 +144,14 @@ test_that("the dropped stock tail is named, not silent", {
   df <- dplyr::filter(.overseas_stock_rows(), year <= 2006L | area_code == 68L)
   expect_no_message(whep:::.drop_unreported_stock_tail(df))
   expect_equal(whep:::.drop_unreported_stock_tail(df), df)
+  # A tail of completion zeros goes without a message: it carried no herd.
+  zeros <- tibble::tribble(
+    ~year, ~area_code, ~value,
+    1992L, 51L, 5,
+    1993L, 51L, 0
+  )
+  expect_no_message(result <- whep:::.drop_unreported_stock_tail(zeros))
+  expect_equal(result$year, 1992L)
 })
 
 test_that("years past the area vocabulary's horizon are not a dropped tail", {
