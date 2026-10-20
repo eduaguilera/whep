@@ -146,6 +146,20 @@ test_that("the dropped stock tail is named, not silent", {
   expect_equal(whep:::.drop_unreported_stock_tail(df), df)
 })
 
+test_that("years past the area vocabulary's horizon are not a dropped tail", {
+  # The stock pin runs past the last year the area vocabulary knows. No area
+  # is reported then, so that is the vocabulary's horizon, not a retirement.
+  df <- tibble::tribble(
+    ~year, ~area_code, ~value,
+    2023L, 68L, 1,
+    2030L, 68L, 1,
+    2030L, 87L, 1
+  )
+  result <- suppressMessages(whep:::.drop_unreported_stock_tail(df))
+  expect_equal(result$area_code, c(68L, 68L))
+  expect_true(any(result$year == 2030L))
+})
+
 test_that("the un-fold drops bucket 206's stock rows after it retires", {
   # Under the un-fold, 276/277 no longer sum into 206, so a 206 stock row after
   # 2011 (FAOSTAT's last year for the area) can only be the completion carrying

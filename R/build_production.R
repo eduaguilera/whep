@@ -1803,7 +1803,8 @@ build_primary_production <- function(
 #
 # "Reports" is `.reported_bucket_years()`, which follows folds: under the fold
 # bucket 206 is reported after 2011 by 276/277 and keeps every row. Only the
-# tail after an area's last reported year goes. An area no reporting window
+# tail after an area's last reported year goes, and only when that year falls
+# before the vocabulary's own horizon. An area no reporting window
 # covers at all is left alone, and years before the first report are not
 # touched either, because the completion fills those with zeros (n <= 40).
 .drop_unreported_stock_tail <- function(df) {
@@ -1811,10 +1812,18 @@ build_primary_production <- function(
   if (length(years) == 0L) {
     return(df)
   }
-  reported <- .reported_bucket_years(min(years):max(years))
+  # Over the vocabulary's whole span, not the frame's, so an area whose last
+  # report predates the frame's first year is still recognised as retired.
+  windows <- .area_reporting_windows()
+  span <- min(c(windows$window_start, years)):max(c(windows$window_end, years))
+  reported <- .reported_bucket_years(span)
   last_year <- reported[, .(last_year = max(year)), by = area_code]
   last <- last_year$last_year[match(df$area_code, last_year$area_code)]
-  tail <- !is.na(last) & df$year > last
+  # The stock pin can run past the last year the area vocabulary knows. Nothing
+  # is reported then, and that horizon is not a retirement: only an area whose
+  # last report falls before it has a tail.
+  horizon <- max(reported$year, -Inf)
+  tail <- !is.na(last) & last < horizon & df$year > last
   if (any(tail)) {
     .inform_stock_tail(df[tail, ], last[tail])
   }
