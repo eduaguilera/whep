@@ -2752,6 +2752,11 @@ utils::globalVariables(
     "r_export",
     "r_import",
     "rebase_old_new",
+    # build_production.R: sugar cane yield basis bridge (whep#1544)
+    "from_year",
+    "from_yield",
+    "to_year",
+    "to_yield",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

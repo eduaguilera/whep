@@ -289,7 +289,10 @@ test_that(".read_int_yields bridges India's off-basis 1950s cane rows", {
     .int_yield_of(int_yields, 165L, "156", 1958:1961),
     c(29.40, 29.99)
   )
-  expect_equal(.int_yield_of(int_yields, 28L, "156", 1959:1961), c(29.39, 29.98))
+  expect_equal(
+    .int_yield_of(int_yields, 28L, "156", 1959:1961),
+    c(29.39, 29.98)
+  )
   # Other items in the same country are untouched.
   expect_equal(.int_yield_of(int_yields, 100L, "15", 1959:1960), c(0.80, 0.85))
 })

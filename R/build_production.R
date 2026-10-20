@@ -983,13 +983,13 @@ build_primary_production <- function(
 # 1950), so their 1850-1959 cane came out a third to a sixth of the 1960 level.
 #
 # The rows inside the spans below are not cane per hectare on any one basis.
-# FAO's own Production Yearbooks (vol. 12, 1958, table 18, pp. 66-67; vol. 15,
-# 1961, table 20, pp. 68-69; production over area planted) give:
+# FAO's own Production Yearbooks (1958, table 18, pp. 66-67; 1961, table 20,
+# pp. 68-69; production over area planted) give:
 #
 #   t/ha                1955   1956   1957  1958/59 1959/60
 #   India     FAO PY    32.8   33.3   32.0   36.8    36.2
 #             pin       14.3   15.7   16.5   16.5    16.2
-#   Pakistan  FAO PY    31.2   30.7   29.6   29.9    28.1
+#   Pakistan  FAO PY    31.2    --    29.6   29.9    28.1
 #             pin        2.2    3.0    3.1    4.5     4.7
 #
 # The FAO/pin ratio is about 2.2 for India and 6-15 for Pakistan, drifting
@@ -1002,7 +1002,8 @@ build_primary_production <- function(
 # 32.2 in FAO's 1948/49-1952/53 average. So India's span is bridged by a line
 # from 1949 to 1960, which leaves every pre-1950 year exactly where the pin put
 # it. Pakistan and Myanmar have no consistent earlier value; their rows are
-# dropped and the back-cast holds the 1960 yield.
+# dropped, so the back-cast stops at 1960 and the earlier years keep the
+# land-driven extension's yield, the 1961 anchor.
 .int_yield_basis_spans <- function() {
   tibble::tribble(
     ~area_code, ~item_prod_code, ~year_from, ~year_to,
@@ -1075,7 +1076,12 @@ build_primary_production <- function(
 # value then sits near the value after it, and the correction would overwrite
 # good data.
 .warn_stale_basis_spans <- function(dropped, ends) {
-  stale <- tibble::as_tibble(dropped[, .(area_code, item_prod_code, year, yield)]) |>
+  stale <- tibble::as_tibble(dropped[, .(
+    area_code,
+    item_prod_code,
+    year,
+    yield
+  )]) |>
     dplyr::inner_join(
       dplyr::select(ends, area_code, item_prod_code, year = year_to, to_yield),
       by = c("area_code", "item_prod_code", "year")
