@@ -26,6 +26,7 @@ build_commodity_balances(
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   nut_basis = .nut_basis_choices(),
+  residue_backcast = .cbs_residue_backcast_choices(),
   .fixed_data = NULL
 )
 }
@@ -355,17 +356,20 @@ it directly. Its rows are crop residues from the \code{crop_residues} pin,
 which books all of FABIO's Rest-of-World members on one label.
 
 \code{"member_sum"} grows it on the summed population and agricultural land
-of those members, the territory its rows describe. This holds whatever
-\code{options(whep.unfold_rest_of_world)} is set to. \code{"none"} gives it no
-proxy, so its series starts in 1961.
+of those members, the territory its rows describe, and grows its residue
+along the summed crops of those members (see \code{residue_backcast}). This
+holds whatever \code{options(whep.unfold_rest_of_world)} is set to. \code{"none"}
+gives it no proxy, so its series starts in 1961.
 
 \strong{The default moves published values}, for area 999 before 1961 only.
-Measured on a real 1955-1965 build, 66 rows are added and no other
-value changes: 83.5 Mt of residue \code{domestic_supply} over 1955-1960
-(13.0 Mt in 1955, 14.9 Mt in 1960, then 15.3 Mt observed in 1961), of
-which 68.3 Mt is \code{other_uses} and 15.3 Mt \code{feed}. That raises world
-residue use by 0.74-0.78\% in those years. Under \code{"none"} the build is
-identical to the one before this argument existed.}
+Measured on a real 1955-1965 build with the default \code{residue_backcast},
+73 rows differ from \code{"none"} and no other value changes: 75.0 Mt of
+residue \code{production} and \code{domestic_supply} over 1955-1960 (11.7 Mt in
+1955, 13.3 Mt in 1960, then 21.2 Mt in 1961), of which 44.1 Mt is
+\code{other_uses} and 31.0 Mt \code{feed}. That raises world residue use by
+0.44-0.46\% in those years. The step at 1961 is the members' crops: six
+of the eleven report no production before 1961. Under \code{"none"} area 999
+carries no rows before 1961.}
 
 \item{unmatched_processing}{One of \code{"other_uses"} (default),
 \code{"processing"} or \code{"redistribute"}, selecting where a \code{processing}
@@ -493,6 +497,42 @@ production; the 5.37 Mt drop is 0.11\% of the 4,692 Mt of all-item food.
 Production and stock change do not move from 2010 on. FBS's own 2551
 protein over the pin's food rises from 45.6 to 62.9 g/kg, against FAO's
 in-shell basket of 64.7 that \code{\link[=build_food_supply]{build_food_supply()}} applies.}
+
+\item{residue_backcast}{One of \code{"own_method"} (default),
+\code{"production_ratio"} or \code{"area_rate"}, selecting what crop residue
+(Straw, Other crop residues, Firewood) grows back along before the first
+year of the \code{crop_residues} pin, 1961 (whep#1508). Each (area, crop,
+residue item) keeps the ratio of its 1961 gross residue to a basis taken
+from the crop's primary production, and is then recovered and split into
+\code{production}, \code{feed} and \code{other_uses} as every 1961+ row is, so
+production equals feed plus other uses in every year. Rows carry the
+source \code{"historical_residue_<method>"}.
+
+\code{"own_method"} grows each row along the basis its 1961 value was built
+on: residue computed from yield (cereals, and the non-cereals with an
+IPCC Table 11.2 line, whep#1561) along \code{\link[=calculate_crop_residues]{calculate_crop_residues()}}
+applied to the year's production and harvested area, the estimator that
+computes it from 1961 on, and every other row along its crop's
+production, since the pin's remaining residue is a residue:product
+ratio. \code{"production_ratio"} grows
+every row along production, holding residue per tonne of crop; it puts
+1955-1960 residue computed from yield 1.5-5.7\% below the estimator.
+\code{"area_rate"} grows every row along harvested area, holding residue per
+hectare; it puts it 0.3-2.6\% above.
+
+\strong{The default moves published values}, for residue items before 1961
+only. Before it, the extension grew residue uses along population and
+agricultural land and gave the residue no production, so the whole use
+was booked as a stock draw. Measured on a real 1955-1965 build, world
+residue production in 1955 / 1960 goes from none to 2,301 / 2,486 Mt
+(\code{"production_ratio"} 2,209 / 2,454, \code{"area_rate"} 2,392 / 2,506),
+against 3,038 Mt in 1961, and residue \code{stock_variation} from
+-2,681 / -2,906 Mt to -375 / -407 Mt under all three. What remains is
+the Soviet Union, Yugoslavia, Czechoslovakia and Belgium-Luxembourg,
+whose crop production does not reach before 1961 either (whep#102):
+their residue keeps the population and land fill, like their crops.
+World \code{stock_variation} over all items moves from -3,057 / -3,222 Mt to
+-751 / -723 Mt. No 1961-or-later value and no other item moves.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
