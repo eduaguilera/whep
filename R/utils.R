@@ -2752,6 +2752,23 @@ utils::globalVariables(
     "r_export",
     "r_import",
     "rebase_old_new",
+    # n_prov_destiny.R (whep#1014) -- crush of imported feedstock booked on
+    # the primary item (`import_processing = "feedstock"`)
+    "net_import_fm",
+    "import_fed_fm",
+    "primary_item",
+    "output_n",
+    "feedstock_n",
+    "loss_n",
+    "booked_n",
+    "consumed",
+    "produced",
+    "import_n",
+    "crushed_n",
+    "outside_n",
+    "moved_share",
+    "moved_n",
+    "processing_losses",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

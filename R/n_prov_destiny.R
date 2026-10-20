@@ -31,6 +31,26 @@
 #'   Z., and Hickler, T. (2025). Nitrogen concentrations in boreal and
 #'   temperate tree tissues vary with tree age/size, growth rate, and climate.
 #'   *Biogeosciences* 22(5), 1475-1493. \doi{10.5194/bg-22-1475-2025}.
+#' @param import_processing How processing that Spain runs on imported
+#'   feedstock is booked (#1014). The builder's processing volume can exceed
+#'   what Spain grows: the soybean crush, about 3 Mt a year, runs almost
+#'   entirely on imported beans. One of:
+#'   - `"product"` (default): only domestic production is processed. Spain's
+#'     demand for the outputs (soybean cake and oil) is met by importing the
+#'     outputs, so the import is booked on the cake, not on the beans, and
+#'     the crush's own N loss is not booked. The volume left out is reported
+#'     in a warning of class `whep_processing_excess`.
+#'   - `"feedstock"`: the excess, capped at the item's net imports in the
+#'     commodity balance sheet ([get_wide_cbs()]), is crushed in Spain. The
+#'     imported feedstock is booked as `Outside` -> `processing` on the
+#'     primary item; the outputs it yields replace imports of the outputs
+#'     and carry origin `Agro-industry`; its N loss is booked as
+#'     `processing_losses` with origin `Agro-industry`. Consumption, and so
+#'     livestock intake, is unchanged. The crush is placed in the provinces
+#'     that import its outputs, in proportion to their imports. Downstream
+#'     analyses in this package (GRAFS plots, typologies, indicators) are
+#'     built on `"product"` and do not yet read the `processing` destiny or
+#'     the `Agro-industry` origin.
 #'
 #' @return
 #' A final tibble containing N flow data by origin and destiny.
@@ -44,10 +64,14 @@
 #'   - `origin`: The origin category of N: Cropland,
 #'   Semi-natural agroecosystems, Livestock (manure), People (waste water),
 #'   Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
-#'   `box` values, not origins; their nitrogen enters as Outside.
+#'   `box` values, not origins; their nitrogen enters as Outside. The one
+#'   exception is `import_processing = "feedstock"`, where Agro-industry is
+#'   the origin of the outputs and losses of the crush of imported feedstock.
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
 #'   processing_losses (N not credited to a processed output),
+#'   processing (imported feedstock crushed in Spain, only with
+#'   `import_processing = "feedstock"`),
 #'   Cropland and semi_natural_agroecosystems (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'
@@ -57,9 +81,11 @@
 #' create_n_prov_destiny(example = TRUE)
 create_n_prov_destiny <- function(
   example = FALSE,
-  wood_n_method = c("tissue", "single")
+  wood_n_method = c("tissue", "single"),
+  import_processing = c("product", "feedstock")
 ) {
   wood_n_method <- rlang::arg_match(wood_n_method)
+  import_processing <- rlang::arg_match(import_processing)
   if (example) {
     return(.example_create_n_prov_destiny())
   }
@@ -110,7 +136,24 @@ create_n_prov_destiny <- function(
   ) |>
     .backfill_processing_shares(first_year) |>
     .forwardfill_processing_shares(last_year)
-  .calculate_processing_excess(spain_coefs_observed, national_production) |>
+  excess <- .calculate_processing_excess(
+    spain_coefs_observed,
+    national_production
+  )
+  import_fed <- if (import_processing == "feedstock") {
+    .import_fed_volume(
+      excess,
+      .spain_net_imports(get_wide_cbs(years = 1961:last_year)),
+      cropland_items = prod_combined_boxes |>
+        dplyr::filter(Box == "Cropland") |>
+        dplyr::pull(Item) |>
+        unique()
+    )
+  } else {
+    .no_import_fed()
+  }
+  excess |>
+    .net_of_import_fed(import_fed) |>
     .warn_processing_excess()
 
   prod_combined_boxes_no_seeds <- biomass_item_merged |>
@@ -131,7 +174,7 @@ create_n_prov_destiny <- function(
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
-  grafs_prod_item_trade <- processed$non_processed |>
+  flows <- processed$non_processed |>
     .add_grass_wood(biomass_coefs) |>
     .prepare_prod_data(
       processed$processed_items,
@@ -162,6 +205,14 @@ create_n_prov_destiny <- function(
       destiny = Destiny,
       mg_n = MgN
     )
+
+  import_fed |>
+    .price_import_fed_crush(
+      spain_coefs,
+      .primary_biomass(prod_combined_boxes),
+      coefs = list(items = codes_coefs_items_full, biomass = biomass_coefs)
+    ) |>
+    .book_import_fed_crush(flows = flows)
 }
 
 #' @title GRAFS Nitrogen (N) flows – National Spain
@@ -176,6 +227,7 @@ create_n_prov_destiny <- function(
 #'
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
+#' @inheritParams create_n_prov_destiny
 #'
 #' @return
 #' A final tibble containing national N flow data by origin and destiny.
@@ -200,11 +252,17 @@ create_n_prov_destiny <- function(
 #'
 #' @examples
 #' create_n_nat_destiny(example = TRUE)
-create_n_nat_destiny <- function(example = FALSE) {
+create_n_nat_destiny <- function(
+  example = FALSE,
+  import_processing = c("product", "feedstock")
+) {
+  import_processing <- rlang::arg_match(import_processing)
   if (example) {
     return(.example_create_n_nat_destiny())
   }
-  .assemble_n_nat_destiny(create_n_prov_destiny())
+  .assemble_n_nat_destiny(
+    create_n_prov_destiny(import_processing = import_processing)
+  )
 }
 
 #' @title Aggregate provincial N destiny flows to the national level ---------
@@ -457,8 +515,10 @@ create_n_nat_destiny <- function(example = FALSE) {
       MgN
     )
 
+  # Imported feedstock crushed in Spain (`import_processing = "feedstock"`)
+  # is booked on its own destiny and passes through like the losses.
   nat_processing_losses <- prov |>
-    dplyr::filter(Destiny == "processing_losses") |>
+    dplyr::filter(Destiny %in% c("processing_losses", "processing")) |>
     dplyr::group_by(Year, Item, Irrig_cat, Box, Origin, Destiny) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(Province_name = "Spain")
@@ -480,7 +540,35 @@ create_n_nat_destiny <- function(example = FALSE) {
       origin = Origin,
       destiny = Destiny,
       mg_n = MgN
-    )
+    ) |>
+    .relabel_nat_import_fed(prov_raw)
+}
+
+#' @title Carry the import-fed crush to the national level ---------------------
+#' @description National imports are rebuilt from consumption less
+#' production, which books the outputs of the import-fed crush
+#' (`import_processing = "feedstock"`) as imports again. This moves the same
+#' N the provinces booked from the crush back to origin `Agro-industry`.
+#'
+#' @param nat National flows, lower_snake_case.
+#' @param prov_raw Output of `create_n_prov_destiny()`.
+#'
+#' @return `nat`, unchanged when the provinces booked no crush.
+#' @keywords internal
+#' @noRd
+.relabel_nat_import_fed <- function(nat, prov_raw) {
+  crushed <- prov_raw |>
+    dplyr::filter(
+      origin == "Agro-industry",
+      destiny %in% .consumption_destinies()
+    ) |>
+    dplyr::summarise(booked_n = sum(mg_n), .by = c(year, item))
+  if (nrow(crushed) == 0) {
+    return(nat)
+  }
+  nat |>
+    .relabel_import_fed_outputs(crushed) |>
+    dplyr::arrange(year, item, origin, destiny)
 }
 
 
@@ -1033,6 +1121,480 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @noRd
 .format_tonnes <- function(x) {
   format(round(x), big.mark = ",", trim = TRUE, scientific = FALSE)
+}
+
+#' @title Spain's net imports per CBS item (#1014) -----------------------------
+#' @description Reads Spain's rows of the wide CBS and nets exports out of
+#' imports. Only net imports can feed a crush: a tonne Spain re-exports
+#' cannot also be processed here.
+#'
+#' @param wide_cbs Output of `get_wide_cbs()`.
+#'
+#' @return A dataframe with Year, Item and net_import_fm (tonnes FM, never
+#' negative).
+#' @keywords internal
+#' @noRd
+.spain_net_imports <- function(wide_cbs) {
+  wide_cbs |>
+    dplyr::filter(area_code == .spain_area_code) |>
+    add_item_cbs_name(code_column = "item_cbs_code", name_column = "Item") |>
+    dplyr::transmute(
+      Year = year,
+      Item,
+      net_import_fm = pmax(import - export, 0)
+    )
+}
+
+#' @title Processing volume fed by imported feedstock (#1014) ------------------
+#' @description The part of `.calculate_processing_excess()` that imports
+#' explain: for a crop Spain grows, the processing volume above domestic
+#' production, capped at the item's net imports.
+#'
+#' Two kinds of excess are deliberately left out, and stay in the
+#' `.warn_processing_excess()` report:
+#' - a net exporter's excess. Spain's olive crush exceeds its olive harvest
+#'   in the CBS through a stock draw, not through imports (2020: 1.7 Mt FM of
+#'   excess against 71 kt imported and 513 kt exported), so booking it as
+#'   imported olives would invent trade;
+#' - inputs this pipeline never produces (`national_production_fm == 0`,
+#'   e.g. Molasses, Wine, the oils). Their processing is a second processing
+#'   stage of domestic outputs, which GRAFS does not model at all.
+#'
+#' @param excess Output of `.calculate_processing_excess()`.
+#' @param net_imports Output of `.spain_net_imports()`.
+#' @param cropland_items Items with Cropland production: the only rows the
+#' processing shares apply to.
+#'
+#' @return A dataframe with Year, Item and import_fed_fm (tonnes FM), one
+#' row per item-year with a positive import-fed volume.
+#' @keywords internal
+#' @noRd
+.import_fed_volume <- function(excess, net_imports, cropland_items) {
+  excess |>
+    dplyr::filter(
+      excess_fm > 0,
+      national_production_fm > 0,
+      Item %in% cropland_items
+    ) |>
+    dplyr::inner_join(net_imports, by = c("Year", "Item")) |>
+    dplyr::transmute(
+      Year,
+      Item,
+      import_fed_fm = pmin(excess_fm, net_import_fm)
+    ) |>
+    dplyr::filter(import_fed_fm > 0)
+}
+
+#' @title No import-fed processing ---------------------------------------------
+#' @description The zero-row table `.import_fed_volume()` returns, for
+#' `import_processing = "product"`, where nothing is processed from imports.
+#'
+#' @return A zero-row dataframe with Year, Item and import_fed_fm.
+#' @keywords internal
+#' @noRd
+.no_import_fed <- function() {
+  tibble::tibble(Year = double(), Item = character(), import_fed_fm = double())
+}
+
+#' @title Excess left after the import-fed processing ---------------------------
+#' @description Takes the import-fed volume out of the processing excess, so
+#' `.warn_processing_excess()` reports only what is still left out.
+#'
+#' @param excess Output of `.calculate_processing_excess()`.
+#' @param import_fed Output of `.import_fed_volume()`.
+#'
+#' @return `excess` with excess_fm reduced by import_fed_fm.
+#' @keywords internal
+#' @noRd
+.net_of_import_fed <- function(excess, import_fed) {
+  excess |>
+    dplyr::left_join(import_fed, by = c("Year", "Item")) |>
+    dplyr::mutate(
+      # Structural zero: an item-year absent from `import_fed` had nothing
+      # processed from imports.
+      excess_fm = excess_fm - dplyr::coalesce(import_fed_fm, 0)
+    ) |>
+    dplyr::select(-import_fed_fm)
+}
+
+#' @title Primary biomass of each processed crop ------------------------------
+#' @description Imported feedstock has no province, so it is priced with the
+#' biomass that carries most of the item's domestic Cropland production.
+#'
+#' @param prod_combined_boxes Dataframe with production_fm by province.
+#'
+#' @return A dataframe with Year, Item and Name_biomass, one row per
+#' Year/Item with Cropland production.
+#' @keywords internal
+#' @noRd
+.primary_biomass <- function(prod_combined_boxes) {
+  prod_combined_boxes |>
+    dplyr::filter(Box == "Cropland") |>
+    dplyr::summarise(
+      production_fm = sum(production_fm, na.rm = TRUE),
+      .by = c(Year, Item, Name_biomass)
+    ) |>
+    dplyr::slice_max(
+      production_fm,
+      n = 1,
+      with_ties = FALSE,
+      by = c(Year, Item)
+    ) |>
+    dplyr::select(Year, Item, Name_biomass)
+}
+
+#' @title Price the crush of imported feedstock in nitrogen -------------------
+#' @description Runs the import-fed volume through the same conversion
+#' factors and N-conserving scaling as domestic processing
+#' (`.expand_processed_items()`, `.processing_n_scaling()`), nationally. The
+#' feedstock's N is split exactly into the N its outputs carry and a
+#' processing loss.
+#'
+#' @param import_fed Output of `.import_fed_volume()`.
+#' @param spain_coefs Output of `.spain_processing_coefs()`, filled.
+#' @param primary_biomass Output of `.primary_biomass()`.
+#' @param coefs Named list with `items` and `biomass` coefficient tables.
+#'
+#' @return A list of two dataframes: `outputs` (year, primary_item, item,
+#' output_n: N in each processed output) and `inputs` (year, item,
+#' feedstock_n, loss_n: N of the imported feedstock and the part no output
+#' carries), all in tonnes N.
+#' @keywords internal
+#' @noRd
+.price_import_fed_crush <- function(
+  import_fed,
+  spain_coefs,
+  primary_biomass,
+  coefs
+) {
+  if (nrow(import_fed) == 0) {
+    return(list(
+      outputs = tibble::tibble(
+        year = double(),
+        primary_item = character(),
+        item = character(),
+        output_n = double()
+      ),
+      inputs = tibble::tibble(
+        year = double(),
+        item = character(),
+        feedstock_n = double(),
+        loss_n = double()
+      )
+    ))
+  }
+  candidate <- import_fed |>
+    dplyr::inner_join(primary_biomass, by = c("Year", "Item")) |>
+    dplyr::transmute(
+      Year,
+      Province_name = "Spain",
+      Name_biomass,
+      Item,
+      processed_fm = import_fed_fm
+    )
+  outputs <- .expand_processed_items(candidate, spain_coefs)
+  scaling <- .processing_n_scaling(candidate, outputs, coefs)
+
+  output_n <- outputs |>
+    dplyr::left_join(
+      scaling |> dplyr::select(Year, Name_biomass, Item, output_scale),
+      by = c("Year", "Name_biomass", "from_item" = "Item")
+    ) |>
+    dplyr::mutate(production_fm = production_fm * output_scale) |>
+    .add_product_n_per_fm(coefs) |>
+    dplyr::transmute(
+      year = Year,
+      primary_item = from_item,
+      item = Item,
+      output_n = production_fm * n_per_fm
+    ) |>
+    dplyr::filter(!is.na(output_n), output_n > 0)
+
+  list(
+    outputs = output_n,
+    inputs = .import_fed_inputs(scaling, output_n)
+  )
+}
+
+#' @title Feedstock and loss N of the import-fed crush ------------------------
+#' @description The feedstock N is what its outputs carry plus the processing
+#' loss, which is `n_in` exactly for a priced input (see
+#' `.processing_n_scaling()`). An unpriced input yields nothing.
+#'
+#' @param scaling Output of `.processing_n_scaling()` for the crush.
+#' @param output_n The `outputs` table built in `.price_import_fed_crush()`.
+#'
+#' @return A dataframe with year, item, feedstock_n and loss_n.
+#' @keywords internal
+#' @noRd
+.import_fed_inputs <- function(scaling, output_n) {
+  scaling |>
+    dplyr::transmute(year = Year, item = Item, loss_n = processing_loss_n) |>
+    dplyr::left_join(
+      output_n |>
+        dplyr::summarise(output_n = sum(output_n), .by = c(year, primary_item)),
+      by = c("year", "item" = "primary_item")
+    ) |>
+    # Structural zero: a primary item absent from `output_n` credited no N
+    # to any output.
+    dplyr::mutate(feedstock_n = dplyr::coalesce(output_n, 0) + loss_n) |>
+    dplyr::filter(feedstock_n > 0) |>
+    dplyr::select(year, item, feedstock_n, loss_n)
+}
+
+#' @title Book the crush of imported feedstock (#1014) -------------------------
+#' @description With `import_processing = "feedstock"`, the processed outputs
+#' Spain makes from imported feedstock are relabelled from imports of the
+#' output to outputs of the agro-industry, and the feedstock itself is booked
+#' as the import:
+#'
+#' - `<primary item>, Outside -> processing`: the imported feedstock;
+#' - `<output>, Agro-industry -> <consumer>`: the share of each province's
+#'   imported output (`Outside` rows) the crush supplies;
+#' - `<primary item>, Agro-industry -> processing_losses`: the crush's N that
+#'   no output carries.
+#'
+#' Consumption is untouched: only the origin label of existing rows moves,
+#' so livestock eat exactly the intake the input reports (PR #984 also fed
+#' the crushed beans raw and counted their N twice). Imported N grows by the
+#' crush's loss alone.
+#'
+#' The crush is sited where its outputs are imported, in proportion to each
+#' province's `Outside` consumption of them: imported feedstock has no
+#' province of origin, and the cake travels to the livestock that eat it.
+#' This is an allocation assumption, not data on where crushing plants are.
+#'
+#' A crush is capped at the national import of its outputs (consumption less
+#' domestic production): outputs Spain would have to export could not be
+#' booked without changing the trade calculation. The cap applies to the
+#' whole primary item, so its feedstock, outputs and losses stay in balance;
+#' a capped crush raises a warning of class `whep_import_fed_capped`.
+#'
+#' @param flows Output of `create_n_prov_destiny()` (lower_snake_case).
+#' @param crush Output of `.price_import_fed_crush()`.
+#'
+#' @return `flows` with the crush booked.
+#' @keywords internal
+#' @noRd
+.book_import_fed_crush <- function(flows, crush) {
+  if (nrow(crush$outputs) == 0) {
+    return(flows)
+  }
+  booked <- .import_fed_bookings(flows, crush)
+  relabelled <- .relabel_import_fed_outputs(
+    flows,
+    booked$outputs |>
+      dplyr::summarise(booked_n = sum(booked_n), .by = c(year, item))
+  )
+  dplyr::bind_rows(
+    relabelled,
+    .import_fed_input_rows(relabelled, booked)
+  )
+}
+
+#' @title Consumption destinies ------------------------------------------------
+#' @return The destinies that consume an item.
+#' @keywords internal
+#' @noRd
+.consumption_destinies <- function() {
+  c(
+    "population_food",
+    "population_other_uses",
+    "livestock_rum",
+    "livestock_mono"
+  )
+}
+
+#' @title How much of the import-fed crush can be booked ------------------------
+#' @description Caps each primary item's crush at the national import of its
+#' outputs. `import_share` is the fraction booked: 1 unless one of the
+#' item's outputs is imported less than the crush yields.
+#'
+#' @param flows Output of `create_n_prov_destiny()` (lower_snake_case).
+#' @param crush Output of `.price_import_fed_crush()`.
+#'
+#' @return A list with `outputs` (year, primary_item, item, booked_n) and
+#' `inputs` (year, item, feedstock_n, loss_n), both scaled to what is booked.
+#' @keywords internal
+#' @noRd
+.import_fed_bookings <- function(flows, crush) {
+  # Domestic production is every row a box books from itself: its local
+  # consumption and its exports, never its processing losses.
+  national_import <- flows |>
+    dplyr::filter(item %in% crush$outputs$item) |>
+    dplyr::summarise(
+      consumed = sum(mg_n[destiny %in% .consumption_destinies()]),
+      produced = sum(mg_n[origin == box & destiny != "processing_losses"]),
+      .by = c(year, item)
+    ) |>
+    dplyr::transmute(year, item, import_n = pmax(consumed - produced, 0))
+
+  share <- crush$outputs |>
+    dplyr::mutate(crushed_n = sum(output_n), .by = c(year, item)) |>
+    dplyr::left_join(national_import, by = c("year", "item")) |>
+    dplyr::mutate(
+      # An output nobody in Spain consumes has no import to replace.
+      import_n = dplyr::coalesce(import_n, 0),
+      output_share = pmin(import_n / crushed_n, 1)
+    ) |>
+    dplyr::summarise(
+      import_share = min(output_share),
+      .by = c(year, primary_item)
+    )
+  .warn_import_fed_capped(share)
+
+  list(
+    outputs = crush$outputs |>
+      dplyr::left_join(share, by = c("year", "primary_item")) |>
+      dplyr::transmute(
+        year,
+        primary_item,
+        item,
+        booked_n = output_n * import_share
+      ),
+    inputs = crush$inputs |>
+      dplyr::inner_join(share, by = c("year", "item" = "primary_item")) |>
+      dplyr::transmute(
+        year,
+        item,
+        feedstock_n = feedstock_n * import_share,
+        loss_n = loss_n * import_share
+      )
+  )
+}
+
+#' @title Warn about an import-fed crush capped by output imports ---------------
+#' @param share The per-primary-item `import_share` of
+#' `.import_fed_bookings()`.
+#' @return `share`, unchanged.
+#' @keywords internal
+#' @noRd
+.warn_import_fed_capped <- function(share) {
+  capped <- share |> dplyr::filter(import_share < 1)
+  if (nrow(capped) == 0) {
+    return(share)
+  }
+  items <- unique(capped$primary_item)
+  cli::cli_warn(
+    c(
+      "The import-fed crush of {cli::qty(length(items))} {.val {items}}
+       yield{?s/} more than Spain imports of {?its/their} outputs (#1014).",
+      i = "Only the imported part is booked; the rest stays booked as
+           imports of the outputs."
+    ),
+    class = "whep_import_fed_capped"
+  )
+  share
+}
+
+#' @title Relabel imported outputs as agro-industry outputs ---------------------
+#' @description Splits every `Outside` consumption row of a crushed output in
+#' two: the crush's share, with origin `Agro-industry`, and the rest, still
+#' `Outside`. Every row of an item gives up the same share, so each province
+#' and destiny keeps its total.
+#'
+#' @param flows Destiny flows, lower_snake_case.
+#' @param booked A dataframe with year, item and booked_n: the N of each
+#' output the crush supplies.
+#'
+#' @return `flows` with the booked N moved to origin `Agro-industry`.
+#' @keywords internal
+#' @noRd
+.relabel_import_fed_outputs <- function(flows, booked) {
+  imported <- flows$origin == "Outside" &
+    flows$destiny %in% .consumption_destinies()
+  moved_share <- flows[imported, ] |>
+    dplyr::summarise(outside_n = sum(mg_n), .by = c(year, item)) |>
+    dplyr::inner_join(booked, by = c("year", "item")) |>
+    dplyr::transmute(year, item, moved_share = pmin(booked_n / outside_n, 1))
+
+  split <- flows |>
+    dplyr::left_join(moved_share, by = c("year", "item")) |>
+    dplyr::mutate(
+      # Structural zero: only imported consumption of a crushed output moves.
+      moved_share = dplyr::if_else(imported, moved_share, NA_real_),
+      moved_share = dplyr::coalesce(moved_share, 0)
+    )
+  dplyr::bind_rows(
+    split |>
+      dplyr::filter(moved_share < 1) |>
+      dplyr::mutate(mg_n = mg_n * (1 - moved_share)),
+    split |>
+      dplyr::filter(moved_share > 0) |>
+      dplyr::mutate(origin = "Agro-industry", mg_n = mg_n * moved_share)
+  ) |>
+    dplyr::select(dplyr::all_of(names(flows)))
+}
+
+#' @title Feedstock and loss rows of the import-fed crush ---------------------
+#' @description Places each primary item's imported feedstock and crush loss
+#' in the provinces its outputs went to, in proportion to the output N each
+#' province received.
+#'
+#' The rows keep the primary item's box, `Cropland`: only cropland items are
+#' processed (see `.import_fed_volume()`).
+#'
+#' @param relabelled Output of `.relabel_import_fed_outputs()`.
+#' @param booked Output of `.import_fed_bookings()`.
+#'
+#' @return Destiny rows (lower_snake_case) for the feedstock
+#' (`Outside -> processing`) and the loss
+#' (`Agro-industry -> processing_losses`).
+#' @keywords internal
+#' @noRd
+.import_fed_input_rows <- function(relabelled, booked) {
+  province_share <- relabelled |>
+    dplyr::filter(origin == "Agro-industry") |>
+    dplyr::summarise(moved_n = sum(mg_n), .by = c(year, province_name, item)) |>
+    dplyr::mutate(output_share = moved_n / sum(moved_n), .by = c(year, item))
+
+  booked$outputs |>
+    dplyr::inner_join(
+      province_share,
+      by = c("year", "item"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::summarise(
+      weight = sum(booked_n * output_share),
+      .by = c(year, province_name, primary_item)
+    ) |>
+    dplyr::mutate(weight = weight / sum(weight), .by = c(year, primary_item)) |>
+    dplyr::inner_join(
+      booked$inputs,
+      by = c("year", "primary_item" = "item")
+    ) |>
+    dplyr::transmute(
+      year,
+      province_name,
+      item = primary_item,
+      processing = feedstock_n * weight,
+      processing_losses = loss_n * weight
+    ) |>
+    tidyr::pivot_longer(
+      c(processing, processing_losses),
+      names_to = "destiny",
+      values_to = "mg_n"
+    ) |>
+    dplyr::mutate(
+      irrig_cat = NA_character_,
+      box = "Cropland",
+      origin = dplyr::if_else(
+        destiny == "processing",
+        "Outside",
+        "Agro-industry"
+      )
+    ) |>
+    dplyr::filter(mg_n > 0) |>
+    dplyr::select(
+      year,
+      province_name,
+      item,
+      irrig_cat,
+      box,
+      origin,
+      destiny,
+      mg_n
+    )
 }
 
 #' @title Backfill early-year processing shares -------------------------------
