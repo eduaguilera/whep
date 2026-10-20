@@ -53,10 +53,10 @@
   )
 }
 
-.run_fish_backcast <- function(...) {
+.run_fish_backcast <- function(..., frame = .fish_backcast_frame()) {
   a <- .fish_backcast_args()
   whep:::.fill_historical_destinies(
-    .fish_backcast_frame(),
+    frame,
     a$primary_area,
     a$gdp_pop,
     a$land_wide,
@@ -146,6 +146,31 @@ test_that("the fish back-cast leaves the 1961 anchor as observed", {
   expect_equal(pelagic$export, 30)
 })
 
+test_that("the historical extension labels the fish supply with its method", {
+  a <- .fish_backcast_args()
+  inputs <- list(
+    primary_cbs_area = a$primary_area,
+    gdp_pop = a$gdp_pop,
+    land_areas_wide = a$land_wide
+  )
+  raw <- .fish_backcast_frame() |>
+    dplyr::filter(!is.na(.data$value)) |>
+    dplyr::mutate(source = "FAOSTAT_FBS_Old")
+  result <- whep:::.cbs_extend_historical(
+    raw,
+    inputs,
+    1960:1961,
+    fish_backcast = "closed_economy"
+  ) |>
+    suppressMessages() |>
+    dplyr::filter(.data$year == 1960L, .data$item_cbs_code == 2763L)
+  source_of <- \(el) result$source[result$element == el]
+
+  expect_equal(source_of("production"), "historical_fish_closed_economy")
+  expect_equal(source_of("import"), "historical_fish_closed_economy")
+  expect_equal(source_of("food"), "historical_fill")
+})
+
 test_that("the fish back-cast stamps the rows it estimated", {
   result <- .run_fish_backcast()
   stamped <- result |>
@@ -179,11 +204,33 @@ test_that("the fish back-cast does not touch non-fish items", {
   expect_false("import" %in% result$element)
 })
 
-test_that("a fish key with no production anchor is reported, not filled", {
-  # Without any observed production there is no ratio to hold, so the key
-  # keeps the generic fill and its use stays a stock draw. That must be said.
+test_that("a missing anchor production is read off the balance", {
+  # The food balances omit a zero production row: Austria's 1961 Pelagic Fish
+  # is supply 141 kt, import 142 kt, export 1 kt and no production row. The
+  # balance itself says production is zero, so the item is imported before
+  # 1961 rather than left as a stock draw.
   frame <- .fish_backcast_frame() |>
-    dplyr::filter(!(.data$element == "production" & .data$year == 1961L))
+    dplyr::filter(
+      !(.data$element == "production" & .data$item_cbs_code == 2762L)
+    )
+  demersal <- .run_fish_backcast(frame = frame) |>
+    .fish_balance_at(1960L, 2762L)
+
+  expect_equal(demersal$production, 0)
+  expect_equal(demersal$import, 45)
+  expect_equal(demersal$stock, 0)
+})
+
+test_that("a fish key with no production anchor is reported, not filled", {
+  # With neither a production nor a supply observed there is no ratio to
+  # hold, so the key keeps the generic fill and its use stays a stock draw.
+  # That must be said.
+  frame <- .fish_backcast_frame() |>
+    dplyr::filter(
+      !(.data$element %in%
+        c("production", "domestic_supply") &
+        .data$year == 1961L)
+    )
   a <- .fish_backcast_args()
 
   expect_message(

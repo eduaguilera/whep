@@ -3889,6 +3889,8 @@ build_processing_coefs <- function(
       fish_backcast = fish_backcast
     )
 
+  # Built outside the pipe: inside it `fish_backcast` is the row flag column.
+  fish_source <- .fish_backcast_source(fish_backcast)
   cbs_hist_pre <- cbs_hist |>
     dplyr::filter(year < 1961) |>
     dplyr::left_join(
@@ -3896,6 +3898,7 @@ build_processing_coefs <- function(
       by = obs_keys
     ) |>
     dplyr::mutate(
+      fish_source = fish_source,
       fill_source = .historical_fill_source(
         .data$supply_negative,
         negative_supply
@@ -3907,7 +3910,7 @@ build_processing_coefs <- function(
       fill_source = dplyr::if_else(
         dplyr::coalesce(.data$fish_backcast, FALSE) &
           .data$element %in% c("production", "import", "export"),
-        .fish_backcast_source(fish_backcast),
+        .data$fish_source,
         .data$fill_source
       ),
       source = dplyr::coalesce(.data$observed_source, .data$fill_source)
@@ -3917,6 +3920,7 @@ build_processing_coefs <- function(
         "observed_source",
         "supply_negative",
         "fish_backcast",
+        "fish_source",
         "fill_source"
       ))
     )
@@ -5014,7 +5018,7 @@ build_processing_coefs <- function(
         na.rm = TRUE
       ),
       .ratio = .fish_production_ratio(
-        .data$production,
+        .fish_anchor_production(dplyr::pick(dplyr::everything())),
         .data$.uses,
         .data$year,
         list(.data$area_code, .data$item_cbs_code)
@@ -5049,6 +5053,23 @@ build_processing_coefs <- function(
       )
     ) |>
     dplyr::select(-".fish", -".uses", -".ratio", -".supply")
+}
+
+# The production a row's balance reports, for reading the ratio off it. The
+# food balances omit a zero production row: in 1961 Austria, Switzerland and
+# Hungary book their Pelagic and Demersal Fish supply entirely as imports and
+# carry no production row at all. Where production is missing and the supply
+# is observed, it is therefore the balance's own residual, supply less net
+# imports, floored at zero -- the rule `.reestimate_domestic_supply()` applies
+# to the same missing production (#142).
+.fish_anchor_production <- function(df) {
+  implied <- pmax(
+    df$domestic_supply -
+      dplyr::coalesce(df$import, 0) +
+      dplyr::coalesce(df$export, 0),
+    0
+  )
+  dplyr::coalesce(df$production, implied)
 }
 
 # Production per tonne of use where both are observed, carried back from the
