@@ -582,6 +582,11 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
     )
 }
 
+# Case-insensitive: the package's land-use vocabulary is lowercase (#1571).
+.bnf_is_cropland <- function(land_use) {
+  stringr::str_to_lower(land_use) == "cropland" & !is.na(land_use)
+}
+
 .bnf_weed_spont_legumes <- function(x) {
   if (rlang::has_name(x, "legumes_spontaneous")) {
     return(x)
@@ -592,7 +597,7 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
   dplyr::mutate(
     x,
     legumes_spontaneous = dplyr::if_else(
-      land_use == "Cropland",
+      .bnf_is_cropland(land_use),
       cropland,
       other
     )
@@ -622,7 +627,7 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
     weed_ndfa = pmin(weed_ndfa_ref * f_env_weed, weed_ndfa_ref),
     legumes_seeded = tidyr::replace_na(legumes_seeded, 0),
     seeded_cover_crop_share = dplyr::if_else(
-      land_use == "Cropland",
+      .bnf_is_cropland(land_use),
       seeded_cover_crop_share,
       0
     ),

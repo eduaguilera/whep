@@ -148,3 +148,16 @@ test_that("calculate_crop_bnf gives zero BNF for a non-legume crop", {
   )
   testthat::expect_equal(out$crop_bnf_t, 0)
 })
+
+test_that("weed BNF treats land_use case-insensitively (#1571)", {
+  x <- tibble::tibble(
+    weed_npp_n_t = 10,
+    land_use = c("Cropland", "cropland", "Other"),
+    legumes_seeded = 0,
+    seeded_cover_crop_share = 0
+  )
+  out <- whep::calculate_weed_bnf(x)
+  expect_equal(out$legumes_spontaneous[1], out$legumes_spontaneous[2])
+  expect_equal(out$weed_bnf_t[1], out$weed_bnf_t[2])
+  expect_gt(out$weed_bnf_t[3], out$weed_bnf_t[2])
+})
