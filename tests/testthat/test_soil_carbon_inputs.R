@@ -1558,7 +1558,7 @@ testthat::test_that("the soil chain prices cereal straw as the CBS does", {
   testthat::expect_identical(by_crop(out, "236")$method_residue, "ensemble")
 })
 
-testthat::test_that("soil-returned cereal residue carbon follows the CBS straw", {
+testthat::test_that("soil-returned cereal residue C follows the CBS straw", {
   prod <- .sci_cbs_straw_fixture()
   out <- suppressWarnings(whep:::.sci_npp_from_primary_prod(prod))
   wide <- whep:::.sci_crop_prod_wide(prod) |>
@@ -1594,7 +1594,7 @@ testthat::test_that("soil-returned cereal residue carbon follows the CBS straw",
   testthat::expect_equal(out$root_c_t, expected$root_c_t)
 })
 
-testthat::test_that("rice grain stays milled while its straw is priced on paddy", {
+testthat::test_that("rice grain stays milled, its straw priced on paddy", {
   wide <- whep:::.sci_crop_prod_wide(.sci_cbs_straw_fixture())
   rice_in <- wide[wide$item_prod_code == "27", ]
   out <- whep:::.sci_crop_npp(wide)

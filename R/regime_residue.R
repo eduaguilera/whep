@@ -22,10 +22,10 @@
 # yield; a caller-supplied density is scaled by the same model response.
 #
 # The residue is affine in yield (the IPCC slope-intercept term, for a
-# non-cereal averaged with the residue:product ratio term) and so is the root (root:shoot times the
-# above-ground biomass, averaged with a reference below-ground biomass per
-# hectare). With the irrigation terms neutral and the root cap not binding,
-# the parts therefore sum to the crop: A_r f(Y_r) + A_i f(Y_i) = A f(Y)
+# non-cereal averaged with the residue:product ratio term) and so is the
+# root (root:shoot times the above-ground biomass, averaged with a reference
+# below-ground biomass per hectare). With the irrigation terms neutral and
+# the root cap not binding, the parts therefore sum to the crop: A_r f(Y_r) + A_i f(Y_i) = A f(Y)
 # because A_r Y_r + A_i Y_i = A Y. The positive intercepts give an
 # above-mean hectare less than its yield share. With the irrigation terms on,
 # residue and root fall on irrigated land, so a crop's total is not kept.
