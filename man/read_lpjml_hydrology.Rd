@@ -41,7 +41,9 @@ both from CRU instead, mixing two models' quantities in one expression;
 see the note at \code{.hydro_var_map()}. Nothing consumes them yet.}
 
 \item{run_dir}{Path to the LPJmL run output directory. Defaults to
-\code{Sys.getenv("WHEP_LPJML_RUN_DIR")}.}
+\code{Sys.getenv("WHEP_LPJML_RUN_DIR")}. When neither is set, \code{"drainage"}
+is read from the \code{lpjml-seepage} pin (see \emph{Pinned deep seepage}); every
+other variable needs a run.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 keeps every year present in the file. A requested year the run does not
@@ -137,6 +139,23 @@ created; once the short annual total is downstream it is indistinguishable
 from a measurement. \verb{years = } was already safe -- the coverage check counts
 only whole years, so requesting a partial one aborts -- and \code{partial_year}
 closes the \code{years = NULL} whole-file read that it does not cover.
+}
+
+\section{Pinned deep seepage}{
+
+\code{"drainage"} (LPJmL deep seepage, \code{mseepage.nc}) is the one variable that
+does not need a local run. Without \code{run_dir} or \code{WHEP_LPJML_RUN_DIR} it is
+read from the \code{lpjml-seepage} pin: annual seepage (mm per year, the twelve
+monthly values summed, as \code{monthly = FALSE} does from a run) per land cell
+and year, 1850-2023, built from WHEP's reference LPJmL 6.1.1 run by
+\code{.hydro_seepage_layer()}, so the pinned and run-derived values are the same
+numbers. The pin's rows carry the run's \code{lpjml_version}, \code{lpjml_git_hash}
+and \code{lpjml_run}; the reader returns the same columns as from a run. The pin
+is annual, so \code{monthly = TRUE} (and \code{agg = "mean"}) still needs a run.
+
+Seepage is a whole-cell quantity: LPJmL has no per-crop or per-water-regime
+seepage, so the irrigated and rainfed land of a cell share one value. Join
+it on \code{lon}, \code{lat} and \code{year}.
 }
 
 \examples{
