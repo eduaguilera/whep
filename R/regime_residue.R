@@ -21,8 +21,8 @@
 # production and harvested area -- the part's are the model's at its own
 # yield; a caller-supplied density is scaled by the same model response.
 #
-# The residue is affine in yield (the IPCC slope-intercept term averaged with
-# the residue:product ratio term) and so is the root (root:shoot times the
+# The residue is affine in yield (the IPCC slope-intercept term, for a
+# non-cereal averaged with the residue:product ratio term) and so is the root (root:shoot times the
 # above-ground biomass, averaged with a reference below-ground biomass per
 # hectare). With the irrigation terms neutral and the root cap not binding,
 # the parts therefore sum to the crop: A_r f(Y_r) + A_i f(Y_i) = A f(Y)
@@ -83,7 +83,10 @@
 
 # Residue and root dry matter on one hectare at the yield in `yield_col`,
 # with the part's regime or with none (the crop's own evaluation). Each
-# distinct row is evaluated once and joined back.
+# distinct row is evaluated once and joined back, through the soil chain's
+# own `.sci_crop_npp()` (cereals on the CBS's residue method, rice on a paddy
+# basis; whep#1519), so the denominator is the evaluation the crop's own
+# residue and root come from.
 .rr_model_at <- function(base, yield_col, with_regime) {
   covariates <- c("item_prod_code", "area_code", "year", "region_hanpp")
   if (with_regime) {
@@ -97,8 +100,7 @@
   evaluated <- rows |>
     dplyr::distinct() |>
     dplyr::mutate(production_t = .data$yield_t_ha, area_ha = 1) |>
-    calculate_crop_residues() |>
-    calculate_crop_roots() |>
+    .sci_crop_npp() |>
     dplyr::select(
       dplyr::all_of(c(covariates, "yield_t_ha")),
       "residue_dm_t",

@@ -720,7 +720,7 @@ test_that(".sci_bedding_supply traces the cereal straw bedding (whep#1005)", {
   destinies <- suppressWarnings(
     prod |>
       whep:::.sci_crop_prod_wide() |>
-      whep::calculate_crop_npp() |>
+      whep:::.sci_crop_npp() |>
       whep::calculate_residue_destinies(method = "recovery_regional")
   )
   out <- suppressWarnings(whep:::.sci_bedding_supply(prod))
@@ -1514,4 +1514,100 @@ testthat::test_that("the engine's national table is folded onto the support's bu
   out <- suppressMessages(whep:::.sci_engine_crops(2010L, support, inputs))
   testthat::expect_setequal(out$area_code, 206L)
   testthat::expect_equal(sum(out$rainfed_ha + out$irrigated_ha), 40)
+})
+
+# -- The commodity balance's straw (whep#1519) ---------------------------------
+
+# Wheat and rice (cereals) and soybean (not), as get_primary_production()
+# carries them: rice on a milled-equivalent basis.
+.sci_cbs_straw_fixture <- function() {
+  tibble::tribble(
+    ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
+    ~year, ~unit, ~value,
+    203L, 15, 2511L, NA, 2010L, "tonnes", 100,
+    203L, 15, 2511L, NA, 2010L, "ha", 40,
+    203L, 27, 2807L, NA, 2010L, "tonnes", 67,
+    203L, 27, 2807L, NA, 2010L, "ha", 20,
+    203L, 236, 2555L, NA, 2010L, "tonnes", 60,
+    203L, 236, 2555L, NA, 2010L, "ha", 20
+  )
+}
+
+testthat::test_that("the soil chain prices cereal straw as the CBS does", {
+  wide <- whep:::.sci_crop_prod_wide(.sci_cbs_straw_fixture())
+  out <- whep:::.sci_crop_npp(wide)
+  by_crop <- function(d, code) d[d$item_prod_code == code, ]
+  # The CBS's cereal method, read from get_primary_residues()'s default so
+  # the two sides cannot drift apart again.
+  testthat::expect_identical(whep:::.cbs_cereal_residue_method(), "ipcc")
+  wheat <- whep::calculate_crop_residues(
+    by_crop(wide, "15"),
+    method = "ipcc"
+  )
+  testthat::expect_equal(by_crop(out, "15")$residue_dm_t, wheat$residue_dm_t)
+  testthat::expect_identical(by_crop(out, "15")$method_residue, "ipcc")
+  # Rice reaches the IPCC line per tonne of paddy: the milled 67 t are the
+  # paddy 100 t times the 0.67 extraction rate get_primary_production() took.
+  rice <- by_crop(wide, "27") |>
+    dplyr::mutate(production_t = 100) |>
+    whep::calculate_crop_residues(method = "ipcc")
+  testthat::expect_equal(by_crop(out, "27")$residue_dm_t, rice$residue_dm_t)
+  # Non-cereals are not the CBS's cereal line: they keep the ensemble.
+  soy <- whep::calculate_crop_residues(by_crop(wide, "236"))
+  testthat::expect_equal(by_crop(out, "236")$residue_dm_t, soy$residue_dm_t)
+  testthat::expect_identical(by_crop(out, "236")$method_residue, "ensemble")
+})
+
+testthat::test_that("soil-returned cereal residue carbon follows the CBS straw", {
+  prod <- .sci_cbs_straw_fixture()
+  out <- suppressWarnings(whep:::.sci_npp_from_primary_prod(prod))
+  wide <- whep:::.sci_crop_prod_wide(prod) |>
+    dplyr::mutate(
+      production_t = dplyr::if_else(
+        .data$item_prod_code == "27",
+        .data$production_t / 0.67,
+        .data$production_t
+      )
+    )
+  # The product goes back to milled rice; only straw and root are on paddy.
+  milled <- function(d) {
+    rice <- d$item_prod_code == "27"
+    d$product_dm_t[rice] <- d$product_dm_t[rice] * 0.67
+    d
+  }
+  expected <- dplyr::bind_rows(
+    wide |>
+      dplyr::filter(.data$item_prod_code != "236") |>
+      whep::calculate_crop_npp(residue_method = "ipcc") |>
+      milled(),
+    wide |>
+      dplyr::filter(.data$item_prod_code == "236") |>
+      whep::calculate_crop_npp()
+  ) |>
+    whep::calculate_residue_destinies(method = "recovery_regional") |>
+    whep::calculate_npp_carbon_nitrogen() |>
+    suppressWarnings() |>
+    dplyr::arrange(.data$item_prod_code)
+  out <- dplyr::arrange(out, .data$item_prod_code)
+  testthat::expect_equal(out$residue_soil_c_t, expected$residue_soil_c_t)
+  testthat::expect_equal(out$residue_soil_n_t, expected$residue_soil_n_t)
+  testthat::expect_equal(out$root_c_t, expected$root_c_t)
+})
+
+testthat::test_that("rice grain stays milled while its straw is priced on paddy", {
+  wide <- whep:::.sci_crop_prod_wide(.sci_cbs_straw_fixture())
+  rice_in <- wide[wide$item_prod_code == "27", ]
+  out <- whep:::.sci_crop_npp(wide)
+  rice <- out[out$item_prod_code == "27", ]
+  plain <- whep::calculate_crop_npp(rice_in, residue_method = "ipcc")
+  # The product is the 67 t of milled rice get_primary_production() books.
+  testthat::expect_equal(rice$production_t, 67)
+  testthat::expect_equal(rice$product_dm_t, plain$product_dm_t)
+  testthat::expect_equal(rice$yield_dm_t_ha, plain$yield_dm_t_ha)
+  # The straw is not: a 100 t paddy harvest leaves more of it.
+  testthat::expect_gt(rice$residue_dm_t, plain$residue_dm_t)
+  testthat::expect_equal(
+    rice$crop_npp_dm_t,
+    rice$product_dm_t + rice$residue_dm_t + rice$root_dm_t
+  )
 })

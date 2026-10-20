@@ -181,8 +181,8 @@
 # Residue and root dry matter per hectare of maize (item 56) in Spain
 # (area code 203) in 2010, written out from the coefficient tables rather
 # than through the package's residue and root functions: the IPCC
-# slope-intercept residue term averaged with the residue:product ratio term,
-# both times the irrigation factor; the root as the root:shoot estimate
+# slope-intercept residue term, the CBS's cereal line (whep#1519), times the
+# irrigation factor; the root as the root:shoot estimate
 # (times the irrigated root:shoot factor) averaged with the reference
 # below-ground biomass, capped at three times the root:shoot ratio. Spain's
 # HANPP region has a modern-variety share of 1 for maize in 2010, so the
@@ -196,8 +196,9 @@
   root <- root[root$ipcc_crop == "Maize", ]
   yield_dm <- yield * bio$product_dm_kgfm
   ipcc <- res$slope_ag * yield_dm + res$intercept_ag_dm_t_ha
-  ratio <- yield * bio$residue_kg_product_fm_kg * bio$residue_dm_kgfm
-  residue <- residue_factor * (0.5 * ipcc + 0.5 * ratio)
+  # Maize is a cereal: the soil chain prices it with the CBS's IPCC line
+  # alone (whep#1519), not the ensemble with the residue:product ratio.
+  residue <- residue_factor * ipcc
   aerial <- yield_dm + residue
   root_dm <- 0.5 *
     aerial *
