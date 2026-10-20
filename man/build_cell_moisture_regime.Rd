@@ -15,7 +15,7 @@ Climatic Research Unit, University of East Anglia.
 build_cell_moisture_regime(
   years = NULL,
   window = c("trailing_30", "annual", "normal"),
-  water = c("precip_irrig", "precip"),
+  water = c("precip", "precip_irrig"),
   data = NULL,
   config = list(),
   example = FALSE
@@ -28,8 +28,9 @@ build_cell_moisture_regime(
 \code{"trailing_30"} (default, the 30 years ending in each year), \code{"annual"}
 or \code{"normal"} (one fixed period, \code{config$normal_period}).}
 
-\item{water}{The water term: \code{"precip_irrig"} (default, precipitation plus
-the irrigation depth of the row's crops and regime) or \code{"precip"}.}
+\item{water}{The water term: \code{"precip"} (default, precipitation alone, as
+IPCC defines the classes) or \code{"precip_irrig"} (precipitation plus the
+irrigation depth of the row's crops and regime).}
 
 \item{data}{Optional list of inputs used in place of reading them. Each
 element is optional:
@@ -101,9 +102,19 @@ Both tests are strict, so a value of exactly 1 or exactly 1000 mm is dry
 the disaggregation on long-term averages, so by default the inputs are
 averaged over the 30 years ending in each year before they are classified.
 
-The water term is precipitation plus, on irrigated rows, the irrigation
-depth of the row's crops (\code{water = "precip_irrig"}, the default), or
-precipitation alone (\code{water = "precip"}). Rainfed rows get no irrigation.
+The water term is precipitation alone (\code{water = "precip"}, the default),
+as footnote 4 defines the classes, or precipitation plus, on irrigated
+rows, the irrigation depth of the row's crops (\code{water = "precip_irrig"}).
+Precipitation alone is the default because the IPCC dry factors already
+price irrigated dry land: 63\% of the dry-climate cases the dry EF1 was
+fitted on were irrigated, and irrigated dry fields alone give an EF1 of
+0.004 (n = 94) against 0.005 for all dry and 0.014 for wet climates
+(Volume 4, Chapter 11, Annex 11A.2, p. 11.30, and Table 2A.2, p. 11.31).
+The leaching fraction treats "dry climate regions where irrigation ... is
+used" as a dry-climate case of its own (p. 11.25). Counting irrigation as
+precipitation would put irrigated dry land on the wet factors, pricing
+irrigation twice (issue #1531). Rainfed rows get no irrigation in either
+case, and only \code{"precip_irrig"} reads the LPJmL irrigation depth.
 }
 \details{
 Inputs:
@@ -124,10 +135,11 @@ keeps the variables it has; a variable with gaps is not lent but left to
 the classifier, which reports the years without it. The distance is
 \code{climate_fill_km}, and a message of class
 \code{whep_moisture_regime_nearest_climate} counts the cells by the variables
-they took. The cell's own water term, irrigation included, is then
-applied.
-\item Irrigation depth is LPJmL's applied irrigation per crop stand, pooled to
-the commodity balance item by WHEP's irrigated hectares. LPJmL's paddy
+they took. The cell's own water term, irrigation included under
+\code{water = "precip_irrig"}, is then applied.
+\item Irrigation depth (\code{water = "precip_irrig"} only) is LPJmL's applied
+irrigation per crop stand, pooled to the commodity balance item by
+WHEP's irrigated hectares. LPJmL's paddy
 water on its rainfed rice stand is not counted: rainfed rows get none.
 }
 }

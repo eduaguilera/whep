@@ -67,6 +67,12 @@
   )
 }
 
+# Most tests here exercise the irrigation assembly, so they select the
+# precipitation-plus-irrigation water term, no longer the default (#1531).
+.cmw_build_irrig <- function(...) {
+  whep::build_cell_moisture_regime(..., water = "precip_irrig")
+}
+
 .cmw_row <- function(out, lon, area, cbs, regime = "irrigated") {
   out[
     out$lon == lon &
@@ -78,7 +84,7 @@
 
 testthat::test_that("the output carries the documented columns", {
   testthat::skip_if_not_installed("pointblank")
-  out <- whep::build_cell_moisture_regime(
+  out <- .cmw_build_irrig(
     years = 2010L,
     window = "annual",
     data = .cmw_data(2010L)
@@ -100,7 +106,7 @@ testthat::test_that("the output carries the documented columns", {
 })
 
 testthat::test_that("CRU's columns reach the classifier under its names", {
-  out <- whep::build_cell_moisture_regime(
+  out <- .cmw_build_irrig(
     years = 2010L,
     window = "annual",
     data = .cmw_data(2010L)
@@ -114,13 +120,13 @@ testthat::test_that("CRU's columns reach the classifier under its names", {
   d <- .cmw_data(2010L)
   d$climate <- dplyr::rename(d$climate, frs = "annual_frost_days")
   testthat::expect_error(
-    whep::build_cell_moisture_regime(2010L, window = "annual", data = d),
+    .cmw_build_irrig(2010L, window = "annual", data = d),
     "annual_frost_days"
   )
 })
 
 testthat::test_that("rainfed rows take the cell's precipitation alone", {
-  out <- whep::build_cell_moisture_regime(
+  out <- .cmw_build_irrig(
     years = 2010L,
     window = "annual",
     data = .cmw_data(2010L)
@@ -144,7 +150,7 @@ testthat::test_that("a cell without CRU climate classifies on its nearest CRU ce
     10.25, 47.75, 79L,        56L,             40,          0
   )
   testthat::expect_message(
-    out <- whep::build_cell_moisture_regime(
+    out <- .cmw_build_irrig(
       years = 2010L,
       window = "annual",
       data = .cmw_data(2010L, extra = extra)
@@ -178,7 +184,7 @@ testthat::test_that("the nearest CRU cell is one with a complete record", {
   d <- .cmw_data(2009:2010, extra = extra)
   d$climate$annual_pet_mm[d$climate$lon == 9.75 & d$climate$year == 2009L] <-
     NA
-  out <- suppressMessages(whep::build_cell_moisture_regime(
+  out <- suppressMessages(.cmw_build_irrig(
     years = 2010L,
     window = "annual",
     data = d
@@ -227,7 +233,7 @@ testthat::test_that("the nearest CRU cell is one with a complete record", {
     ] <- NA
   }
   d$climate <- dplyr::bind_rows(d$climate, cell_c)
-  suppressMessages(whep::build_cell_moisture_regime(
+  suppressMessages(.cmw_build_irrig(
     years = 2010L,
     window = "annual",
     data = d
@@ -242,7 +248,7 @@ testthat::test_that("a cell missing only PET keeps its own variables", {
     .cmw_cell_c(2010L, annual_pet_mm = NA_real_)
   )
   testthat::expect_message(
-    out <- whep::build_cell_moisture_regime(
+    out <- .cmw_build_irrig(
       years = 2010L,
       window = "annual",
       data = d
@@ -382,7 +388,7 @@ testthat::test_that("a variable no cell holds in every year aborts", {
     .cmw_cell_c(2009:2010, annual_pet_mm = NA_real_)
   )
   err <- testthat::expect_error(
-    whep::build_cell_moisture_regime(
+    .cmw_build_irrig(
       years = 2010L,
       window = "annual",
       data = d
@@ -393,8 +399,55 @@ testthat::test_that("a variable no cell holds in every year aborts", {
   testthat::expect_match(cli::ansi_strip(conditionMessage(err)), "pet_mm")
 })
 
-testthat::test_that("irrigated rows add their crop's LPJmL depth", {
+# IPCC 2019 defines the wet and dry classes on precipitation alone, in
+# footnote 4 of Table 11.1 on page 11.13 of Volume 4 Chapter 11, and its dry
+# EF1 was fitted mostly on irrigated dry fields, per Annex 11A.2 on page
+# 11.30 (issue 1531). So by default an irrigated row in a cell that is dry on
+# precipitation stays dry, however much it is irrigated. Maize in cell A is
+# irrigated 500 mm here, and 1100 mm of water over 1000 mm of PET would be
+# wet if irrigation counted.
+testthat::test_that("by default irrigation does not make a dry cell wet", {
+  d <- .cmw_data(2010L)
+  d$crop_depth$irrig_mm_irrigated[d$crop_depth$lpjml_crop == "maize"] <- 500
+  default <- whep::build_cell_moisture_regime(
+    years = 2010L,
+    window = "annual",
+    data = d
+  )
+  maize <- .cmw_row(default, 9.25, 79L, 2514L)
+  testthat::expect_identical(maize$moisture_regime, "dry")
+  testthat::expect_equal(maize$water_mm, 600)
+  testthat::expect_identical(
+    maize$method_moisture_regime,
+    "ipcc2019_wet_dry;annual;precip"
+  )
+  # The precipitation-plus-irrigation term stays selectable, and is wet.
+  with_irrig <- whep::build_cell_moisture_regime(
+    years = 2010L,
+    window = "annual",
+    water = "precip_irrig",
+    data = d
+  )
+  testthat::expect_identical(
+    .cmw_row(with_irrig, 9.25, 79L, 2514L)$moisture_regime,
+    "wet"
+  )
+})
+
+testthat::test_that("the default needs no LPJmL irrigation depth", {
+  d <- .cmw_data(2010L)
+  d$crop_depth <- NULL
   out <- whep::build_cell_moisture_regime(
+    years = 2010L,
+    window = "annual",
+    data = d
+  )
+  testthat::expect_true(all(out$water_mm == out$prec_mm))
+  testthat::expect_true(all(!is.na(out$moisture_regime)))
+})
+
+testthat::test_that("irrigated rows add their crop's LPJmL depth", {
+  out <- .cmw_build_irrig(
     years = 2010L,
     window = "annual",
     data = .cmw_data(2010L)
@@ -412,7 +465,7 @@ testthat::test_that("irrigated rows add their crop's LPJmL depth", {
 })
 
 testthat::test_that("pooled items weight by WHEP hectares, not LPJmL stands", {
-  out <- whep::build_cell_moisture_regime(
+  out <- .cmw_build_irrig(
     years = 2010L,
     window = "annual",
     data = .cmw_data(2010L)
@@ -446,7 +499,7 @@ testthat::test_that("a trailing window averages each year's own inputs", {
   d$crop_depth$irrig_mm_irrigated[
     d$crop_depth$lpjml_crop == "maize" & d$crop_depth$year == 2010L
   ] <- 420
-  out <- whep::build_cell_moisture_regime(years = 2010L, data = d)
+  out <- .cmw_build_irrig(years = 2010L, data = d)
   maize <- .cmw_row(out, 9.25, 79L, 2514L)
   testthat::expect_equal(maize$irrig_mm, (29 * 120 + 420) / 30)
   testthat::expect_identical(
@@ -471,7 +524,7 @@ testthat::test_that("irrigation averages the years the land was irrigated", {
   in_a <- d$climate$lon == 9.25
   d$climate$annual_precip_mm[in_a] <- 600 + 10 * (d$climate$year[in_a] - 1981)
 
-  out <- whep::build_cell_moisture_regime(years = 2010L, data = d)
+  out <- .cmw_build_irrig(years = 2010L, data = d)
   maize <- .cmw_row(out, 9.25, 79L, 2514L)
 
   # Irrigation: the mean of 1999-2010 alone, not a 30-year mean.
@@ -500,7 +553,7 @@ testthat::test_that("a window year the regime areas lack stays missing", {
   d$regime_areas <- d$regime_areas[d$regime_areas$year != 1985L, ]
   testthat::expect_message(
     testthat::expect_message(
-      out <- whep::build_cell_moisture_regime(years = 2010L, data = d),
+      out <- .cmw_build_irrig(years = 2010L, data = d),
       class = "whep_moisture_regime_area_years"
     ),
     class = "whep_moisture_regime_unclassified"
@@ -528,7 +581,7 @@ testthat::test_that("LPJmL's own pre-1901 depths are used, labelled", {
       ),
     regime_areas = .cmw_areas(1880L)
   )
-  out <- whep::build_cell_moisture_regime(
+  out <- .cmw_build_irrig(
     years = 1880L,
     window = "annual",
     data = d
@@ -552,7 +605,7 @@ testthat::test_that("years outside the LPJmL run take the window's mean", {
   d <- .cmw_data(1981:2010)
   d$crop_depth <- d$crop_depth[d$crop_depth$year <= 2008L, ]
   d$lpjml_years <- 1950:2008
-  out <- whep::build_cell_moisture_regime(years = 2010L, data = d)
+  out <- .cmw_build_irrig(years = 2010L, data = d)
   maize <- .cmw_row(out, 9.25, 79L, 2514L)
   testthat::expect_equal(maize$irrig_mm, 120)
   testthat::expect_identical(
@@ -606,7 +659,7 @@ testthat::test_that("an irrigated item with no LPJmL band aborts", {
     irrigated_ha = 7
   )
   err <- testthat::expect_error(
-    whep::build_cell_moisture_regime(
+    .cmw_build_irrig(
       years = 2010L,
       window = "annual",
       data = .cmw_data(2010L, extra = extra)
@@ -677,7 +730,7 @@ testthat::test_that("an irrigated item with no LPJmL band aborts", {
 }
 
 .cmw_gap_run <- function(d = .cmw_gap_data()) {
-  whep::build_cell_moisture_regime(2010L, window = "annual", data = d)
+  .cmw_build_irrig(2010L, window = "annual", data = d)
 }
 
 testthat::test_that("a stand gap on the grid takes the polity's crop mean", {
@@ -783,7 +836,7 @@ testthat::test_that("supplied crop depths need their own LPJmL grid", {
   )
   # Without a stand gap, no grid is needed.
   testthat::expect_no_error(
-    whep::build_cell_moisture_regime(
+    .cmw_build_irrig(
       2010L,
       window = "annual",
       data = .cmw_data(2010L)
@@ -805,7 +858,7 @@ testthat::test_that("a filled depth before 1901 says its climate is recycled", {
       annual_frost_days = 40
     )
   out <- suppressMessages(
-    whep::build_cell_moisture_regime(1880L, window = "annual", data = d)
+    .cmw_build_irrig(1880L, window = "annual", data = d)
   )
   testthat::expect_identical(
     .cmw_row(out, 9.75, 79L, 2514L)$method_irrig_depth,
@@ -815,12 +868,12 @@ testthat::test_that("a filled depth before 1901 says its climate is recycled", {
 
 testthat::test_that("blocks of cells give the unblocked result exactly", {
   d <- .cmw_data(1980:2010)
-  whole <- whep::build_cell_moisture_regime(
+  whole <- .cmw_build_irrig(
     years = 2009:2010,
     data = d,
     config = list(max_rows = 1e9)
   )
-  blocked <- whep::build_cell_moisture_regime(
+  blocked <- .cmw_build_irrig(
     years = 2009:2010,
     data = d,
     config = list(max_rows = 1)
@@ -845,12 +898,12 @@ testthat::test_that("blocks give the unblocked result with fills and gaps", {
     d$regime_areas$area_code == 79L &
     d$regime_areas$lon == 9.25
   d$regime_areas$irrigated_ha[early] <- 0
-  whole <- suppressMessages(whep::build_cell_moisture_regime(
+  whole <- suppressMessages(.cmw_build_irrig(
     years = 2009:2010,
     data = d,
     config = list(max_rows = 1e9)
   ))
-  blocked <- suppressMessages(whep::build_cell_moisture_regime(
+  blocked <- suppressMessages(.cmw_build_irrig(
     years = 2009:2010,
     data = d,
     config = list(max_rows = 1)

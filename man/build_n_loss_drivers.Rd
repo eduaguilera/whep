@@ -12,7 +12,7 @@ Greenhouse Gas Inventories, Volume 4, Chapter 11, Table 11.1, footnote 4
 build_n_loss_drivers(
   rows = NULL,
   window = c("trailing_30", "annual", "normal"),
-  water = c("precip_irrig", "precip"),
+  water = c("precip", "precip_irrig"),
   data = NULL,
   config = list(),
   example = FALSE
