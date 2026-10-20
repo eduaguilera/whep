@@ -1004,6 +1004,112 @@ test_that(".extend_historical takes a historical land table at the seam", {
   expect_equal(default$source[3], historic$source[3])
 })
 
+test_that(".extend_historical can leave pre-1962 meat nes (1166) un-back-cast", {
+  # whep#1538: FAO's 1166 "Meat nes" includes marine mammals (FAO 1994, ch. 17,
+  # p. 92), and in whaling countries its 1961 anchor is mostly whale meat. The
+  # default carries that anchor back on agricultural land; `"none"` leaves the
+  # back-cast years empty while every other item, and 1166's own reported
+  # years, are untouched.
+  item_row <- function(code, name, value) {
+    tibble::tibble(
+      year = c(1959L, 1960L, 1961L),
+      area = "Ruritania",
+      area_code = 99L,
+      item_prod = name,
+      item_prod_code = code,
+      item_cbs = "Meat, Other",
+      item_cbs_code = 2735L,
+      live_anim = "Animals live nes",
+      live_anim_code = 1171L,
+      unit = "tonnes",
+      value = value,
+      source = c(NA, NA, "FAOSTAT_prod")
+    )
+  }
+  primary <- dplyr::bind_rows(
+    item_row(1166L, "Meat nes", c(NA, NA, 100)),
+    item_row(1176L, "Snails", c(NA, NA, 10))
+  )
+  years <- tibble::tibble(year = c(1959L, 1960L, 1961L))
+  land <- tibble::tibble(
+    year = rep(c(1959L, 1960L, 1961L), 2),
+    area = "Ruritania",
+    area_code = 99L,
+    Land_Use = rep(c("c3ann", "pastr"), each = 3),
+    Area_Mha = c(4, 4.5, 5, 4, 4.5, 5)
+  )
+
+  default <- whep:::.extend_historical(primary, years, land) |>
+    dplyr::arrange(item_prod_code, year)
+  none <- whep:::.extend_historical(
+    primary,
+    years,
+    land,
+    meat_nes_backcast = "none"
+  ) |>
+    dplyr::arrange(item_prod_code, year)
+
+  meat_default <- dplyr::filter(default, item_prod_code == 1166L)
+  expect_equal(meat_default$value, c(80, 90, 100))
+  expect_equal(meat_default$source[1:2], rep("LUH2_agriland", 2))
+
+  meat_none <- dplyr::filter(none, item_prod_code == 1166L)
+  expect_equal(meat_none$year, 1961L)
+  expect_equal(meat_none$value, 100)
+  expect_equal(meat_none$source, "FAOSTAT_prod")
+
+  expect_equal(
+    dplyr::filter(none, item_prod_code == 1176L),
+    dplyr::filter(default, item_prod_code == 1176L)
+  )
+})
+
+test_that(".extend_historical keeps an observed pre-1962 meat nes row", {
+  # Only the land-driven years are dropped: a 1166 value supplied as harmonized
+  # historical data is an observation and survives `"none"`.
+  primary <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Ruritania",
+    area_code = 99L,
+    item_prod = "Meat nes",
+    item_prod_code = 1166L,
+    item_cbs = "Meat, Other",
+    item_cbs_code = 2735L,
+    live_anim = "Animals live nes",
+    live_anim_code = 1171L,
+    unit = "tonnes",
+    value = c(70, NA, 100),
+    source = c("historical_census", NA, "FAOSTAT_prod")
+  )
+  years <- tibble::tibble(year = c(1959L, 1960L, 1961L))
+  land <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Ruritania",
+    area_code = 99L,
+    Land_Use = "pastr",
+    Area_Mha = c(8, 9, 10)
+  )
+
+  result <- whep:::.extend_historical(
+    primary,
+    years,
+    land,
+    meat_nes_backcast = "none"
+  ) |>
+    dplyr::arrange(year)
+
+  expect_equal(result$year, c(1959L, 1961L))
+  expect_equal(result$value, c(70, 100))
+  expect_equal(result$source, c("historical_census", "FAOSTAT_prod"))
+})
+
+test_that("build_primary_production rejects an unknown meat_nes_backcast", {
+  expect_error(
+    build_primary_production(meat_nes_backcast = "whaling"),
+    class = "rlang_error"
+  )
+})
+
 test_that(".historical_land_wide is NULL unless the method asks for it", {
   expect_null(whep:::.historical_land_wide("present_day", 1850:1961))
   # Nothing before 1962 is requested, so there is nothing to back-cast and the
