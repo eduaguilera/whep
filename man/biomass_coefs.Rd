@@ -157,9 +157,9 @@ element 5142), 2010, summed over the 152 countries reporting maize
 (71.95) and the 88 reporting oats (83.44). That FBS vintage was built
 by applying FAO's composition table (FAO, \emph{Food balance sheets: a
 handbook}, Rome, 2001, Annex I,
-\url{https://www.fao.org/4/x9892e/x9892e00.pdf}, PDF page 64:
-maize 9.5, flour of maize 8.4, oats 13.0, oats rolled 16.0 g protein
-per 100 g) to the products eaten, over a quantity converted back to
+\url{https://www.fao.org/4/x9892e/x9892e00.pdf}, PDF page 64
+(printed 60): maize 9.5, flour of maize 8.4, oats 13.0, oats rolled
+16.0 g protein per 100 g) to the products eaten, over a quantity converted back to
 grain with FAO's extraction rates (FAO, \emph{Technical conversion factors
 for agricultural commodities},
 \url{https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf}:

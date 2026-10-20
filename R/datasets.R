@@ -424,9 +424,9 @@
 #'   (71.95) and the 88 reporting oats (83.44). That FBS vintage was built
 #'   by applying FAO's composition table (FAO, *Food balance sheets: a
 #'   handbook*, Rome, 2001, Annex I,
-#'   <https://www.fao.org/4/x9892e/x9892e00.pdf>, PDF page 64:
-#'   maize 9.5, flour of maize 8.4, oats 13.0, oats rolled 16.0 g protein
-#'   per 100 g) to the products eaten, over a quantity converted back to
+#'   <https://www.fao.org/4/x9892e/x9892e00.pdf>, PDF page 64
+#'   (printed 60): maize 9.5, flour of maize 8.4, oats 13.0, oats rolled
+#'   16.0 g protein per 100 g) to the products eaten, over a quantity converted back to
 #'   grain with FAO's extraction rates (FAO, *Technical conversion factors
 #'   for agricultural commodities*,
 #'   <https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf>:
