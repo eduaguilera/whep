@@ -1,4 +1,6 @@
-# FBS item 2551 trade on the old vintage's level (whep#1495).
+# FBS trade on the old vintage's level (whep#1495, whep#1550).
+#
+# Item 2551 first, where the defect was found:
 #
 # `.select_best_source()` takes `faostat-fbs-new` as the reference from 2010 on
 # and scales `faostat-fbs-old` to it. For FBS item 2551 "Nuts and products"
@@ -52,17 +54,90 @@
 # is 62.9 g/kg, against FAO's in-shell basket of 64.7 (`build_food_supply()`,
 # whep#1453) and the old vintage's 66.2; over the published food it was 45.6.
 #
-# The same import-side excess shows in other items of the new vintage (milk
-# excluding butter 1.93x, pineapples 1.75x, olives 2.53x at 2010). Each is its
-# own call and none is listed here.
+# The same import-side excess shows in other items of the new vintage, and
+# `.fbs_rebase_destinies()` extends the rebase to those where the same
+# mechanism was verified (whep#1550). See there for the evidence per item.
 
-.nut_basis_choices <- function() {
-  c("rebased", "as_published")
+# `"nuts_only"` is the whep#1495 rebase alone, the behaviour before whep#1550.
+# `"rebased_with_milk"` adds milk, which `"rebased"` leaves as published: see
+# `.fbs_rebase_destinies()` on why its destiny is not settled.
+.fbs_trade_basis_choices <- function() {
+  c("rebased", "rebased_with_milk", "nuts_only", "as_published")
 }
 
-# FBS items whose trade is put on the old vintage's level under `"rebased"`.
-.fbs_rebase_items <- function() {
-  2551L
+# The FBS items whose trade is put on the old vintage's level, and the
+# destinies the net trade removed comes out of: the ones the new vintage's
+# import excess went into. Measured on the pins, 2010, areas below 5000 with
+# 351 excluded, world imports / exports in the new vintage (old vintage):
+#
+#   2551 Nuts and products               1.76 (0.99)  food        whep#1495
+#   2848 Milk - Excluding Butter         1.93 (0.93)  food, feed  whep#1550
+#   2618 Pineapples and products         1.75 (0.99)  food        whep#1550
+#   2563 Olives (including preserved)    2.53 (1.07)  food        whep#1550
+#   2601 Tomatoes and products           1.29 (0.87)  food        whep#1550
+#   2612 Lemons, Limes and products      1.25 (0.97)  food        whep#1550
+#
+# The mechanism is the one found for nuts, checked per item by regressing each
+# country's FBS trade on its product-level trade in `faostat-trade-totals`
+# (2010, no intercept; R^2 0.93 to 1.00). The primary form passes through at
+# about the same factor on both sides, but processed forms are converted to
+# primary equivalent with far larger factors on the import side, while the
+# old vintage converts both sides alike. Import vs export factor, new vintage
+# (old vintage):
+#
+# * milk: cheese 31.0 vs 7.7 (6.8 vs 9.9), dry whey 30.6 vs 2.3 (-0.7 vs 1.6);
+# * pineapples: canned 3.1 vs -0.5 (0.65 vs 0.63), concentrated juice 28.3 vs
+#   13.2 (4.2 vs 4.6);
+# * olives: preserved 3.15 vs 0.98 (1.00 vs 0.98);
+# * tomatoes: peeled 5.9 vs 1.3 (1.1 vs 1.3), paste 5.2 vs 3.8 (3.5 vs 3.8);
+# * lemons: concentrated juice 22.2 vs 11.3 (11.6 vs 10.7).
+#
+# Milk's excess is not food, and where it is cannot yet be said, so milk is
+# rebased only under `"rebased_with_milk"`. Across the 30 countries whose
+# new-vintage imports exceed the old vintage's most (85 Mt in all), feed rose
+# 35 Mt over the old vintage, and per tonne of each product imported the
+# excess follows dry whey into feed (14.3 of 17.9): China imports 12.9 Mt in
+# the new vintage (3.7 Mt in the old) and feeds 9.6 Mt (1.3 Mt), the
+# Netherlands 16.9 Mt (4.9 Mt) and 9.7 Mt (1.2 Mt). But food is not inflated:
+# FBS's own milk protein over food is 32.9 g/kg in the 69 rebased importers
+# whose processing is under a tenth of their food, against 33.2 g/kg in the
+# old vintage. Taking the cut out of food and feed in proportion (the
+# `"rebased_with_milk"` rule) closes the world, imports 1.93x to 1.13x
+# exports, but takes food from 499 to 442 Mt and raises that protein density
+# to 38.5 g/kg; taking it from feed first leaves 12 Mt of feed in rows where
+# the old vintage has 72 Mt. Part of the excess likely sits in the new
+# vintage's processing element too (205 Mt world, 0.1 Mt in the old one),
+# which is mostly the milk made into butter where it is made (whep#1583).
+# Not listed, though the new vintage's imports exceed its exports there too:
+# "Vegetables, other" (2605) converts even fresh vegetables at 2.45 on the
+# import side against 1.36 on the export side, which is not this mechanism;
+# cassava (2532) and palm kernels (2562) book their excess in rows with no
+# food, so the rule would not apply; plantains (2616) and sorghum (2518) have
+# no import-side excess the rule would remove (whep#1584).
+.fbs_rebase_destinies <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~element,
+    2551L,          "food",
+    2848L,          "food",
+    2848L,          "feed",
+    2618L,          "food",
+    2563L,          "food",
+    2601L,          "food",
+    2612L,          "food"
+  )
+}
+
+# FBS items whose trade is put on the old vintage's level under `basis`.
+.fbs_rebase_items <- function(basis = "rebased") {
+  basis <- rlang::arg_match(basis, .fbs_trade_basis_choices())
+  all_items <- unique(.fbs_rebase_destinies()$item_cbs_code)
+  switch(
+    basis,
+    rebased = setdiff(all_items, 2848L),
+    rebased_with_milk = all_items,
+    nuts_only = 2551L,
+    as_published = integer()
+  )
 }
 
 # The years both vintages report, from which the factors are taken.
@@ -71,25 +146,27 @@
 }
 
 # One factor per (area_code, item_cbs_code, element) for import and export:
-# median(old / new) over the overlap, clamped to [lower bound, 1]. Empty under
-# `"as_published"`, and when the build reads no new-vintage row of the items,
-# because then there is nothing to rebase.
+# median(old / new) over the overlap, clamped to [lower bound, 1], for the
+# items `fbs_trade_basis` rebases. Empty under `"as_published"`, and when the
+# build reads no new-vintage row of the items, because then there is nothing
+# to rebase.
 #
 # The overlap is read from the pins when the frames this build loaded do not
 # span it, so the factor -- and with it every 2014+ value -- does not depend on
 # the years a build asks for.
-.fbs_rebase_factors <- function(fbs_new, fbs_old, nut_basis = "rebased") {
-  nut_basis <- rlang::arg_match(nut_basis, .nut_basis_choices())
-  if (
-    nut_basis == "as_published" ||
-      !any(fbs_new$item_cbs_code %in% .fbs_rebase_items())
-  ) {
+.fbs_rebase_factors <- function(
+  fbs_new,
+  fbs_old,
+  fbs_trade_basis = "rebased"
+) {
+  items <- .fbs_rebase_items(fbs_trade_basis)
+  if (!any(fbs_new$item_cbs_code %in% items)) {
     return(.empty_fbs_rebase_factors())
   }
   overlap <- .fbs_overlap_frames(fbs_new, fbs_old)
   keys <- c("area_code", "item_cbs_code", "element", "year")
-  new <- .fbs_rebase_rows(overlap$new)
-  old <- .fbs_rebase_rows(overlap$old)
+  new <- .fbs_rebase_rows(overlap$new, items)
+  old <- .fbs_rebase_rows(overlap$old, items)
   data.table::setnames(new, "value", "new")
   data.table::setnames(old, "value", "old")
   both <- merge(new, old, by = keys)[new != 0]
@@ -115,17 +192,18 @@
   )
 }
 
-# The rebased items' rows of one vintage for some elements, summed per key,
-# with integer codes so the two vintages and the factors join on one type.
+# Some items' rows of one vintage for some elements, summed per key, with
+# integer codes so the two vintages and the factors join on one type.
 .fbs_rebase_rows <- function(
   fbs,
+  items,
   elements = c("import", "export"),
   years = .fbs_overlap_years()
 ) {
   dt <- data.table::as.data.table(fbs)
   dt <- dt[
     item_cbs_code %in%
-      .fbs_rebase_items() &
+      items &
       element %in% elements &
       year %in% years &
       !is.na(value)
@@ -193,7 +271,8 @@
   keys <- c("year", "area_code", "item_cbs_code")
   long <- .fbs_rebase_rows(
     dt,
-    elements = c("import", "export", "food", "domestic_supply"),
+    unique(factors$item_cbs_code),
+    elements = c("import", "export", "food", "feed", "domestic_supply"),
     years = unique(dt$year)
   )
   if (nrow(long) == 0L) {
@@ -228,8 +307,9 @@
   wide
 }
 
-# Cut the trade, take the net cut out of food and domestic supply, and keep a
-# row as published where the net cut is not positive or exceeds its food.
+# Cut the trade, take the net cut out of the item's destinies in proportion to
+# each, and out of domestic supply, and keep a row as published where the net
+# cut is not positive or exceeds those destinies.
 .fbs_rebase_balance <- function(wide) {
   wide <- ensure_columns(
     tibble::as_tibble(wide),
@@ -237,20 +317,28 @@
       import = double(),
       export = double(),
       food = double(),
+      feed = double(),
       domestic_supply = double()
     )
   ) |>
     data.table::as.data.table()
+  wide <- .add_rebase_destinies(wide)
   wide[, cut_import := data.table::fcoalesce(import, 0) * (1 - r_import)]
   wide[, cut_export := data.table::fcoalesce(export, 0) * (1 - r_export)]
   wide[, net_cut := cut_import - cut_export]
-  wide[, ok := net_cut > 0 & net_cut <= data.table::fcoalesce(food, 0)]
+  wide[, room_food := in_food * data.table::fcoalesce(food, 0)]
+  wide[, room_feed := in_feed * data.table::fcoalesce(feed, 0)]
+  wide[, room := room_food + room_feed]
+  wide[, ok := net_cut > 0 & net_cut <= room]
+  # `room_food / room` is exactly 1 where food is the only destiny, so an
+  # item that only takes from food moves exactly as under whep#1495.
   wide[
     (ok),
     `:=`(
       import = import - cut_import,
       export = export - cut_export,
-      food = food - net_cut,
+      food = food - net_cut * (room_food / room),
+      feed = feed - net_cut * (room_feed / room),
       domestic_supply = domestic_supply - net_cut
     )
   ]
@@ -261,8 +349,21 @@
     import,
     export,
     food,
+    feed,
     domestic_supply
   )]
+}
+
+# One 0/1 column per destiny, `in_food` and `in_feed`: whether the item's net
+# cut may come out of it (`.fbs_rebase_destinies()`).
+.add_rebase_destinies <- function(wide) {
+  destinies <- data.table::as.data.table(.fbs_rebase_destinies())
+  for (dest in c("food", "feed")) {
+    col <- paste0("in_", dest)
+    takes <- destinies[element == dest, item_cbs_code]
+    wide[, (col) := as.numeric(item_cbs_code %in% takes)]
+  }
+  wide
 }
 
 # Label the selected rows whose value is a rebased new-vintage value.
@@ -292,23 +393,25 @@
   wide[]
 }
 
-# Warn when `"rebased"` was asked for and an item it covers reaches the build
+# Warn when a rebase was asked for and an item it covers reaches the build
 # from the new vintage with no factor at all: the old vintage or the overlap
 # was absent, and every value of that item stays as FAOSTAT published it.
-.warn_fbs_rebase_absent <- function(fbs_new, factors, nut_basis) {
-  if (nut_basis == "as_published" || is.null(fbs_new)) {
+.warn_fbs_rebase_absent <- function(fbs_new, factors, fbs_trade_basis) {
+  items <- .fbs_rebase_items(fbs_trade_basis)
+  if (length(items) == 0L || is.null(fbs_new)) {
     return(invisible(NULL))
   }
   present <- unique(as.integer(
-    fbs_new$item_cbs_code[fbs_new$item_cbs_code %in% .fbs_rebase_items()]
+    fbs_new$item_cbs_code[fbs_new$item_cbs_code %in% items]
   ))
   missing <- setdiff(present, as.integer(factors$item_cbs_code))
   if (length(missing) > 0L) {
     codes <- as.character(missing)
     cli::cli_warn(
       c(
-        "{.arg nut_basis} is {.val rebased}, but {cli::qty(length(codes))}FBS
-         item{?s} {.val {codes}} {?has/have} no old-vintage factor.",
+        "{.arg fbs_trade_basis} is {.val {fbs_trade_basis}}, but
+         {cli::qty(length(codes))}FBS item{?s} {.val {codes}} {?has/have} no
+         old-vintage factor.",
         "i" = "Both vintages must report {min(.fbs_overlap_years())} to
           {max(.fbs_overlap_years())}; without that the item keeps the new
           vintage's published trade."
