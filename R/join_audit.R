@@ -901,6 +901,10 @@
     "identity_lookup",
     "One row per area_code with its reporting-polity columns; the same lookup
      as `.bind_area_label_sources()`, for a single frame.",
+    ".report_fish_backcast", "distinct", "area_code, item_cbs", 1L,
+    "diagnostic",
+    "Counts the fish (area, item) keys the pre-1961 back-cast could not anchor,
+     for the message only; no value is computed from it (whep#1543).",
     ".land_balance_production", "summarise", "area_code, item_cbs_code", 1L,
     "single_year",
     "`get_primary_production()` is filtered to `.env$year` in the same pipe.",

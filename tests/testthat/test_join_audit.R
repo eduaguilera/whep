@@ -665,7 +665,10 @@ test_that("every year-free territorial grouping is classified", {
   # 150 with whep#1495, on top of the 149 above: the FBS 2551 rebase takes
   # the median of each area's ratio over the 2010-2013 overlap (`year_axis`).
   # Re-derived by running `sum(.territorial_grouping_baseline()$n)`.
-  expect_lte(sum(full$n), 150L)
+  # 151 with whep#1543, on top of the 150 above: the count of fish keys the
+  # pre-1961 back-cast cannot anchor, for its message (`diagnostic`).
+  # Re-derived by running `sum(.territorial_grouping_baseline()$n)`.
+  expect_lte(sum(full$n), 151L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

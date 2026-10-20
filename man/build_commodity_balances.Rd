@@ -21,6 +21,7 @@ build_commodity_balances(
   export_share_basis = .cbs_export_basis_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
+  fish_backcast = .cbs_fish_backcast_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
@@ -366,6 +367,32 @@ value changes: 83.5 Mt of residue \code{domestic_supply} over 1955-1960
 which 68.3 Mt is \code{other_uses} and 15.3 Mt \code{feed}. That raises world
 residue use by 0.74-0.78\% in those years. Under \code{"none"} the build is
 identical to the one before this argument existed.}
+
+\item{fish_backcast}{One of \code{"supply_ratio"} (default) or
+\code{"closed_economy"}, selecting how fish and other aquatic products (the
+\code{"Fish"} group of \link{items_full}) get production and trade before 1961,
+the first year of the FAOSTAT food balances that are their only source
+(whep#1543). Their uses grow back along population and agricultural
+land like every other item's; this decides what supplies them. Rows
+carry the source \code{"historical_fish_<method>"} on \code{production}, \code{import}
+and \code{export}.
+
+\code{"supply_ratio"} holds each area's 1961 ratio of production to use for
+each item, and books the gap as imports or exports, the way the
+pre-1961 crop balance imputes trade; an item the area did not produce in
+1961 is imported. \code{"closed_economy"} books every pre-1961 use as
+domestic production with no trade, which credits a net importer with the
+fish it bought.
+
+\strong{The default moves published values}, for fish items before 1961
+only. Before it, they had uses and no production or trade, so every
+tonne was booked as a stock draw. Measured on a real 1955-1965 build,
+world fish production in 1955 / 1960 goes from none to 36.8 / 39.8 Mt
+(\code{"closed_economy"} 36.4 / 38.4 Mt) against 41.2 Mt reported for 1961,
+imports from none to 9.2 / 9.1 Mt and exports to 9.5 / 10.6 Mt (none
+under \code{"closed_economy"}), and fish \code{stock_variation} from -36.4 /
+-38.4 Mt to zero under both. Fish uses, every other item and every
+1961-or-later value are unchanged.}
 
 \item{unmatched_processing}{One of \code{"other_uses"} (default),
 \code{"processing"} or \code{"redistribute"}, selecting where a \code{processing}

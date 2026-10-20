@@ -331,6 +331,31 @@
 #'   which 68.3 Mt is `other_uses` and 15.3 Mt `feed`. That raises world
 #'   residue use by 0.74-0.78% in those years. Under `"none"` the build is
 #'   identical to the one before this argument existed.
+#' @param fish_backcast One of `"supply_ratio"` (default) or
+#'   `"closed_economy"`, selecting how fish and other aquatic products (the
+#'   `"Fish"` group of [items_full]) get production and trade before 1961,
+#'   the first year of the FAOSTAT food balances that are their only source
+#'   (whep#1543). Their uses grow back along population and agricultural
+#'   land like every other item's; this decides what supplies them. Rows
+#'   carry the source `"historical_fish_<method>"` on `production`, `import`
+#'   and `export`.
+#'
+#'   `"supply_ratio"` holds each area's 1961 ratio of production to use for
+#'   each item, and books the gap as imports or exports, the way the
+#'   pre-1961 crop balance imputes trade; an item the area did not produce in
+#'   1961 is imported. `"closed_economy"` books every pre-1961 use as
+#'   domestic production with no trade, which credits a net importer with the
+#'   fish it bought.
+#'
+#'   **The default moves published values**, for fish items before 1961
+#'   only. Before it, they had uses and no production or trade, so every
+#'   tonne was booked as a stock draw. Measured on a real 1955-1965 build,
+#'   world fish production in 1955 / 1960 goes from none to 36.8 / 39.8 Mt
+#'   (`"closed_economy"` 36.4 / 38.4 Mt) against 41.2 Mt reported for 1961,
+#'   imports from none to 9.2 / 9.1 Mt and exports to 9.5 / 10.6 Mt (none
+#'   under `"closed_economy"`), and fish `stock_variation` from -36.4 /
+#'   -38.4 Mt to zero under both. Fish uses, every other item and every
+#'   1961-or-later value are unchanged.
 #' @param unmatched_processing One of `"other_uses"` (default),
 #'   `"processing"` or `"redistribute"`, selecting where a `processing`
 #'   destiny goes when its item has no pathway in [cb_processing], so no
@@ -501,6 +526,7 @@ build_commodity_balances <- function(
   export_share_basis = .cbs_export_basis_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
+  fish_backcast = .cbs_fish_backcast_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
@@ -518,6 +544,7 @@ build_commodity_balances <- function(
   export_share_basis <- rlang::arg_match(export_share_basis)
   seed_backcast <- rlang::arg_match(seed_backcast)
   aggregate_proxy <- rlang::arg_match(aggregate_proxy)
+  fish_backcast <- rlang::arg_match(fish_backcast)
   unmatched_processing <- rlang::arg_match(unmatched_processing)
   silk_basis <- rlang::arg_match(silk_basis)
   silk_duplicate_use <- rlang::arg_match(silk_duplicate_use)
@@ -550,6 +577,7 @@ build_commodity_balances <- function(
       hist_trade_scale = hist_trade_scale,
       seed_backcast = seed_backcast,
       aggregate_proxy = aggregate_proxy,
+      fish_backcast = fish_backcast,
       silk_basis = silk_basis,
       silk_duplicate_use = silk_duplicate_use,
       tobacco_leaf_use = tobacco_leaf_use,
@@ -620,6 +648,11 @@ build_commodity_balances <- function(
       cli::cli_warn(
         "{.arg aggregate_proxy} is ignored when {.arg .fixed_data} is \
          supplied."
+      )
+    }
+    if (fish_backcast != "supply_ratio") {
+      cli::cli_warn(
+        "{.arg fish_backcast} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     if (unmatched_processing != "other_uses") {
@@ -893,6 +926,7 @@ build_commodity_balances <- function(
   hist_trade_scale = .hist_trade_scale_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
+  fish_backcast = .cbs_fish_backcast_choices(),
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
@@ -946,7 +980,8 @@ build_commodity_balances <- function(
     share_overflow = share_overflow,
     negative_supply = negative_supply,
     seed_backcast = seed_backcast,
-    aggregate_proxy = aggregate_proxy
+    aggregate_proxy = aggregate_proxy,
+    fish_backcast = fish_backcast
   )
 
   # Trim to requested years and attach context for downstream
@@ -3773,8 +3808,13 @@ build_processing_coefs <- function(
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
-  aggregate_proxy = .cbs_aggregate_proxy_choices()
+  aggregate_proxy = .cbs_aggregate_proxy_choices(),
+  fish_backcast = .cbs_fish_backcast_choices()
 ) {
+  fish_backcast <- rlang::arg_match(
+    fish_backcast,
+    .cbs_fish_backcast_choices()
+  )
   items <- whep::items_full
 
   cbs_hist <- cbs_raw0 |>
@@ -3850,9 +3890,12 @@ build_processing_coefs <- function(
       share_overflow = share_overflow,
       negative_supply = negative_supply,
       seed_backcast = seed_backcast,
-      aggregate_proxy = aggregate_proxy
+      aggregate_proxy = aggregate_proxy,
+      fish_backcast = fish_backcast
     )
 
+  # Built outside the pipe: inside it `fish_backcast` is the row flag column.
+  fish_source <- .fish_backcast_source(fish_backcast)
   cbs_hist_pre <- cbs_hist |>
     dplyr::filter(year < 1961) |>
     dplyr::left_join(
@@ -3860,12 +3903,32 @@ build_processing_coefs <- function(
       by = obs_keys
     ) |>
     dplyr::mutate(
-      source = dplyr::coalesce(
-        .data$observed_source,
-        .historical_fill_source(.data$supply_negative, negative_supply)
-      )
+      fish_source = fish_source,
+      fill_source = .historical_fill_source(
+        .data$supply_negative,
+        negative_supply
+      ),
+      # The fish supply side WHEP estimated is labelled with its method, so a
+      # back-cast production or trade cannot be read as a reported one
+      # (whep#1543). Its uses keep the generic fill label: they were grown
+      # along population and land exactly as before.
+      fill_source = dplyr::if_else(
+        dplyr::coalesce(.data$fish_backcast, FALSE) &
+          .data$element %in% c("production", "import", "export"),
+        .data$fish_source,
+        .data$fill_source
+      ),
+      source = dplyr::coalesce(.data$observed_source, .data$fill_source)
     ) |>
-    dplyr::select(-dplyr::any_of(c("observed_source", "supply_negative")))
+    dplyr::select(
+      -dplyr::any_of(c(
+        "observed_source",
+        "supply_negative",
+        "fish_backcast",
+        "fish_source",
+        "fill_source"
+      ))
+    )
 
   dplyr::bind_rows(
     cbs_hist_pre,
@@ -3911,7 +3974,8 @@ build_processing_coefs <- function(
   share_overflow = .cbs_share_overflow_choices(),
   negative_supply = .cbs_negative_supply_choices(),
   seed_backcast = .cbs_seed_backcast_choices(),
-  aggregate_proxy = .cbs_aggregate_proxy_choices()
+  aggregate_proxy = .cbs_aggregate_proxy_choices(),
+  fish_backcast = .cbs_fish_backcast_choices()
 ) {
   share_overflow <- rlang::arg_match(
     share_overflow,
@@ -3975,6 +4039,7 @@ build_processing_coefs <- function(
     .report_seed_backcast(seed_backcast) |>
     .apply_filled_shares(seed_backcast) |>
     .fill_with_proxies(gdp_pop, land_wide, aggregate_proxy) |>
+    .backcast_fish_production(items, fish_backcast) |>
     .finalise_historical(items)
 }
 
@@ -4897,6 +4962,163 @@ build_processing_coefs <- function(
     )
 }
 
+# -- The pre-1961 fish production back-cast (whep#1543) ------------------------
+#
+# Fish and other aquatic products (the `items_full` group "Fish") enter the
+# balance only from the FAOSTAT food balances, which start in 1961, and
+# `build_primary_production()` carries no fish. Before 1961 the generic fill
+# grew their `food`, `other_uses` and `processing` along population and their
+# `feed` along agricultural land, nothing grew their production or trade, and
+# `.finalise_historical()` zero-filled the production. The balance then closed
+# through `stock_variation`: measured on a real 1955-1965 build, -36.4 Mt in
+# 1955 and -38.4 Mt in 1960, every pre-1961 tonne of fish booked as a draw on
+# stocks that never existed.
+#
+# The quantity exists, so it is estimated and declared rather than left as a
+# stock draw. What the supply side is estimated from is the choice of
+# `build_commodity_balances()`'s `fish_backcast`:
+#
+# - `"supply_ratio"` (default) holds each (area, item)'s ratio of production
+#   to use at its first observed year (1961) and spends it on the back-cast
+#   uses; the gap between them becomes imports or exports. That is the shape
+#   the pre-1961 crop balance already takes -- its uses grow along population
+#   and land, and the difference from production is tier-2 imputed trade
+#   (`.cbs_impute_trade()`) -- and the shape of the residue back-cast of
+#   whep#1508, which holds each row's 1961 ratio to its basis. An item the
+#   area did not produce in 1961 stays unproduced, and its use is imported.
+# - `"closed_economy"` books the whole use as domestic production and no
+#   trade. World production is then world use, but a net importer is credited
+#   with the fish it bought.
+#
+# Neither reads a pre-1961 fish series. FAO's global capture and aquaculture
+# production does start in 1950, and reading it would replace the proxy for
+# 1950-1960; that is a data-source addition, not made here.
+.cbs_fish_backcast_choices <- function() {
+  c("supply_ratio", "closed_economy")
+}
+
+.fish_backcast_source <- function(method) {
+  paste0("historical_fish_", method)
+}
+
+.fish_use_cols <- function() {
+  c("food", "feed", "other_uses", "processing", "processing_primary", "seed")
+}
+
+# Fill the missing production, import and export of every fish row from its
+# back-cast uses, and stamp the rows filled in `fish_backcast`. Observed values
+# are never replaced, so the 1961 anchor passes through untouched.
+.backcast_fish_production <- function(
+  df,
+  items,
+  method = .cbs_fish_backcast_choices()
+) {
+  method <- rlang::arg_match(method, .cbs_fish_backcast_choices())
+  fish_codes <- items$item_cbs_code[items$group %in% "Fish"]
+  out <- tibble::as_tibble(df) |>
+    dplyr::mutate(
+      .fish = .data$item_cbs_code %in% fish_codes,
+      .uses = rowSums(
+        dplyr::pick(dplyr::any_of(.fish_use_cols())),
+        na.rm = TRUE
+      ),
+      .ratio = .fish_production_ratio(
+        .fish_anchor_production(dplyr::pick(dplyr::everything())),
+        .data$.uses,
+        .data$year,
+        list(.data$area_code, .data$item_cbs_code)
+      ),
+      .supply = if (method == "closed_economy") {
+        .data$.uses
+      } else {
+        .data$.ratio * .data$.uses
+      },
+      fish_backcast = .data$.fish &
+        is.na(.data$production) &
+        .data$.uses > 0 &
+        !is.na(.data$.supply)
+    )
+  .report_fish_backcast(out)
+  out |>
+    dplyr::mutate(
+      production = dplyr::if_else(
+        .data$fish_backcast,
+        .data$.supply,
+        .data$production
+      ),
+      import = dplyr::if_else(
+        .data$fish_backcast,
+        dplyr::coalesce(.data$import, pmax(.data$.uses - .data$production, 0)),
+        .data$import
+      ),
+      export = dplyr::if_else(
+        .data$fish_backcast,
+        dplyr::coalesce(.data$export, pmax(.data$production - .data$.uses, 0)),
+        .data$export
+      )
+    ) |>
+    dplyr::select(-".fish", -".uses", -".ratio", -".supply")
+}
+
+# The production a row's balance reports, for reading the ratio off it. The
+# food balances omit a zero production row: in 1961 Austria, Switzerland and
+# Hungary book their Pelagic and Demersal Fish supply entirely as imports and
+# carry no production row at all. Where production is missing and the supply
+# is observed, it is therefore the balance's own residual, supply less net
+# imports, floored at zero -- the rule `.reestimate_domestic_supply()` applies
+# to the same missing production (#142).
+.fish_anchor_production <- function(df) {
+  implied <- pmax(
+    df$domestic_supply -
+      dplyr::coalesce(df$import, 0) +
+      dplyr::coalesce(df$export, 0),
+    0
+  )
+  dplyr::coalesce(df$production, implied)
+}
+
+# Production per tonne of use where both are observed, carried back from the
+# next observed year within each (area, item). A ratio is never carried
+# forward: the back-cast fills only the years before its anchor.
+.fish_production_ratio <- function(production, uses, year, keys) {
+  ratio <- .cbs_safe_ratio(production, uses)
+  ord <- do.call(order, c(keys, list(year)))
+  grp <- data.table::rleidv(lapply(keys, `[`, ord))
+  sorted <- ratio[ord]
+  idx <- data.table::nafill(
+    ifelse(is.na(sorted), NA_integer_, seq_along(sorted)),
+    "nocb"
+  )
+  carried <- ifelse(!is.na(idx) & grp[idx] == grp, sorted[idx], NA_real_)
+  carried[order(ord)]
+}
+
+# The fish rows with a use and no observed production to hold a ratio from.
+# They keep the generic fill, so their use stays a stock draw; that is said
+# rather than left to be found.
+.report_fish_backcast <- function(out) {
+  unanchored <- out[
+    out$.fish & is.na(out$production) & out$.uses > 0 & !out$fish_backcast,
+  ]
+  if (nrow(unanchored) == 0L) {
+    return(invisible(NULL))
+  }
+  n_keys <- nrow(dplyr::distinct(unanchored, .data$area_code, .data$item_cbs))
+  # Interpolated outside the cli string: a `{}` expression starting with a dot
+  # is read as a cli style, not as a call.
+  use_txt <- .cbs_tonnes(sum(unanchored$.uses))
+  cli::cli_inform(
+    c(
+      "i" = paste0(
+        "{n_keys} fish (area, item) key{cli::qty(n_keys)}{?s} ",
+        "{?has/have} pre-1961 use and no observed production to back-cast ",
+        "from; {use_txt} of use stays a stock draw."
+      )
+    ),
+    class = "whep_fish_backcast"
+  )
+}
+
 .finalise_historical <- function(df, items) {
   df |>
     dplyr::left_join(
@@ -4940,7 +5162,7 @@ build_processing_coefs <- function(
       processing,
       processing_primary,
       seed,
-      dplyr::any_of("supply_negative")
+      dplyr::any_of(c("supply_negative", "fish_backcast"))
     ) |>
     tidyr::pivot_longer(
       production:seed,
