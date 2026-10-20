@@ -4,12 +4,12 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. All but nine
+#' @param options A named list of manure-engine options. All but ten
 #'   defaults reproduce the behaviour in force before whep#949. The exceptions
-#'   are `enteric_ef_source`, `ef3_source` and `slurry_crust`, which since
-#'   whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
-#'   manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct manure
-#'   N2O, `mcf_source`, which moved from the shipped table to the 2019
+#'   are `enteric_ef_source`, `ef3_source`, `slurry_crust` and `nex_source`,
+#'   which since whep#601 read the 2019 Refinement's Tier 1 enteric factors,
+#'   direct manure N2O EF3 and Tier 1 N excretion and move Tier 1 enteric
+#'   CH4, both tiers' direct manure N2O and Tier 1 manure N2O, `mcf_source`, which moved from the shipped table to the 2019
 #'   Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
 #'   which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 #'   in whep#958 and does move both tiers' manure N2O, `pasture_bo`, which
@@ -90,6 +90,20 @@
 #'   `method_manure_n2o` records the EF3 choice (`ef3_ipcc_2019;
 #'   slurry_crust_half` or `ef3_as_shipped`). On FAOSTAT 2020 heads the
 #'   default lowers Tier 1 direct manure N2O from 1.523 to 1.178 Tg.
+#'
+#'   `nex_source` selects the Tier 1 N excretion per head, which both Tier 1
+#'   manure N2O terms scale with:
+#'   * `"ipcc_2019"` (default): [ipcc_n_excretion_tier1], the 2019
+#'     Refinement's Equation 10.30 (Updated) over the Table 10.19 (Updated)
+#'     rate and the Table 10A.5 (New) typical animal mass, by IPCC region. A
+#'     row the edition prices at nothing keeps the as-shipped value, stamped
+#'     `nex_as_shipped_fallback`.
+#'   * `"as_shipped"`: [ipcc_2019_n_excretion], per-head values no IPCC table
+#'     publishes, read before whep#601. Kept so earlier figures stay
+#'     reproducible.
+#'
+#'   `method_manure_n2o` records which (`nex_ipcc_2019` or
+#'   `nex_as_shipped`). NEX_MEASURED_EFFECT
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
@@ -209,17 +223,19 @@ NULL
 
 #' IPCC 2019 Tier 1 manure N2O (direct + indirect).
 #'
-#' Uses default per-head nitrogen excretion rates (`ipcc_2019_n_excretion`)
-#' instead of the energy-balance N intake, then reuses the Tier 2 direct and
-#' indirect N2O helpers (which need only `n_excretion` and `heads`).
+#' Uses default per-head nitrogen excretion (`options$nex_source` selects the
+#' edition, see `.join_n_excretion_tier1()`) instead of the energy-balance N
+#' intake, then reuses the Tier 2 direct and indirect N2O helpers (which need
+#' only `n_excretion` and `heads`).
 #' @noRd
 .calc_manure_n2o_tier1 <- function(data, options = list()) {
   if (!rlang::has_name(data, "species_gen")) {
     data <- dplyr::mutate(data, species_gen = .get_general_species(species))
   }
+  nex_source <- .manure_options(options)$nex_source
   data <- data |>
     dplyr::mutate(method_manure_n2o = "IPCC_2019_Tier1") |>
-    .join_n_excretion_tier1() |>
+    .join_n_excretion_tier1(nex_source) |>
     .calc_direct_n2o(options) |>
     .calc_indirect_n2o(options)
   data |>
@@ -229,32 +245,104 @@ NULL
 }
 
 #' Join default per-head N excretion (kg N/head/yr) for Tier 1.
+#'
+#' `nex_source = "ipcc_2019"` (default) reads [ipcc_n_excretion_tier1], the
+#' 2019 Refinement's Equation 10.30 (Updated) over its Table 10.19 rates and
+#' Table 10A.5 typical masses, by IPCC region. `"as_shipped"` reads
+#' `ipcc_2019_n_excretion`, the unsourced per-head table WHEP read before
+#' whep#601, kept so earlier figures stay reproducible.
+#'
+#' A row the 2019 edition prices at nothing keeps the as-shipped value,
+#' stamped `nex_as_shipped_fallback` in `method_manure_n2o` so it can be
+#' counted: a row whose IPCC region does not resolve (the as-shipped
+#' `"Global"` row then applies), buffalo in North America and Oceania, which
+#' Table 10.19 marks NA, and a species neither table names (geese). The
+#' `region` this adds stays on the frame: the manure-management split keys on
+#' it (see `mms_region` in [manure_engine_options]).
 #' @noRd
-.join_n_excretion_tier1 <- function(data) {
+.join_n_excretion_tier1 <- function(data, nex_source = "ipcc_2019") {
   data <- data |>
     dplyr::mutate(
-      manure_category = dplyr::case_when(
-        .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
-        species_gen == "Cattle" ~ "Other Cattle",
-        # `ipcc_2019_n_excretion` publishes swine as two rows, "Swine - Market"
-        # (15) and "Swine - Breeding" (18) kg N head-1 yr-1. Until whep#1107
-        # the herd arrived as one undifferentiated "Swine" key, which the
-        # base-species augmentation below answered with their mean (16.5) --
-        # a rate no animal has. FAOSTAT reports the two halves separately, so
-        # key each half on its own published row instead.
-        species_gen == "Swine" & .is_breeding_swine(species) ~
-          "Swine - Breeding",
-        species_gen == "Swine" ~ "Swine - Market",
-        TRUE ~ species_gen
-      )
+      manure_category = .nex_category_as_shipped(species, species_gen)
     )
   if (!rlang::has_name(data, "region") && .has_gleam_region_key(data)) {
     data <- .add_ipcc_region(data)
   }
+  shipped <- .lookup_nex_as_shipped(data)
+  if (nex_source == "as_shipped") {
+    return(
+      data |>
+        dplyr::mutate(n_excretion = shipped) |>
+        .stamp_assumption("method_manure_n2o", "nex_as_shipped", TRUE)
+    )
+  }
 
-  # Augment the table with base-species rows (mean over subcategories, e.g.
-  # "Swine - Market"/"Swine - Breeding" -> "Swine") so a species_gen key with no
-  # exact subcategory still matches.
+  region <- if (rlang::has_name(data, "region")) {
+    as.character(data$region)
+  } else {
+    rep(NA_character_, nrow(data))
+  }
+  nex <- dplyr::filter(ipcc_n_excretion_tier1, edition == "ipcc_2019")
+  nex_2019 <- nex$nex_kg_n_head_yr[match(
+    paste(region, .nex_category_ipcc_2019(data$species, data$species_gen)),
+    paste(nex$region, nex$category)
+  )]
+  data |>
+    dplyr::mutate(n_excretion = dplyr::coalesce(nex_2019, shipped)) |>
+    .stamp_assumption("method_manure_n2o", "nex_ipcc_2019", !is.na(nex_2019)) |>
+    .stamp_assumption(
+      "method_manure_n2o",
+      "nex_as_shipped_fallback",
+      is.na(nex_2019)
+    )
+}
+
+#' The `ipcc_2019_n_excretion` category of each row.
+#' @noRd
+.nex_category_as_shipped <- function(species, species_gen) {
+  dplyr::case_when(
+    .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
+    species_gen == "Cattle" ~ "Other Cattle",
+    # `ipcc_2019_n_excretion` publishes swine as two rows, "Swine - Market"
+    # (15) and "Swine - Breeding" (18) kg N head-1 yr-1. Until whep#1107
+    # the herd arrived as one undifferentiated "Swine" key, which the
+    # base-species augmentation in `.lookup_nex_as_shipped()` answered with
+    # their mean (16.5) -- a rate no animal has. FAOSTAT reports the two
+    # halves separately, so key each half on its own published row instead.
+    species_gen == "Swine" & .is_breeding_swine(species) ~
+      "Swine - Breeding",
+    species_gen == "Swine" ~ "Swine - Market",
+    TRUE ~ species_gen
+  )
+}
+
+#' The [ipcc_n_excretion_tier1] category of each row.
+#'
+#' Finer than the as-shipped one for poultry, because Table 10.19 publishes
+#' laying hens, broilers, turkeys and ducks separately and FAOSTAT counts them
+#' separately; a chicken that is neither layer nor broiler takes the chicken
+#' aggregate row. Geese, and a bare `"Poultry"`, have no row.
+#' @noRd
+.nex_category_ipcc_2019 <- function(species, species_gen) {
+  dplyr::case_when(
+    species_gen != "Poultry" ~ .nex_category_as_shipped(species, species_gen),
+    stringr::str_detect(species, "(?i)layer|hen") ~ "Poultry - Layers",
+    stringr::str_detect(species, "(?i)broiler") ~ "Poultry - Broilers",
+    stringr::str_detect(species, "(?i)turkey") ~ "Turkeys",
+    stringr::str_detect(species, "(?i)duck") ~ "Ducks",
+    stringr::str_detect(species, "(?i)chicken") ~ "Chickens",
+    .default = NA_character_
+  )
+}
+
+#' Per-head N excretion from the as-shipped `ipcc_2019_n_excretion`.
+#'
+#' Regional where the row has a region the table names (cattle only),
+#' otherwise its `"Global"` row. The table is augmented with base-species rows
+#' (mean over subcategories, e.g. "Poultry - Broilers"/"Poultry - Layers" ->
+#' "Poultry") so a `species_gen` key with no exact subcategory still matches.
+#' @noRd
+.lookup_nex_as_shipped <- function(data) {
   nex_base <- ipcc_2019_n_excretion |>
     dplyr::mutate(
       cat_base = stringr::str_trim(stringr::str_extract(category, "^[^-]+"))
@@ -266,27 +354,19 @@ NULL
     dplyr::rename(category = cat_base)
   nex_all <- dplyr::bind_rows(ipcc_2019_n_excretion, nex_base) |>
     dplyr::distinct(region, category, .keep_all = TRUE)
-  global_nex <- nex_all |>
-    dplyr::filter(region == "Global") |>
-    dplyr::select(category, nex_global = nex_kg_n_head_yr)
-
-  if (rlang::has_name(data, "region")) {
-    data |>
-      dplyr::left_join(
-        dplyr::filter(nex_all, region != "Global"),
-        by = c("region", "manure_category" = "category")
-      ) |>
-      dplyr::left_join(global_nex, by = c("manure_category" = "category")) |>
-      dplyr::mutate(
-        n_excretion = dplyr::coalesce(nex_kg_n_head_yr, nex_global)
-      ) |>
-      dplyr::select(-dplyr::any_of(c("nex_kg_n_head_yr", "nex_global")))
-  } else {
-    data |>
-      dplyr::left_join(global_nex, by = c("manure_category" = "category")) |>
-      dplyr::mutate(n_excretion = nex_global) |>
-      dplyr::select(-dplyr::any_of("nex_global"))
+  key <- data$manure_category
+  global <- nex_all |>
+    dplyr::filter(region == "Global")
+  nex_global <- global$nex_kg_n_head_yr[match(key, global$category)]
+  if (!rlang::has_name(data, "region")) {
+    return(nex_global)
   }
+  regional <- dplyr::filter(nex_all, region != "Global")
+  nex_regional <- regional$nex_kg_n_head_yr[match(
+    paste(data$region, key),
+    paste(regional$region, regional$category)
+  )]
+  dplyr::coalesce(nex_regional, nex_global)
 }
 
 #' IPCC 2019 Tier 2 manure CH4.
@@ -1513,8 +1593,9 @@ NULL
 #' Tier 2 method from Tier 1 instead of leaving them `NA`, and whep#1245 made
 #' `indirect_n2o_source` read the 2019 Table 11.3 EF5 and FracLEACH-(H) that
 #' the shipped table had cited while holding the 2006 values. whep#601 moved
-#' `enteric_ef_source` and `ef3_source` off tables that held 2006, mixed or
-#' unpublished values under a 2019 name onto the 2019 Refinement.
+#' `enteric_ef_source`, `ef3_source` and `nex_source` off tables that held
+#' 2006, mixed or unpublished values under a 2019 name onto the 2019
+#' Refinement.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
@@ -1529,7 +1610,8 @@ NULL
     enteric_ef_source = "ipcc_2019",
     ef3_source = "ipcc_2019",
     slurry_crust = "half",
-    indirect_n2o_fractions = "per_mms"
+    indirect_n2o_fractions = "per_mms",
+    nex_source = "ipcc_2019"
   )
   unknown <- setdiff(names(options), names(defaults))
   if (length(unknown) > 0) {
@@ -1553,6 +1635,7 @@ NULL
   ef3_source <- opt$ef3_source
   slurry_crust <- opt$slurry_crust
   indirect_n2o_fractions <- opt$indirect_n2o_fractions
+  nex_source <- opt$nex_source
   list(
     mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
@@ -1589,7 +1672,8 @@ NULL
     indirect_n2o_fractions = rlang::arg_match(
       indirect_n2o_fractions,
       c("per_mms", "single")
-    )
+    ),
+    nex_source = rlang::arg_match(nex_source, c("ipcc_2019", "as_shipped"))
   )
 }
 
