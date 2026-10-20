@@ -386,8 +386,13 @@ fish it bought.
 
 \strong{The default moves published values}, for fish items before 1961
 only. Before it, they had uses and no production or trade, so every
-tonne was booked as a stock draw. See the pull request for the measured
-before and after.}
+tonne was booked as a stock draw. Measured on a real 1955-1965 build,
+world fish production in 1955 / 1960 goes from none to 36.8 / 39.8 Mt
+(\code{"closed_economy"} 36.4 / 38.4 Mt) against 41.2 Mt reported for 1961,
+imports from none to 9.2 / 9.1 Mt and exports to 9.5 / 10.6 Mt (none
+under \code{"closed_economy"}), and fish \code{stock_variation} from -36.4 /
+-38.4 Mt to zero under both. Fish uses, every other item and every
+1961-or-later value are unchanged.}
 
 \item{unmatched_processing}{One of \code{"other_uses"} (default),
 \code{"processing"} or \code{"redistribute"}, selecting where a \code{processing}
