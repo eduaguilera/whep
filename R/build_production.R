@@ -1648,13 +1648,13 @@ build_primary_production <- function(
   fao_stocks <- .read_livestock_stocks(years = NULL)
 
   # The completion inside `.combine_livestock()` is what invents the rows the
-  # drop removes, so the drop sits right after it (whep#1404).
+  # drop removes, so the drop sits right after it (whep#1404, whep#1562).
   fao_liv_raw <- .combine_livestock(
     fao_combined,
     fao_stocks,
     animals
   ) |>
-    .drop_retired_buckets()
+    .drop_unreported_stock_tail()
 
   .finalise_livestock(fao_liv_raw, animals, liv_lu) |>
     .filter_years(years)
@@ -1785,22 +1785,57 @@ build_primary_production <- function(
     )
 }
 
-# Under `options(whep.unfold_predecessor_bucket = "all")` only: drop the stock
-# rows of a promoted predecessor bucket (206 "Sudan (former)") after its own
-# area last reported, see `.retired_predecessor_buckets()`. `.combine_livestock()`
-# completes every area over every year and `fill_linear()` carries a series
-# longer than 40 years forward, so 206's 2011 herd ran flat to 2023 beside the
-# 276/277 herds that report the same animals. Scoped to the stock chain on
-# purpose: under the un-fold LUH2 grassland still keys north Sudan's pasture on
-# 206 in every year, and those rows are land no other row carries. The list of
-# buckets is derived from the crosswalk and is empty under the fold.
-.drop_retired_buckets <- function(df) {
-  retired <- .retired_predecessor_buckets()
-  if (nrow(retired) == 0L) {
+# Drop the stock rows of an area after the last year any reporting area
+# reports it. `.combine_livestock()` completes every area over every year and
+# `fill_linear()` carries a series longer than 40 years forward, so an area
+# FAOSTAT stops reporting kept its last herd flat to the end of the build, and
+# its livestock products followed as "Last value carried forward".
+#
+# Two cases reach this. Under `options(whep.unfold_predecessor_bucket = "all")`
+# bucket 206 "Sudan (former)" ran its 2011 herd beside the 276/277 herds that
+# report the same animals (whep#1404). And in every mode FAOSTAT reports the
+# French overseas departments (69, 87, 135, 182) only until 2006, while France
+# (68) does not take them in afterwards: their 2006 herds ran flat 2007-2023,
+# 89 kt of livestock tonnes a year, while their crops have no row at all after
+# 2006 (whep#1562). With no observation to anchor 17 years of fill, the gap
+# stays explicit and is named, the same rule `.filter_dissolved_countries()`
+# applies to a dissolved country.
+#
+# "Reports" is `.reported_bucket_years()`, which follows folds: under the fold
+# bucket 206 is reported after 2011 by 276/277 and keeps every row. Only the
+# tail after an area's last reported year goes. An area no reporting window
+# covers at all is left alone, and years before the first report are not
+# touched either, because the completion fills those with zeros (n <= 40).
+.drop_unreported_stock_tail <- function(df) {
+  years <- sort(unique(as.integer(df$year)))
+  if (length(years) == 0L) {
     return(df)
   }
-  last_year <- retired$last_year[match(df$area_code, retired$area_code)]
-  dplyr::filter(df, is.na(last_year) | .data$year <= last_year)
+  reported <- .reported_bucket_years(min(years):max(years))
+  last_year <- reported[, .(last_year = max(year)), by = area_code]
+  last <- last_year$last_year[match(df$area_code, last_year$area_code)]
+  tail <- !is.na(last) & df$year > last
+  if (any(tail)) {
+    .inform_stock_tail(df[tail, ], last[tail])
+  }
+  df[!tail, ]
+}
+
+.inform_stock_tail <- function(dropped, last) {
+  areas <- tibble::tibble(area_code = dropped$area_code, last_year = last) |>
+    dplyr::distinct() |>
+    add_area_name()
+  labels <- paste0(
+    dplyr::coalesce(areas$area_name, as.character(areas$area_code)),
+    " (after ",
+    areas$last_year,
+    ")"
+  )
+  cli::cli_inform(c(
+    "i" = "Dropped livestock stocks of {nrow(areas)} area{?s} after the \\
+      last year FAOSTAT reports them: {labels}.",
+    " " = "No later observation anchors a fill (whep#1562)."
+  ))
 }
 
 # Split the unsplit QCL stock (`value`) across sub-items (e.g. dairy vs

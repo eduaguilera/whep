@@ -89,7 +89,7 @@ test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
 })
 
 
-# -- drop_retired_predecessor_buckets (whep#1404) -----------------------------
+# -- drop_unreported_stock_tail (whep#1404, whep#1562) ------------------------
 
 .sudan_stock_rows <- function() {
   tibble::tribble(
@@ -103,15 +103,58 @@ test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
   )
 }
 
+# FAOSTAT reports the four French overseas departments until 2006 and France
+# (68) does not take them in afterwards (whep#1562).
+.overseas_stock_rows <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~value,
+    2006L, "Guadeloupe", 87L, "Cattle", 80,
+    2007L, "Guadeloupe", 87L, "Cattle", 80,
+    2023L, "Guadeloupe", 87L, "Cattle", 80,
+    2006L, "Réunion", 182L, "Chickens", 15000,
+    2010L, "Réunion", 182L, "Chickens", 15000,
+    2010L, "French Guiana", 69L, "Pigs", 10,
+    2010L, "Martinique", 135L, "Pigs", 20,
+    2010L, "France", 68L, "Cattle", 19000
+  )
+}
+
+test_that("stock rows stop at the area's last reported year (whep#1562)", {
+  # The completion in `.combine_livestock()` carried the departments' 2006
+  # herds flat to 2023 while their crops have no row after 2006.
+  result <- suppressMessages(
+    whep:::.drop_unreported_stock_tail(.overseas_stock_rows())
+  )
+
+  overseas <- c(69L, 87L, 135L, 182L)
+  expect_false(any(result$area_code %in% overseas & result$year > 2006L))
+  expect_equal(
+    sort(result$area_code[result$year == 2006L]),
+    c(87L, 182L)
+  )
+  # France is reported throughout and keeps its row.
+  expect_true(any(result$area_code == 68L & result$year == 2010L))
+})
+
+test_that("the dropped stock tail is named, not silent", {
+  expect_message(
+    whep:::.drop_unreported_stock_tail(.overseas_stock_rows()),
+    "Guadeloupe"
+  )
+  df <- dplyr::filter(.overseas_stock_rows(), year <= 2006L | area_code == 68L)
+  expect_no_message(whep:::.drop_unreported_stock_tail(df))
+  expect_equal(whep:::.drop_unreported_stock_tail(df), df)
+})
+
 test_that("the un-fold drops bucket 206's stock rows after it retires", {
   # Under the un-fold, 276/277 no longer sum into 206, so a 206 stock row after
   # 2011 (FAOSTAT's last year for the area) can only be the completion carrying
   # 206's last herd forward beside the successors reporting the same animals.
   skip_if_not_installed("withr")
   withr::local_options(whep.unfold_predecessor_bucket = "all")
-  result <- suppressWarnings(
-    whep:::.drop_retired_buckets(.sudan_stock_rows())
-  )
+  result <- suppressMessages(suppressWarnings(
+    whep:::.drop_unreported_stock_tail(.sudan_stock_rows())
+  ))
 
   expect_false(any(result$area_code == 206L & result$year > 2011L))
   expect_true(any(result$area_code == 206L & result$year == 2011L))
@@ -130,7 +173,7 @@ test_that("the fold keeps bucket 206 live after 2011", {
   skip_if_not_installed("withr")
   withr::local_options(whep.unfold_predecessor_bucket = "none")
   df <- .sudan_stock_rows()
-  expect_equal(whep:::.drop_retired_buckets(df), df)
+  expect_equal(whep:::.drop_unreported_stock_tail(df), df)
   expect_equal(nrow(whep:::.retired_predecessor_buckets()), 0L)
 })
 
@@ -144,15 +187,14 @@ test_that("the retired bucket and its last year come from the crosswalk", {
 })
 
 test_that(".build_livestock_stocks applies the drop after the completion", {
-  skip_if_not_installed("withr")
-  withr::local_options(whep.unfold_predecessor_bucket = "all")
   local_mocked_bindings(
     .read_livestock_stocks = function(years = NULL) NULL,
-    .combine_livestock = function(...) .sudan_stock_rows(),
+    .combine_livestock = function(...) .overseas_stock_rows(),
     .finalise_livestock = function(fao_liv_raw, ...) fao_liv_raw
   )
-  result <- suppressWarnings(whep:::.build_livestock_stocks(NULL))
-  expect_false(any(result$area_code == 206L & result$year > 2011L))
+  result <- suppressMessages(whep:::.build_livestock_stocks(NULL))
+  expect_false(any(result$area_code == 87L & result$year > 2006L))
+  expect_true(any(result$area_code == 68L))
 })
 
 # -- add_historical_yields (pre-1962 yield proxy) ------------------------------
