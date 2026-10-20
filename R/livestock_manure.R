@@ -103,7 +103,9 @@
 #'     reproducible.
 #'
 #'   `method_manure_n2o` records which (`nex_ipcc_2019` or
-#'   `nex_as_shipped`). NEX_MEASURED_EFFECT
+#'   `nex_as_shipped`). On FAOSTAT 2020 heads the default lowers Tier 1 N
+#'   excretion from 144.9 to 126.3 Tg N and Tier 1 manure N2O from 2.151 to
+#'   1.962 Tg.
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement

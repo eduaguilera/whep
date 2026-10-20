@@ -809,7 +809,17 @@
 #'   - `ipcc_category`: the row the values were read from.
 #'
 #' @section Measured effect:
-#' NEX_DATASET_EFFECT
+#' On FAOSTAT 2020 heads at national grain, Tier 1 N excretion goes from
+#' 144.9 Tg N (as shipped) to 126.3 Tg N: cattle 64.1 to 72.2, buffalo 11.2
+#' to 13.2, poultry 19.5 to 14.4, swine 14.4 to 12.8, sheep 15.4 to 5.1 and
+#' goats 13.1 to 3.3 Tg N. Tier 1 manure N2O goes from 2.151 to 1.962 Tg. The
+#' sheep and goat drop is the edition's: Table 10.19 (Updated) takes their
+#' rates from GLEAM (0.32 to 0.46 kg N per 1000 kg per day), about a quarter
+#' of the 2006 Table 10.19 rates outside North America (sheep 0.85 to 1.17,
+#' goats 1.28 to 1.42). FAOSTAT's 2020 Tier 1 figures for the same heads are
+#' 22.2 Tg N for sheep and 25.3 for goats. Every row resolved an
+#' IPCC region; the only fallback rows were geese and 163 buffalo head in
+#' North America and Oceania.
 #'
 #' @source
 #'   IPCC. 2019. *2019 Refinement to the 2006 IPCC Guidelines for National
