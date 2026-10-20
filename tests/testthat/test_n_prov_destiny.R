@@ -2177,12 +2177,16 @@ test_that(".book_import_fed_crush leaves livestock intake untouched", {
   out <- .book_import_fed_crush(flows, .test_import_fed_crush())
 
   expect_equal(.livestock_n(out), .livestock_n(flows))
-  # What enters from outside grows by the crush's loss alone: the seed's N
-  # replaces the cake's, and the difference is booked as processing_losses.
+  # What enters from outside grows by the crush's loss and surplus alone:
+  # the seed's N replaces the cake's, and the difference is booked as
+  # processing_losses or exported.
   outside_n <- function(df) sum(df$mg_n[df$origin == "Outside"])
+  agro_n <- function(df, d) {
+    sum(df$mg_n[df$origin == "Agro-industry" & df$destiny == d])
+  }
   expect_equal(
     outside_n(out) - outside_n(flows),
-    sum(out$mg_n[out$destiny == "processing_losses"])
+    agro_n(out, "processing_losses") + agro_n(out, "export")
   )
 })
 
@@ -2200,28 +2204,42 @@ test_that(".book_import_fed_crush sites the crush where its cake is eaten", {
   expect_equal(feedstock$mg_n[1], feedstock$mg_n[2])
 })
 
-test_that(".book_import_fed_crush caps the crush at the national import", {
+test_that(".book_import_fed_crush exports what Spain does not import", {
   flows <- .test_import_fed_flows() |>
     dplyr::mutate(mg_n = dplyr::if_else(origin == "Outside", mg_n / 10, mg_n))
   crush <- .test_import_fed_crush()
   cake_n <- 30 * .test_n_per_fm("Sunflower Cake")
 
-  expect_warning(
-    out <- .book_import_fed_crush(flows, crush),
-    class = "whep_import_fed_capped"
-  )
+  out <- .book_import_fed_crush(flows, crush)
 
-  # Only 0.8 t N of cake is imported: the crush is booked to that much, and
-  # its feedstock and losses with it, so nothing is created.
-  share <- 0.8 / cake_n
-  crushed <- out |>
-    dplyr::filter(origin == "Agro-industry", item != "Sunflower seed")
-  expect_equal(sum(crushed$mg_n), 0.8)
+  # Only 0.8 t N of cake is imported: the crush replaces all of it and
+  # exports the rest, as any domestic surplus is. The whole crush is booked.
+  expect_equal(
+    sum(out$mg_n[out$item == "Sunflower Cake" & out$origin == "Outside"]),
+    0
+  )
+  exported <- out |> dplyr::filter(destiny == "export")
+  expect_equal(sum(exported$mg_n), cake_n - 0.8)
+  expect_true(all(exported$origin == "Agro-industry"))
   expect_equal(
     sum(out$mg_n[out$destiny == "processing"]),
-    share * crush$inputs$feedstock_n
+    crush$inputs$feedstock_n
   )
   expect_equal(.livestock_n(out), .livestock_n(flows))
+})
+
+test_that(".book_import_fed_crush warns when no province imports the outputs", {
+  flows <- .test_import_fed_flows() |> dplyr::filter(origin != "Outside")
+
+  expect_warning(
+    out <- .book_import_fed_crush(flows, .test_import_fed_crush()),
+    class = "whep_import_fed_unsited"
+  )
+
+  # Nothing to site the crush in: it is left out, not booked half-way.
+  expect_false(any(out$destiny %in% c("processing", "export")))
+  expect_false(any(out$origin == "Agro-industry"))
+  expect_equal(sum(out$mg_n), sum(flows$mg_n))
 })
 
 test_that(".book_import_fed_crush is a no-op with nothing to book", {
@@ -2262,10 +2280,12 @@ test_that(".assemble_n_nat_destiny keeps the import on the crushed item", {
       )
     )
   }
-  expect_equal(
-    sum_where(out, out$destiny == "processing"),
-    sum_where(prov_raw, prov_raw$destiny == "processing")
-  )
+  for (d in c("processing", "processing_losses", "export")) {
+    expect_equal(
+      sum_where(out, out$destiny == d),
+      sum_where(prov_raw, prov_raw$destiny == d)
+    )
+  }
   expect_equal(.livestock_n(out), .livestock_n(prov_raw))
 })
 
@@ -2276,3 +2296,21 @@ test_that("create_n_prov_destiny rejects an unknown import_processing", {
   )
 })
 
+test_that(".assemble_n_nat_destiny carries the crush's surplus export", {
+  flows <- .test_import_fed_flows() |>
+    dplyr::mutate(mg_n = dplyr::if_else(origin == "Outside", mg_n / 10, mg_n))
+  prov_raw <- .book_import_fed_crush(flows, .test_import_fed_crush())
+
+  out <- .assemble_n_nat_destiny(prov_raw)
+
+  agro_export <- function(df) {
+    sum(df$mg_n[df$origin == "Agro-industry" & df$destiny == "export"])
+  }
+  expect_gt(agro_export(prov_raw), 0)
+  expect_equal(agro_export(out), agro_export(prov_raw))
+  # All imported cake is replaced, at both levels.
+  expect_equal(
+    sum(out$mg_n[out$item == "Sunflower Cake" & out$origin == "Outside"]),
+    0
+  )
+})

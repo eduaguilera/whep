@@ -2769,6 +2769,8 @@ utils::globalVariables(
     "moved_share",
     "moved_n",
     "processing_losses",
+    "absorbed_n",
+    "surplus_n",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
