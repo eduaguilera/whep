@@ -169,7 +169,11 @@ for agricultural commodities},
 nut factors were checked against (whep#1453). The new-method FBS sits
 lower, 62.2 and 72.1 (country sum, 2010), and is not adopted: its maize
 is 18\% below FAO's own maize flour, 8.4 g per 100 g, at a 90\% extraction
-rate (75.6 g/kg). The agronomic value stays selectable as
+rate (75.6 g/kg). As for wheat, one world value cannot carry the
+country pattern: the same FBS credits maize at 77-89 g/kg in the
+countries that eat it as a staple (Lesotho and Malawi 83.7, Guatemala
+89.3) and 49.3 in the United States, so 71.9 leaves those staple
+countries low. The agronomic value stays selectable as
 \code{build_food_supply(protein_basis = "product_nitrogen")}.
 \item \code{Rice} is \strong{unchanged}: its basis was settled in #751/#755.
 \item \verb{Vegetables, other} is \strong{unchanged} and moves no food number: no
