@@ -54,7 +54,9 @@ read_lpjml_hydrology(
 - run_dir:
 
   Path to the LPJmL run output directory. Defaults to
-  `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
+  `Sys.getenv("WHEP_LPJML_RUN_DIR")`. When neither is set, `"drainage"`
+  is read from the `lpjml-seepage` pin (see *Pinned deep seepage*);
+  every other variable needs a run.
 
 - years:
 
@@ -155,6 +157,23 @@ indistinguishable from a measurement. `years = ` was already safe – the
 coverage check counts only whole years, so requesting a partial one
 aborts – and `partial_year` closes the `years = NULL` whole-file read
 that it does not cover.
+
+## Pinned deep seepage
+
+`"drainage"` (LPJmL deep seepage, `mseepage.nc`) is the one variable
+that does not need a local run. Without `run_dir` or
+`WHEP_LPJML_RUN_DIR` it is read from the `lpjml-seepage` pin: annual
+seepage (mm per year, the twelve monthly values summed, as
+`monthly = FALSE` does from a run) per land cell and year, 1850-2023,
+built from WHEP's reference LPJmL 6.1.1 run by `.hydro_seepage_layer()`,
+so the pinned and run-derived values are the same numbers. The pin's
+rows carry the run's `lpjml_version`, `lpjml_git_hash` and `lpjml_run`;
+the reader returns the same columns as from a run. The pin is annual, so
+`monthly = TRUE` (and `agg = "mean"`) still needs a run.
+
+Seepage is a whole-cell quantity: LPJmL has no per-crop or
+per-water-regime seepage, so the irrigated and rainfed land of a cell
+share one value. Join it on `lon`, `lat` and `year`.
 
 ## Examples
 

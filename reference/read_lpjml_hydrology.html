@@ -105,7 +105,9 @@ see the note at <code>.hydro_var_map()</code>. Nothing consumes them yet.</p></d
 
 <dt id="arg-run-dir">run_dir<a class="anchor" aria-label="anchor" href="#arg-run-dir"></a></dt>
 <dd><p>Path to the LPJmL run output directory. Defaults to
-<code>Sys.getenv("WHEP_LPJML_RUN_DIR")</code>.</p></dd>
+<code>Sys.getenv("WHEP_LPJML_RUN_DIR")</code>. When neither is set, <code>"drainage"</code>
+is read from the <code>lpjml-seepage</code> pin (see <em>Pinned deep seepage</em>); every
+other variable needs a run.</p></dd>
 
 
 <dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
@@ -210,6 +212,23 @@ created; once the short annual total is downstream it is indistinguishable
 from a measurement. <code>years = </code> was already safe – the coverage check counts
 only whole years, so requesting a partial one aborts – and <code>partial_year</code>
 closes the <code>years = NULL</code> whole-file read that it does not cover.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="pinned-deep-seepage">Pinned deep seepage<a class="anchor" aria-label="anchor" href="#pinned-deep-seepage"></a></h2>
+
+
+<p><code>"drainage"</code> (LPJmL deep seepage, <code>mseepage.nc</code>) is the one variable that
+does not need a local run. Without <code>run_dir</code> or <code>WHEP_LPJML_RUN_DIR</code> it is
+read from the <code>lpjml-seepage</code> pin: annual seepage (mm per year, the twelve
+monthly values summed, as <code>monthly = FALSE</code> does from a run) per land cell
+and year, 1850-2023, built from WHEP's reference LPJmL 6.1.1 run by
+<code>.hydro_seepage_layer()</code>, so the pinned and run-derived values are the same
+numbers. The pin's rows carry the run's <code>lpjml_version</code>, <code>lpjml_git_hash</code>
+and <code>lpjml_run</code>; the reader returns the same columns as from a run. The pin
+is annual, so <code>monthly = TRUE</code> (and <code>agg = "mean"</code>) still needs a run.</p>
+<p>Seepage is a whole-cell quantity: LPJmL has no per-crop or per-water-regime
+seepage, so the irrigated and rainfed land of a cell share one value. Join
+it on <code>lon</code>, <code>lat</code> and <code>year</code>.</p>
     </div>
 
     <div class="section level2">
