@@ -1794,12 +1794,18 @@ build_primary_production <- function(
 # Two cases reach this. Under `options(whep.unfold_predecessor_bucket = "all")`
 # bucket 206 "Sudan (former)" ran its 2011 herd beside the 276/277 herds that
 # report the same animals (whep#1404). And in every mode FAOSTAT reports the
-# French overseas departments (69, 87, 135, 182) only until 2006, while France
-# (68) does not take them in afterwards: their 2006 herds ran flat 2007-2023,
-# 89 kt of livestock tonnes a year, while their crops have no row at all after
-# 2006 (whep#1562). With no observation to anchor 17 years of fill, the gap
-# stays explicit and is named, the same rule `.filter_dissolved_countries()`
-# applies to a dissolved country.
+# French overseas departments (69, 87, 135, 182) only until 2006, and their
+# 2006 herds ran flat 2007-2023, 89 kt of livestock tonnes a year (whep#1562).
+# From 2007 France's own figures include them: FAOSTAT France's 2019 cattle
+# stock, 18,172,970 head, is Agreste's "France entière" total (DOM included;
+# metropolitan France alone is 18,050,754; Agreste SAA 2020 definitive,
+# Chiffres et Données No 14, pp. 20 and 37), and Eurostat's national France
+# (apro_mt_ls_r, 2018: 18,563.23 thousand cattle) includes the 141.83 thousand
+# of its outermost regions (FRY). The carried herds were a second copy of
+# animals France already reports, so they go, the same rule
+# `.filter_dissolved_countries()` applies to a dissolved country and the one
+# the wiki decision whep-territories-fold-to-faostat-reporting-area records:
+# a territory sits under the area whose FAOSTAT statistics include it.
 #
 # "Reports" is `.reported_bucket_years()`, which follows folds: under the fold
 # bucket 206 is reported after 2011 by 276/277 and keeps every row. Only the

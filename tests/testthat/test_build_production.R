@@ -103,8 +103,8 @@ test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
   )
 }
 
-# FAOSTAT reports the four French overseas departments until 2006 and France
-# (68) does not take them in afterwards (whep#1562).
+# FAOSTAT reports the four French overseas departments until 2006; from 2007
+# France (68) reports their herds inside its own (whep#1562).
 .overseas_stock_rows <- function() {
   tibble::tribble(
     ~year, ~area, ~area_code, ~item_cbs, ~value,
@@ -121,7 +121,7 @@ test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
 
 test_that("stock rows stop at the area's last reported year (whep#1562)", {
   # The completion in `.combine_livestock()` carried the departments' 2006
-  # herds flat to 2023 while their crops have no row after 2006.
+  # herds flat to 2023 beside the France herd that already includes them.
   result <- suppressMessages(
     whep:::.drop_unreported_stock_tail(.overseas_stock_rows())
   )
