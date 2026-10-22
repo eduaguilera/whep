@@ -24,7 +24,12 @@
 #    The default follows footnote 4, which defines the classes on
 #    precipitation only; Annex 11A.2 (p. 11.30) says 63% of the dry-climate
 #    EF1 cases were irrigated, so the dry factors already price irrigated dry
-#    land and `precip_irrig` would price irrigation twice (#1531).
+#    land and `precip_irrig` would price irrigation twice (#1531). This
+#    default is provisional (wiki decision
+#    whep-wet-dry-class-on-precipitation-only): IPCC 2019 is its one
+#    independent source, since Cayuela et al. (2017), which agrees (irrigated
+#    Mediterranean EF 0.63%), is among the databases the IPCC EF1 was fitted
+#    on (Annex 11A.2, p. 11.29).
 # 4. Optional, one per side of the record a window reaches past:
 #    `climatology_<first>_<last>_<n>of<m>`, meaning n of the window's m years
 #    lie outside the climate record and took the held climatology of years
