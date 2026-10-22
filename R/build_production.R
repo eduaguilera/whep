@@ -1004,6 +1004,16 @@ build_primary_production <- function(
 # it. Pakistan and Myanmar have no consistent earlier value; their rows are
 # dropped, so the back-cast stops at 1960 and the earlier years keep the
 # land-driven extension's yield, the 1961 anchor.
+#
+# India's 1948-1959 rows are Mitchell's sugar output over cane area times
+# 14.81; Mitchell's sugar basis itself changes at 1950. Two cane series exist
+# for India's 1950s, and they disagree on its level. The official one (Agric.
+# Statistics at a Glance 2022, table 2.21(a); FAO's Yearbooks agree) gives
+# 29.5-37.7 t/ha and then jumps 25% at 1960-61. ICAR-IISR's "Sugarcane
+# Production Data-India" gives about 1.2x that, 35.8-44.2 t/ha, with no jump.
+# The bridge sits on the IISR level: 1.6% below it over 1951-1960, at most
+# 14% off in any year, and 18% above the official series. Which level is
+# right is open on whep#1544.
 .int_yield_basis_spans <- function() {
   tibble::tribble(
     ~area_code, ~item_prod_code, ~year_from, ~year_to,
