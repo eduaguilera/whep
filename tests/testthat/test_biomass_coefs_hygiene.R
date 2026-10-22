@@ -130,28 +130,27 @@ testthat::test_that("no food carries more than a kilogram per kilogram", {
 
 testthat::test_that("the proximate sum against dry matter can only improve", {
   # The tighter chemical bound: the constituents must fit inside the dry
-  # matter. 67 rows fail it, but only 24 fail once fibre is left out, so about
+  # matter. 68 rows fail it, but only 25 fail once fibre is left out, so about
   # forty of them are fibre being counted inside carbohydrate as well as beside
   # it rather than a coefficient error. Both counts are ratchets: lower them
   # when a row is fixed, never raise them to admit a new one. Honey left both
   # in #1096: its composition row sums to exactly its 785 g/kg dry matter.
-  # Brown sugar, White sugar, Figs, Tigernuts and Butter, Ghee left both in
-  # #752.
+  # Brown sugar, White sugar, Figs and Butter, Ghee left both in #752.
   prox <- .bch_proximate()
   with_fibre <- sum(prox$proximate_g_kgfm > prox$dry_matter_g_kgfm)
   without_fibre <- sum(
     prox$proximate_g_kgfm - dplyr::coalesce(prox$Fiber_g_kgFM, 0) >
       prox$dry_matter_g_kgfm
   )
-  testthat::expect_lte(with_fibre, 67L)
-  testthat::expect_lte(without_fibre, 24L)
+  testthat::expect_lte(with_fibre, 68L)
+  testthat::expect_lte(without_fibre, 25L)
 })
 
 testthat::test_that("no single constituent outweighs its own dry matter", {
   # The strictest reading of the bound, and the one no definitional argument
   # rescues: whatever basis the composition block is on, a single constituent
   # cannot outweigh the dry matter it is part of. Seven rows used to (#752);
-  # six are repaired and one is pinned by name. What happened to each:
+  # five are repaired and two are pinned by name. What happened to each:
   #
   # - Honey left in #1096, when its placeholder 1000 g/kg became its `Miel`
   #   row's 780.
@@ -159,15 +158,17 @@ testthat::test_that("no single constituent outweighs its own dry matter", {
   #   wrong way round. Its `Total azucar` composition (995 g carbohydrate/kg)
   #   was booked on Brown sugar (DM 0.965) and copied per kg of dry matter to
   #   White sugar (DM 0.995), which made 1025.9 g of carbohydrate per kg.
-  # - Figs and Tigernuts carried the composition of the DRIED food (`Higo`
-  #   2810 kcal/kg, `Chufa` 4430 kcal/kg) on a fresh-basis row. Their blocks
-  #   are now diluted by the row's own edible energy over the dried food's.
+  # - Figs carried the composition of DRIED figs (`Higo`, 2810 kcal/kg) on a
+  #   fresh-fig row. Its block is now diluted by the row's own edible energy
+  #   over the dried food's (provisional).
   # - Butter, Ghee carried 830 g fat/kg in 821.4 g/kg of dry matter; now
-  #   FAO's 81.1 g/100 g for butter of cow milk.
+  #   FAO's 81.1 g/100 g for butter of cow milk (Ciqual 2020: 81.5).
   #
-  # Vegetables, other is the one left: its dry matter is Tomato's (the row's
+  # Two are left. Vegetables, other: its dry matter is Tomato's (the row's
   # Equiv) under an average-vegetable composition, and repairing it means
-  # moving the dry matter, which production reads.
+  # moving the dry matter, which production reads. Tigernuts: dried `Chufa`
+  # composition (4430 kcal/kg) on a 0.30 dry matter that is a "Roots
+  # average" placeholder, and no source says which of the two is wrong.
   offenders <- whep::biomass_coefs |>
     dplyr::filter(
       !is.na(.data$Product_kgDM_kgFM),
@@ -182,14 +183,14 @@ testthat::test_that("no single constituent outweighs its own dry matter", {
     dplyr::pull(.data$Name_biomass)
   testthat::expect_setequal(
     offenders,
-    c("Vegetables, other", "Urea", "Ammonium chloride")
+    c("Vegetables, other", "Tigernuts", "Urea", "Ammonium chloride")
   )
 })
 
 testthat::test_that("the repaired composition rows close against dry matter", {
   # Protein + lipid + carbohydrate + fibre fits inside the dry matter for
   # every row #752 repaired, not only the single largest constituent.
-  repaired <- c("Brown sugar", "White sugar", "Figs", "Tigernuts")
+  repaired <- c("Brown sugar", "White sugar", "Figs")
   prox <- .bch_proximate() |>
     dplyr::filter(.data$Name_biomass %in% repaired)
   testthat::expect_setequal(prox$Name_biomass, repaired)

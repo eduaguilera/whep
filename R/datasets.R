@@ -428,43 +428,51 @@
 #' `afsetools/inst/extdata/Biomass_coefs.xlsx`; upstream still carries the old
 #' values in `Coefs` and should follow.
 #'
-#' Five rows carried a single constituent heavier than their own dry matter,
-#' which no reading of the columns allows (#752). Each was repaired in the
-#' composition cells, not in `Product_kgDM_kgFM`: the dry matter has a
+#' Six rows carried a single constituent heavier than their own dry matter,
+#' which no reading of the columns allows (#752). Four are repaired, in the
+#' composition cells rather than in `Product_kgDM_kgFM`: the dry matter has a
 #' `Sources` entry (Guzman et al. 2014 for figs and both sugars) and the
-#' composition block has none, and the composition columns changed here are
-#' read by no package code, so no computed number moves.
+#' composition block has none. The columns changed here are read by no
+#' package code, so no computed number moves (decision
+#' `whep-biomass-coefs-composition-above-dm`).
 #'
-#' - `Brown sugar` and `White sugar`: the workbook ran its `Equiv` rescale
+#' - `White sugar` and `Brown sugar`: the workbook ran its `Equiv` rescale
 #'   the wrong way round. The `Conversores_Dieta` row `Total azucar`, 995 g of
-#'   carbohydrate and 20 mg of calcium per kg, is a sugar of 99.5% dry matter,
-#'   but it was booked on `Brown sugar` (dry matter 0.965) and copied per kg
-#'   of dry matter to `White sugar` (0.995), giving 1025.9 g of carbohydrate
-#'   per kg. `White sugar` now carries the row as written and `Brown sugar`
-#'   its per-dry-matter rescale, 965 g and 19.40 mg, so the `Equiv` identity
-#'   still holds. FAO's food-composition factors put refined sugar at
-#'   387 kcal and non-centrifugal sugar at 351 kcal per 100 g, both with zero
-#'   fat (FAO, *Food balance sheets: a handbook*, Rome, 2001, Annex I,
-#'   <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>), so the brown
-#'   row's carbohydrate is if anything an upper bound.
-#' - `Figs` and `Tigernuts` carried the composition of the **dried** food
-#'   (`Higo`, 2810 kcal/kg; `Chufa`, 4430 kcal/kg) on a fresh-basis row: the
-#'   row's own edible energy is 2.996 MJ/kg for figs, and Annex I above gives
-#'   74 kcal per 100 g (3.10 MJ/kg) for fresh figs. Their nitrogen, lipid,
-#'   carbohydrate, calcium and vitamin A cells are now the dried values
-#'   scaled by the row's edible energy over the dried food's energy (0.2547
-#'   for figs, 0.2124 for tigernuts) -- the workbook's own per-dry-matter
-#'   transfer, with energy standing in for the dry matter `Conversores_Dieta`
-#'   does not give (assumed: drying removes water only). No item reaches
-#'   either row through [items_full], so their nitrogen feeds no food number.
-#' - `Butter, Ghee` carried 830 g of fat per kg in 821.4 g of dry matter.
-#'   It now carries **811 g/kg**, FAO's 81.1 g per 100 g for butter of cow
-#'   milk (Annex I above; also 81.1 for buffalo and goat butter). Ghee is
-#'   99.1 g but the row's dry matter is butter's.
+#'   carbohydrate and 20 mg of calcium per kg, is a white sugar, but it was
+#'   booked on `Brown sugar` (dry matter 0.965) and copied per kg of dry
+#'   matter to `White sugar` (0.995), giving 1025.9 g of carbohydrate per kg.
+#'   `White sugar` now carries the row as written, **995 g/kg**, which two
+#'   independent tables support: Ciqual 2020 (ANSES), code 31016 `Sugar,
+#'   white`, 99.8 g carbohydrate per 100 g; USDA FoodData Central SR Legacy
+#'   169655 `Sugars, granulated`, 100 g. `Brown sugar` carries the
+#'   per-dry-matter rescale, 965 g and 19.40 mg, so the `Equiv` identity
+#'   still holds. That value is **provisional**: FAO gives non-centrifugal
+#'   sugar 351 kcal, 1.0 g protein and no fat per 100 g (FAO, *Food balance
+#'   sheets: a handbook*, Rome, 2001, Annex I, printed p. 61,
+#'   <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>), which implies
+#'   less carbohydrate than 965 g/kg.
+#' - `Figs` carried the composition of **dried** figs (`Higo`: 2810 kcal,
+#'   530 g carbohydrate per kg; Ciqual 13013 `Fig, dried` has 54.3 g per
+#'   100 g) on a fresh-fig row: its own edible energy is 2.996 MJ/kg, and FAO
+#'   Annex I gives figs 73 kcal per 100 g (3.05 MJ/kg, printed p. 62). The
+#'   nitrogen, lipid, carbohydrate, calcium and vitamin A cells are now the
+#'   dried values times the row's edible energy over `Higo`'s (0.2547): the
+#'   workbook's own per-dry-matter transfer, with energy standing in for the
+#'   dry matter `Conversores_Dieta` does not give (assumed: drying removes
+#'   water only; provisional). The result, 135 g carbohydrate per kg, is
+#'   Ciqual 13012 `Fig, raw`'s 13.5 g per 100 g. No item reaches `Figs`
+#'   through [items_full], so its nitrogen feeds no food number.
+#' - `Butter, Ghee` carried 830 g of fat per kg in 821.4 g of dry matter. It
+#'   now carries **811 g/kg**: FAO Annex I gives butter of cow milk 81.1 g
+#'   per 100 g (printed p. 65; buffalo and goat butter are also 81.1), and
+#'   Ciqual 16414, unsalted butter of unknown fat content, gives 81.5.
 #'
-#' `Vegetables, other` still breaks the bound: its dry matter is `Tomato`'s,
-#' its `Equiv`, under an average-vegetable composition, so the repair is to
-#' its dry matter, which production reads.
+#' Two rows still break the bound. `Vegetables, other` has `Tomato`'s dry
+#' matter (its `Equiv`) under an average-vegetable composition, so the
+#' repair is to its dry matter, which production reads. `Tigernuts` has the
+#' dried `Chufa` composition (4430 kcal/kg) on a dry matter of 0.30 that is a
+#' "Roots average" placeholder, and no source found says which of the two is
+#' wrong, so it is left as published.
 #'
 #' The tree-nut rows `Almonds`, `Walnut` and `Hazelnut` pair a **kernel**
 #' nitrogen density with an `Edible_portion` that now refers to the nut **in
