@@ -254,7 +254,7 @@ test_that("plot_input_output clamps a negative cropland surplus to zero", {
   # inputs (5) < production (100), so the unclamped net is negative; the
   # cropland builder uses positive_only = TRUE and must clamp it to zero.
   testthat::local_mocked_bindings(
-    create_n_nat_destiny = function(example = FALSE) {
+    create_n_nat_destiny = function(example = FALSE, ...) {
       tibble::tribble(
         ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
         2000, "Spain", "Wheat", NA, "Cropland", "Synthetic", "Cropland", 5,
@@ -296,7 +296,7 @@ test_that("plot_input_output_livestock keeps a negative surplus unclamped", {
   # feed inputs (10) < livestock production (100), so the signed net is
   # negative; the livestock builder uses positive_only = FALSE and must keep it.
   testthat::local_mocked_bindings(
-    create_n_nat_destiny = function(example = FALSE) {
+    create_n_nat_destiny = function(example = FALSE, ...) {
       tibble::tribble(
         ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
         2000, "Spain", "Wheat", NA, "Cropland", "Cropland", "livestock_rum", 10,
@@ -381,7 +381,7 @@ test_that(".normalize_mg_n divides totals by area when per_ha is TRUE", {
 
 test_that("plot_input_output honours per_ha on real (mocked) data", {
   testthat::local_mocked_bindings(
-    create_n_nat_destiny = function(example = FALSE) {
+    create_n_nat_destiny = function(example = FALSE, ...) {
       tibble::tribble(
         ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
         2000, "Spain", "Wheat", NA, "Cropland", "Synthetic", "Cropland", 800,
@@ -421,7 +421,7 @@ test_that(".calculate_n_accum nets accumulation gains against losses", {
 
 test_that("plot_input_output adds an Accumulation layer for semi-natural", {
   testthat::local_mocked_bindings(
-    create_n_nat_destiny = function(example = FALSE) {
+    create_n_nat_destiny = function(example = FALSE, ...) {
       tibble::tribble(
         ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
         2000, "Spain", "Grass", NA, "sna", "Fixation", "semi_natural_agroecosystems", 500,
@@ -455,7 +455,7 @@ test_that("plot_input_output_system keeps base levels in example mode", {
 
 test_that("plot_input_output_livestock splits feed origin and production", {
   testthat::local_mocked_bindings(
-    create_n_nat_destiny = function(example = FALSE) {
+    create_n_nat_destiny = function(example = FALSE, ...) {
       tibble::tribble(
         ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
         2000, "Spain", "Wheat", NA, "Cropland", "Cropland", "livestock_rum", 50,

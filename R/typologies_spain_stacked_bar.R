@@ -1,6 +1,6 @@
 typology_stacked_bars <- function() {
   indicators <- create_typo_ts_plot()
-  n_prov_destiny <- create_n_prov_destiny()
+  n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
 
   typologies_df <- indicators |>
     dplyr::group_by(year, province_name) |>

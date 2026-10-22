@@ -77,8 +77,9 @@ plot_typology_indicators_panel <- function(
     "to draw the typology indicator panels."
   )
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
   if (is.null(finn_data)) {
     finn_data <- create_finn_indicator(n_prov_destiny)
   }
@@ -180,14 +181,16 @@ plot_typology_periods_panel <- function(
     "to draw the typology indicator panels."
   )
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
   if (is.null(finn_data)) {
     finn_data <- create_finn_indicator(n_prov_destiny)
   }
   if (is.null(n_nat_destiny)) {
-    n_nat_destiny <- create_n_nat_destiny()
+    n_nat_destiny <- create_n_nat_destiny(import_processing = "product")
   }
+  n_nat_destiny <- .as_product_booking(n_nat_destiny)
 
   panel_data <- panel_data %||% list()
   flows <- n_prov_destiny

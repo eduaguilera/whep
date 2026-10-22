@@ -1,6 +1,6 @@
 intens_spec_plot <- function() {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----F
@@ -131,7 +131,7 @@ intens_spec_plot <- function() {
 
 circ_intens_plot <- function() {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
@@ -278,7 +278,7 @@ circ_intens_plot <- function() {
 
 circ_nue_traj_plot <- function() {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
@@ -429,7 +429,7 @@ circ_nue_traj_plot <- function() {
 
 circ_nue_crop_ts_plot <- function(out_dir = NULL) {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
 
   # ---- Crop production ----
   crop_production <- flows |>
@@ -608,7 +608,7 @@ circ_nue_crop_ts_plot <- function(out_dir = NULL) {
 
 intens_spec_ts <- function(out_dir = NULL) {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Area per province ----
@@ -758,7 +758,7 @@ intens_spec_ts <- function(out_dir = NULL) {
 
 yield_nue_trajectory_plot <- function(out_dir = NULL) {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
@@ -863,7 +863,7 @@ yield_nue_trajectory_plot <- function(out_dir = NULL) {
 
 intens_traj_plot <- function(out_dir = NULL) {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Cropland area ----
@@ -961,7 +961,7 @@ intens_traj_plot <- function(out_dir = NULL) {
 
 intens_ts_plot <- function(out_dir = NULL) {
   # ---- Load data ----
-  flows <- create_n_nat_destiny()
+  flows <- create_n_nat_destiny(import_processing = "product")
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # ---- Agricultural area (cropland + semi-natural) ----
@@ -1044,7 +1044,7 @@ intens_ts_plot <- function(out_dir = NULL) {
 }
 
 nue_fertilizer_timeseries_plot <- function(out_dir = NULL) {
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
 
   # ---- Crop production ----
   crop_production <- flows |>
@@ -1184,7 +1184,7 @@ nue_fertilizer_timeseries_plot <- function(out_dir = NULL) {
 
 nue_fertilizer_trajectory_plot <- function(out_dir = NULL) {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
 
   # ---- Crop production (N output) ----
   crop_production <- flows |>
@@ -1284,7 +1284,7 @@ nue_fertilizer_trajectory_plot <- function(out_dir = NULL) {
 
 nrr_cropland_timeseries_plot <- function(out_dir = NULL) {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
 
   # ---- Crop production (N output) ----
   crop_outputs <- flows |>
@@ -1396,7 +1396,7 @@ nrr_cropland_timeseries_plot <- function(out_dir = NULL) {
 
 production_diversity_plot <- function() {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
 
   # The codes_coefs pin is exactly the Names_biomass_CB sheet of
   # Codes_coefs.xlsx (same 233 rows, same Name_biomass/Item/Name/Cat_1).
@@ -1476,7 +1476,7 @@ production_diversity_plot <- function() {
 }
 
 intens_spec_sec_axis <- function(out_dir = NULL) {
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
 
   # The codes_coefs pin is exactly the Names_biomass_CB sheet of
@@ -1613,7 +1613,7 @@ intens_spec_sec_axis <- function(out_dir = NULL) {
 #' indicators by Josettes and Gilles paper
 #' @noRd
 n_indicators_ts_plot <- function() {
-  flows <- create_n_nat_destiny()
+  flows <- create_n_nat_destiny(import_processing = "product")
 
   soil_inputs <- flows |>
     dplyr::filter(
@@ -1731,7 +1731,7 @@ n_indicators_ts_plot <- function() {
 }
 
 spatial_diversity <- function() {
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
 
   # The codes_coefs pin is exactly the Names_biomass_CB sheet of
   # Codes_coefs.xlsx (same 233 rows, same Name_biomass/Item/Name/Cat_1).
@@ -1795,7 +1795,7 @@ spatial_diversity <- function() {
 
 spec_hhi_prod_plot <- function() {
   # ---- Load data ----
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
 
   # ---- Select production-related flows ----
   spec_df <- flows |>
@@ -1871,7 +1871,7 @@ spec_hhi_prod_plot <- function() {
 }
 
 system_shares_plot <- function() {
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
 
   df <- flows |>
     dplyr::filter(
@@ -1945,7 +1945,7 @@ system_shares_plot <- function() {
 
 ext_dep_plot_national <- function() {
   # ---- Load national data ----
-  flows <- create_n_nat_destiny()
+  flows <- create_n_nat_destiny(import_processing = "product")
 
   inputs <- flows |>
     dplyr::filter(
@@ -2144,7 +2144,7 @@ ext_dep_plot_national <- function() {
 external_dependency_maps <- function(
   shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
 ) {
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
   df_period <- .calc_end_provincial(flows)
   sf_spain <- .load_spain_sf(shapefile_path)
 
@@ -2195,7 +2195,7 @@ external_dependency_maps <- function(
 n_productivity_maps <- function(
   shapefile_path = "C:/PhD/GRAFS/Production Boxes/Final Files/Inputs/ne_10m_admin_1_states_provinces.shp"
 ) {
-  flows <- create_n_prov_destiny()
+  flows <- create_n_prov_destiny(import_processing = "product")
   npp_ygpit <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
   df_period <- .calc_n_productivity_prov(flows, npp_ygpit)
   sf_spain <- .load_spain_sf(shapefile_path)

@@ -2289,6 +2289,17 @@ test_that(".assemble_n_nat_destiny keeps the import on the crushed item", {
   expect_equal(.livestock_n(out), .livestock_n(prov_raw))
 })
 
+test_that("the builders default to the feedstock booking", {
+  expect_equal(
+    eval(formals(create_n_prov_destiny)$import_processing)[1],
+    "feedstock"
+  )
+  expect_equal(
+    eval(formals(create_n_nat_destiny)$import_processing)[1],
+    "feedstock"
+  )
+})
+
 test_that("create_n_prov_destiny rejects an unknown import_processing", {
   expect_error(
     create_n_prov_destiny(import_processing = "beans"),
@@ -2313,4 +2324,112 @@ test_that(".assemble_n_nat_destiny carries the crush's surplus export", {
     sum(out$mg_n[out$item == "Sunflower Cake" & out$origin == "Outside"]),
     0
   )
+})
+
+# Soybeans are crushed at the port plants (Barcelona x2, Bilbao, Cartagena).
+# Barcelona feeds 50 t N of imported cake, Lleida 100; the imported beans
+# yield 120 t N of cake and lose 2.
+.test_soy_flows <- function() {
+  tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Barcelona", "Soyabean Cake", NA_character_, "Cropland", "Outside", "livestock_mono", 50,
+    2020, "Lleida", "Soyabean Cake", NA_character_, "Cropland", "Outside", "livestock_mono", 100
+  )
+}
+
+.test_soy_crush <- function() {
+  list(
+    outputs = tibble::tibble(
+      year = 2020,
+      primary_item = "Soyabeans",
+      item = "Soyabean Cake",
+      output_n = 120
+    ),
+    inputs = tibble::tibble(
+      year = 2020,
+      item = "Soyabeans",
+      feedstock_n = 122,
+      loss_n = 2
+    )
+  )
+}
+
+test_that(".book_import_fed_crush crushes soybeans at the port plants", {
+  out <- .book_import_fed_crush(.test_soy_flows(), .test_soy_crush())
+
+  by_province <- function(d) {
+    rows <- out |> dplyr::filter(destiny == d)
+    rlang::set_names(rows$mg_n, rows$province_name)
+  }
+  feedstock <- by_province("processing")
+  expect_equal(
+    feedstock[c("Barcelona", "Bizkaia", "Murcia")],
+    c(Barcelona = 61, Bizkaia = 30.5, Murcia = 30.5)
+  )
+  # Barcelona's 60 t N of cake replaces its own 50 of imports and exports
+  # the rest; Bilbao and Cartagena export all of theirs.
+  exported <- by_province("export")
+  expect_equal(
+    exported[c("Barcelona", "Bizkaia", "Murcia")],
+    c(Barcelona = 10, Bizkaia = 30, Murcia = 30)
+  )
+  barcelona_cake <- out |>
+    dplyr::filter(province_name == "Barcelona", item == "Soyabean Cake")
+  expect_equal(
+    sum(barcelona_cake$mg_n[
+      barcelona_cake$origin == "Agro-industry" &
+        barcelona_cake$destiny == "livestock_mono"
+    ]),
+    50
+  )
+  # Lleida keeps importing its cake, now from the crushers.
+  lleida <- out |> dplyr::filter(province_name == "Lleida")
+  expect_equal(lleida$origin, "Outside")
+  expect_equal(lleida$mg_n, 100)
+  expect_equal(.livestock_n(out), .livestock_n(.test_soy_flows()))
+})
+
+test_that(".assemble_n_nat_destiny books the whole plant crush nationally", {
+  prov_raw <- .book_import_fed_crush(.test_soy_flows(), .test_soy_crush())
+
+  out <- .assemble_n_nat_destiny(prov_raw)
+
+  cake <- out |> dplyr::filter(item == "Soyabean Cake")
+  # Spain imports 150 t N of cake; the crush supplies 120 of it, so nothing
+  # is exported nationally even though the plant provinces export.
+  expect_equal(sum(cake$mg_n[cake$origin == "Agro-industry"]), 120)
+  expect_equal(sum(cake$mg_n[cake$origin == "Outside"]), 30)
+  expect_equal(sum(out$mg_n[out$destiny == "export"]), 0)
+  expect_equal(sum(out$mg_n[out$destiny == "processing"]), 122)
+  expect_equal(sum(out$mg_n[out$destiny == "processing_losses"]), 2)
+})
+
+.arrange_flows <- function(flows) {
+  flows |>
+    dplyr::summarise(mg_n = sum(mg_n), .by = -mg_n) |>
+    dplyr::arrange(year, province_name, item, origin, destiny)
+}
+
+test_that(".as_product_booking folds the crush back exactly", {
+  cases <- list(
+    soy = list(.test_soy_flows(), .test_soy_crush()),
+    sunflower = list(.test_import_fed_flows(), .test_import_fed_crush())
+  )
+  for (case in cases) {
+    booked <- .book_import_fed_crush(case[[1]], case[[2]])
+    expect_equal(
+      .arrange_flows(.as_product_booking(booked)),
+      .arrange_flows(case[[1]])
+    )
+    expect_equal(
+      .arrange_flows(.as_product_booking(.assemble_n_nat_destiny(booked))),
+      .arrange_flows(.assemble_n_nat_destiny(case[[1]]))
+    )
+  }
+})
+
+test_that(".as_product_booking leaves flows with no crush untouched", {
+  flows <- .test_import_fed_flows()
+
+  expect_identical(.as_product_booking(flows), flows)
 })

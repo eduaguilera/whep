@@ -35,24 +35,30 @@
 #'   feedstock is booked (#1014). The builder's processing volume can exceed
 #'   what Spain grows: the soybean crush, about 3 Mt a year, runs almost
 #'   entirely on imported beans. One of:
-#'   - `"product"` (default): only domestic production is processed. Spain's
-#'     demand for the outputs (soybean cake and oil) is met by importing the
+#'   - `"feedstock"` (default): the excess, capped at the item's net imports
+#'     in the commodity balance sheet ([get_wide_cbs()]), is crushed in
+#'     Spain. The imported feedstock is booked as `Outside` -> `processing`
+#'     on the primary item; the outputs it yields replace imports of the
+#'     outputs and carry origin `Agro-industry`, and what they yield beyond
+#'     the imports they replace is exported from `Agro-industry`; its N loss
+#'     is booked as `processing_losses` with origin `Agro-industry`.
+#'     Consumption, and so livestock intake, is unchanged, and `Agro-industry`
+#'     consumption is imported N: the analyses in this package count it with
+#'     `Outside` (see [imported_origins()]). Soybeans are crushed at the four
+#'     port plants (Barcelona, Bilbao, Cartagena); other crops where their
+#'     outputs are imported. This follows the food balance sheet convention:
+#'     imports are booked on the commodity that crosses the border, and the
+#'     production of a processed commodity "comprises output from domestic
+#'     and imported raw materials" (FAO 2001, *Food Balance Sheets: A
+#'     Handbook*, ch. II.2). For Spain, "soybeans intended for crushing are
+#'     imported" and "nearly half of the soybean meal supply is met by meal
+#'     obtained through in-country crushing" (Guerrero 2023, USDA GAIN report
+#'     SP2023-0018).
+#'   - `"product"`: only domestic production is processed. Spain's demand
+#'     for the outputs (soybean cake and oil) is met by importing the
 #'     outputs, so the import is booked on the cake, not on the beans, and
 #'     the crush's own N loss is not booked. The volume left out is reported
 #'     in a warning of class `whep_processing_excess`.
-#'   - `"feedstock"`: the excess, capped at the item's net imports in the
-#'     commodity balance sheet ([get_wide_cbs()]), is crushed in Spain. The
-#'     imported feedstock is booked as `Outside` -> `processing` on the
-#'     primary item; the outputs it yields replace imports of the outputs
-#'     and carry origin `Agro-industry`, and what they yield beyond Spain's
-#'     imports of them is exported from `Agro-industry`; its N loss is
-#'     booked as `processing_losses` with origin `Agro-industry`.
-#'     Consumption, and so livestock intake, is unchanged. The crush is
-#'     placed in the provinces that import its outputs, in proportion to
-#'     their imports. Downstream
-#'     analyses in this package (GRAFS plots, typologies, indicators) are
-#'     built on `"product"` and do not yet read the `processing` destiny or
-#'     the `Agro-industry` origin.
 #'
 #' @return
 #' A final tibble containing N flow data by origin and destiny.
@@ -68,7 +74,8 @@
 #'   Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
 #'   `box` values, not origins; their nitrogen enters as Outside. The one
 #'   exception is `import_processing = "feedstock"`, where Agro-industry is
-#'   the origin of the outputs and losses of the crush of imported feedstock.
+#'   the origin of the outputs, exports and losses of the crush of imported
+#'   feedstock: imported N, processed in Spain.
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
 #'   processing_losses (N not credited to a processed output),
@@ -84,7 +91,7 @@
 create_n_prov_destiny <- function(
   example = FALSE,
   wood_n_method = c("tissue", "single"),
-  import_processing = c("product", "feedstock")
+  import_processing = c("feedstock", "product")
 ) {
   wood_n_method <- rlang::arg_match(wood_n_method)
   import_processing <- rlang::arg_match(import_processing)
@@ -256,7 +263,7 @@ create_n_prov_destiny <- function(
 #' create_n_nat_destiny(example = TRUE)
 create_n_nat_destiny <- function(
   example = FALSE,
-  import_processing = c("product", "feedstock")
+  import_processing = c("feedstock", "product")
 ) {
   import_processing <- rlang::arg_match(import_processing)
   if (example) {
@@ -518,15 +525,11 @@ create_n_nat_destiny <- function(
     )
 
   # Imported feedstock crushed in Spain (`import_processing = "feedstock"`)
-  # is booked on its own destiny, and its surplus outputs on an
-  # Agro-industry export; neither is production or consumption, so both pass
-  # through like the losses.
+  # is booked on its own destiny and passes through like the losses. The
+  # crush's exports do not: part of a plant province's export goes to other
+  # provinces, so `.relabel_nat_import_fed()` rebuilds the national one.
   nat_processing_losses <- prov |>
-    dplyr::filter(
-      Destiny %in%
-        c("processing_losses", "processing") |
-        (Origin == "Agro-industry" & Destiny == "export")
-    ) |>
+    dplyr::filter(Destiny %in% c("processing_losses", "processing")) |>
     dplyr::group_by(Year, Item, Irrig_cat, Box, Origin, Destiny) |>
     dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(Province_name = "Spain")
@@ -555,8 +558,9 @@ create_n_nat_destiny <- function(
 #' @title Carry the import-fed crush to the national level ---------------------
 #' @description National imports are rebuilt from consumption less
 #' production, which books the outputs of the import-fed crush
-#' (`import_processing = "feedstock"`) as imports again. This moves the same
-#' N the provinces booked from the crush back to origin `Agro-industry`.
+#' (`import_processing = "feedstock"`) as imports again. This moves the
+#' crush's whole output (what provinces eat and export from it) back to
+#' origin `Agro-industry`, up to Spain's import of it, and exports the rest.
 #'
 #' @param nat National flows, lower_snake_case.
 #' @param prov_raw Output of `create_n_prov_destiny()`.
@@ -568,14 +572,40 @@ create_n_nat_destiny <- function(
   crushed <- prov_raw |>
     dplyr::filter(
       origin == "Agro-industry",
-      destiny %in% .consumption_destinies()
+      destiny %in% c(.consumption_destinies(), "export")
     ) |>
-    dplyr::summarise(booked_n = sum(mg_n), .by = c(year, item))
+    dplyr::summarise(output_n = sum(mg_n), .by = c(year, item))
   if (nrow(crushed) == 0) {
     return(nat)
   }
+  booked <- nat |>
+    dplyr::filter(
+      origin == "Outside",
+      destiny %in% .consumption_destinies()
+    ) |>
+    dplyr::summarise(import_n = sum(mg_n), .by = c(year, item)) |>
+    dplyr::right_join(crushed, by = c("year", "item")) |>
+    dplyr::mutate(
+      # Structural zero: Spain imports none of an output it does not consume
+      # beyond its own production.
+      booked_n = pmin(output_n, dplyr::coalesce(import_n, 0)),
+      surplus_n = output_n - booked_n
+    )
+  surplus <- booked |>
+    dplyr::transmute(
+      year,
+      province_name = "Spain",
+      item,
+      destiny = "export",
+      mg_n = surplus_n
+    ) |>
+    .as_crush_rows()
+
   nat |>
-    .relabel_import_fed_outputs(crushed) |>
+    .relabel_import_fed_outputs(
+      booked |> dplyr::select(year, item, booked_n)
+    ) |>
+    dplyr::bind_rows(surplus) |>
     dplyr::arrange(year, item, origin, destiny)
 }
 
@@ -1351,52 +1381,96 @@ create_n_nat_destiny <- function(
 }
 
 #' @title Book the crush of imported feedstock (#1014) -------------------------
-#' @description With `import_processing = "feedstock"`, the processed outputs
-#' Spain makes from imported feedstock are relabelled from imports of the
-#' output to outputs of the agro-industry, and the feedstock itself is booked
-#' as the import:
+#' @description The processed outputs Spain makes from imported feedstock are
+#' relabelled from imports of the output to outputs of the agro-industry, and
+#' the feedstock itself is booked as the import:
 #'
 #' - `<primary item>, Outside -> processing`: the imported feedstock;
-#' - `<output>, Agro-industry -> <consumer>`: the share of each province's
-#'   imported output (`Outside` rows) the crush supplies;
-#' - `<output>, Agro-industry -> export`: what the crush yields beyond
-#'   Spain's imports of that output (soy hulls, for instance), exported as
-#'   any domestic surplus is;
+#' - `<output>, Agro-industry -> <consumer>`: the imported output (`Outside`
+#'   rows) the crush replaces where it is sited;
+#' - `<output>, Agro-industry -> export`: what the crush yields beyond what
+#'   its province imports of that output, exported as any domestic surplus
+#'   is (to other provinces, or abroad);
 #' - `<primary item>, Agro-industry -> processing_losses`: the crush's N that
 #'   no output carries.
+#'
+#' This follows the FAO food balance sheet convention, where imports are
+#' booked on the commodity that crosses the border and the production of a
+#' processed commodity "comprises output from domestic and imported raw
+#' materials" (FAO 2001, *Food Balance Sheets: A Handbook*, ch. II.2, items 1
+#' and 3), and matches Spain: "soybeans intended for crushing are imported"
+#' and "nearly half of the soybean meal supply is met by meal obtained
+#' through in-country crushing" (Guerrero 2023, USDA GAIN SP2023-0018,
+#' pp. 3-4). Decision: whep-grafs-import-fed-crush-booking.
 #'
 #' Consumption is untouched: only the origin label of existing rows moves,
 #' so livestock eat exactly the intake the input reports (PR #984 also fed
 #' the crushed beans raw and counted their N twice). Imported N grows by the
-#' crush's loss and exported surplus alone.
+#' crush's loss and its surplus exported abroad alone.
 #'
-#' The crush is sited where its outputs are imported, in proportion to the
-#' output N each province takes from it: imported feedstock has no province
-#' of origin, and the cake travels to the livestock that eat it. This is an
-#' allocation assumption, not data on where crushing plants are. A crush
-#' none of whose outputs Spain imports has nowhere to be sited; it is left
-#' out with a warning of class `whep_import_fed_unsited`.
+#' Where the crush is sited: see `.crush_plant_sites()` for crops with known
+#' plants (soybeans). Other crops are sited where their outputs are
+#' imported, in proportion to the output N each province takes from the
+#' crush (an assumption, unverified); a crush none of whose outputs Spain
+#' imports is then left out with a warning of class
+#' `whep_import_fed_unsited`.
 #'
 #' @param flows Output of `create_n_prov_destiny()` (lower_snake_case).
 #' @param crush Output of `.price_import_fed_crush()`.
+#' @param plant_sites Output of `.crush_plant_sites()`.
 #'
 #' @return `flows` with the crush booked.
 #' @keywords internal
 #' @noRd
-.book_import_fed_crush <- function(flows, crush) {
+.book_import_fed_crush <- function(
+  flows,
+  crush,
+  plant_sites = .crush_plant_sites()
+) {
   if (nrow(crush$outputs) == 0) {
     return(flows)
   }
-  outputs <- .import_fed_absorption(flows, crush$outputs)
-  relabelled <- .relabel_import_fed_outputs(
-    flows,
-    outputs |>
-      dplyr::summarise(booked_n = sum(absorbed_n), .by = c(year, item))
+  at_plants <- unique(plant_sites$primary_item)
+  flows |>
+    .book_crush_at_plants(.crush_part(crush, at_plants, TRUE), plant_sites) |>
+    .book_crush_where_eaten(.crush_part(crush, at_plants, FALSE))
+}
+
+#' @title Where Spain's crushing plants are ------------------------------------
+#' @description Provinces that crush an imported feedstock, and the share of
+#' the crush each takes. Soybeans: "Spain's soybean crushing capacity, which
+#' amounts to nearly 3.5 million metric tons (MMT), is divided in four
+#' soybean-devoted crushing plants. Three of these are managed by Bunge
+#' (Barcelona, Bilbao, and Cartagena) and the fourth one by Cargill
+#' (Barcelona)" (Guerrero 2023, USDA GAIN SP2023-0018, p. 2). Provisional
+#' (one source, decision whep-grafs-import-fed-crush-siting): the report
+#' gives no capacity per plant, so each plant takes an equal quarter
+#' (assumed, unverified), and the 2023 plants are used for every year.
+#'
+#' @return A dataframe with primary_item, province_name and weight, summing
+#' to 1 per primary item.
+#' @keywords internal
+#' @noRd
+.crush_plant_sites <- function() {
+  tibble::tribble(
+    ~primary_item, ~province_name, ~weight,
+    "Soyabeans",   "Barcelona",    0.5,
+    "Soyabeans",   "Bizkaia",      0.25,
+    "Soyabeans",   "Murcia",       0.25
   )
-  sites <- .import_fed_sites(relabelled, outputs)
-  dplyr::bind_rows(
-    relabelled,
-    .import_fed_rows(sites, outputs, crush$inputs)
+}
+
+#' @title Part of a crush, by primary item ------------------------------------
+#' @param crush Output of `.price_import_fed_crush()`.
+#' @param items Primary items.
+#' @param keep `TRUE` keeps `items`, `FALSE` keeps every other item.
+#' @return `crush` restricted to (or without) `items`.
+#' @keywords internal
+#' @noRd
+.crush_part <- function(crush, items, keep) {
+  list(
+    outputs = dplyr::filter(crush$outputs, (primary_item %in% items) == keep),
+    inputs = dplyr::filter(crush$inputs, (item %in% items) == keep)
   )
 }
 
@@ -1410,6 +1484,109 @@ create_n_nat_destiny <- function(
     "population_other_uses",
     "livestock_rum",
     "livestock_mono"
+  )
+}
+
+#' @title Book a crush at its plants ------------------------------------------
+#' @description Each plant province crushes its share of the feedstock. Its
+#' outputs replace that province's own imports of them; the rest leaves the
+#' province as an `Agro-industry` export, and the provinces that eat it keep
+#' importing it (`Outside`), as they do from any other province.
+#'
+#' @param flows Destiny flows, lower_snake_case.
+#' @param crush `.price_import_fed_crush()` output for the plant-sited items.
+#' @param plant_sites Output of `.crush_plant_sites()`.
+#'
+#' @return `flows` with the crush booked.
+#' @keywords internal
+#' @noRd
+.book_crush_at_plants <- function(flows, crush, plant_sites) {
+  if (nrow(crush$outputs) == 0) {
+    return(flows)
+  }
+  produced <- crush$outputs |>
+    dplyr::inner_join(
+      plant_sites,
+      by = "primary_item",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::summarise(
+      booked_n = sum(output_n * weight),
+      .by = c(year, province_name, item)
+    )
+  relabelled <- .relabel_import_fed_outputs(
+    flows,
+    produced,
+    by = c("year", "province_name", "item")
+  )
+  replaced <- relabelled |>
+    dplyr::filter(
+      origin == "Agro-industry",
+      destiny %in% .consumption_destinies()
+    ) |>
+    dplyr::summarise(replaced_n = sum(mg_n), .by = c(year, province_name, item))
+  exported <- produced |>
+    dplyr::left_join(replaced, by = c("year", "province_name", "item")) |>
+    dplyr::transmute(
+      year,
+      province_name,
+      item,
+      destiny = "export",
+      # Structural zero: a plant province that imports none of an output
+      # exports all of it.
+      mg_n = booked_n - dplyr::coalesce(replaced_n, 0)
+    )
+  inputs <- crush$inputs |>
+    dplyr::inner_join(
+      plant_sites,
+      by = c("item" = "primary_item"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      year,
+      province_name,
+      item,
+      processing = feedstock_n * weight,
+      processing_losses = loss_n * weight
+    ) |>
+    tidyr::pivot_longer(
+      c(processing, processing_losses),
+      names_to = "destiny",
+      values_to = "mg_n"
+    )
+
+  dplyr::bind_rows(
+    relabelled,
+    .as_crush_rows(dplyr::bind_rows(inputs, exported))
+  )
+}
+
+#' @title Book a crush where its outputs are eaten ------------------------------
+#' @description For a crop with no known plants: the crush replaces Spain's
+#' imports of its outputs in every province alike, and is sited in
+#' proportion to what each province takes from it (an assumption,
+#' unverified). What it yields beyond Spain's imports is exported.
+#'
+#' @param flows Destiny flows, lower_snake_case.
+#' @param crush `.price_import_fed_crush()` output for the other items.
+#'
+#' @return `flows` with the crush booked.
+#' @keywords internal
+#' @noRd
+.book_crush_where_eaten <- function(flows, crush) {
+  if (nrow(crush$outputs) == 0) {
+    return(flows)
+  }
+  outputs <- .import_fed_absorption(flows, crush$outputs)
+  relabelled <- .relabel_import_fed_outputs(
+    flows,
+    outputs |>
+      dplyr::summarise(booked_n = sum(absorbed_n), .by = c(year, item))
+  )
+  sites <- .import_fed_sites(relabelled, outputs)
+  dplyr::bind_rows(
+    relabelled,
+    .import_fed_rows(sites, outputs, crush$inputs)
   )
 }
 
@@ -1454,26 +1631,32 @@ create_n_nat_destiny <- function(
 #' @title Relabel imported outputs as agro-industry outputs ---------------------
 #' @description Splits every `Outside` consumption row of a crushed output in
 #' two: the crush's share, with origin `Agro-industry`, and the rest, still
-#' `Outside`. Every row of an item gives up the same share, so each province
-#' and destiny keeps its total.
+#' `Outside`. Every row within a `by` group gives up the same share, so each
+#' destiny keeps its total.
 #'
 #' @param flows Destiny flows, lower_snake_case.
-#' @param booked A dataframe with year, item and booked_n: the N of each
-#' output the crush supplies.
+#' @param booked A dataframe with the `by` columns and booked_n: the N of
+#' each output the crush supplies there.
+#' @param by Columns to match `booked` on.
 #'
 #' @return `flows` with the booked N moved to origin `Agro-industry`.
 #' @keywords internal
 #' @noRd
-.relabel_import_fed_outputs <- function(flows, booked) {
+.relabel_import_fed_outputs <- function(
+  flows,
+  booked,
+  by = c("year", "item")
+) {
   imported <- flows$origin == "Outside" &
     flows$destiny %in% .consumption_destinies()
   moved_share <- flows[imported, ] |>
-    dplyr::summarise(outside_n = sum(mg_n), .by = c(year, item)) |>
-    dplyr::inner_join(booked, by = c("year", "item")) |>
-    dplyr::transmute(year, item, moved_share = pmin(booked_n / outside_n, 1))
+    dplyr::summarise(outside_n = sum(mg_n), .by = dplyr::all_of(by)) |>
+    dplyr::inner_join(booked, by = by) |>
+    dplyr::mutate(moved_share = pmin(booked_n / outside_n, 1)) |>
+    dplyr::select(dplyr::all_of(by), moved_share)
 
   split <- flows |>
-    dplyr::left_join(moved_share, by = c("year", "item")) |>
+    dplyr::left_join(moved_share, by = by) |>
     dplyr::mutate(
       # Structural zero: only imported consumption of a crushed output moves.
       moved_share = dplyr::if_else(imported, moved_share, NA_real_),
@@ -1503,7 +1686,11 @@ create_n_nat_destiny <- function(
 #' @noRd
 .import_fed_sites <- function(relabelled, outputs) {
   province_share <- relabelled |>
-    dplyr::filter(origin == "Agro-industry") |>
+    dplyr::filter(
+      origin == "Agro-industry",
+      destiny %in% .consumption_destinies(),
+      item %in% outputs$item
+    ) |>
     dplyr::summarise(moved_n = sum(mg_n), .by = c(year, province_name, item)) |>
     dplyr::mutate(output_share = moved_n / sum(moved_n), .by = c(year, item))
 
@@ -1600,6 +1787,22 @@ create_n_nat_destiny <- function(
       mg_n = sum(mg_n * weight),
       .by = c(year, province_name, item, destiny)
     ) |>
+    .as_crush_rows()
+}
+
+#' @title Shape the crush's own rows as destiny flows ---------------------------
+#' @description The feedstock (`processing`) enters from `Outside`; the loss
+#' and the exported surplus leave from `Agro-industry`. All carry box
+#' `Cropland`: only cropland items are processed (see `.import_fed_volume()`)
+#' and `.expand_processed_items()` books their outputs in the same box.
+#'
+#' @param rows A dataframe with year, province_name, item, destiny, mg_n.
+#'
+#' @return Destiny rows (lower_snake_case), zero rows dropped.
+#' @keywords internal
+#' @noRd
+.as_crush_rows <- function(rows) {
+  rows |>
     dplyr::filter(mg_n > 0) |>
     dplyr::transmute(
       year,
@@ -3189,4 +3392,37 @@ create_n_nat_destiny <- function(
       )
     ) |>
     dplyr::select(-wood_tissue_kgN_kgDM)
+}
+
+#' @title Fold the import-fed crush back into imports of its outputs ------------
+#' @description The analyses built on these flows (GRAFS plot, typologies,
+#' circularity, NUE, decomposition) classify N by origin and were built on
+#' `import_processing = "product"`. Under the default `"feedstock"` booking
+#' they would read the crush's outputs (`Agro-industry` origin) as neither
+#' local nor imported, and its imported feedstock as an import nobody eats.
+#' This returns the `"product"` view of any `create_n_prov_destiny()` or
+#' `create_n_nat_destiny()` output: crushed outputs back to `Outside`, and
+#' the feedstock, the crush loss and its exported surplus dropped. Whether
+#' those analyses should read the crush instead is whep#1592.
+#'
+#' @param flows Destiny flows, lower_snake_case.
+#'
+#' @return `flows` as `import_processing = "product"` books them; unchanged
+#' when they carry no crush.
+#' @keywords internal
+#' @noRd
+.as_product_booking <- function(flows) {
+  crushed <- flows$origin == "Agro-industry" | flows$destiny == "processing"
+  if (!any(crushed, na.rm = TRUE)) {
+    return(flows)
+  }
+  # Crushed outputs that were eaten are imported N; the rest of the crush
+  # (feedstock, loss, surplus) has no counterpart in the product booking.
+  eaten <- crushed & flows$destiny %in% .consumption_destinies()
+  dplyr::bind_rows(
+    flows[!crushed, ],
+    flows[eaten, ] |> dplyr::mutate(origin = "Outside")
+  ) |>
+    dplyr::summarise(mg_n = sum(mg_n), .by = -mg_n) |>
+    dplyr::relocate(mg_n, .after = dplyr::last_col())
 }

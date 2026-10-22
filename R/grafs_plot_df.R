@@ -102,10 +102,10 @@ create_grafs_plot_df <- function(example = FALSE) {
 }
 
 .combine_prov_nat_destiny <- function() {
-  prov_destiny_df <- create_n_prov_destiny() |>
+  prov_destiny_df <- create_n_prov_destiny(import_processing = "product") |>
     .rename_destiny_pascal()
 
-  nat_destiny_df <- create_n_nat_destiny() |>
+  nat_destiny_df <- create_n_nat_destiny(import_processing = "product") |>
     .rename_destiny_pascal() |>
     dplyr::mutate(Province_name = "Spain")
 
