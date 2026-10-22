@@ -745,26 +745,111 @@
 #' Default nitrogen excretion by animal category and region, stored as
 #' annual excretion per head (kg N/head/yr). That is the form the Tier 1
 #' manure N2O path consumes, and the same quantity the Tier 2 path
-#' derives from the energy balance.
+#' derives from the energy balance. Since whep#601 the manure engine reads
+#' the sourced [ipcc_n_excretion_tier1] by default; this table is read only
+#' under `nex_source = "as_shipped"` (see [manure_engine_options]) and as the
+#' fallback for a row that table prices at nothing.
 #'
 #' @format A tibble with `region`, `category`, `nex_kg_n_head_yr`.
 #'
 #' @source Unverified. IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.19
 #'   (Updated) publishes the excretion *rate* per 1000 kg animal mass per
 #'   day, not an annual per-head amount, and the values stored here do not
-#'   follow from it. The Refinement does supply the missing conversion
-#'   factor: Table 10A.1 (New) gives the regional typical weight of dairy
-#'   cattle, so rate x weight x 365 is derivable and gives 140 kg N/head/yr
-#'   for North America (0.59 x 650 kg x 365 / 1000) against the 105 stored,
-#'   118 for Western Europe (100 stored), 84 for Eastern Europe (80), 128
-#'   for Oceania (80), 72 for Latin America (50), 62 for Asia (50), 42 for
-#'   Africa (40), 64 for the Middle East (40) and 68 for the Indian
-#'   Subcontinent (50). Other cattle would need the cohort population mix of
-#'   Table 10A.2 (New) to be weighted the same way. Tracked in whep#601.
+#'   follow from it. Equation 10.30 (Updated) converts the rate with the
+#'   typical animal mass of Table 10A.5 (New), and [ipcc_n_excretion_tier1]
+#'   holds the result: 140 kg N/head/yr for North American dairy cattle
+#'   (0.59 x 650 kg x 365 / 1000) against the 105 stored, 118 for Western
+#'   Europe (100 stored), 84 for Eastern Europe (80), 128 for Oceania (80),
+#'   72 for Latin America (50), 62 for Asia (50), 42 for Africa (40), 64 for
+#'   the Middle East (40) and 68 for the Indian Subcontinent (50). Tracked in
+#'   whep#601.
 #'
 #' @examples
 #' ipcc_2019_n_excretion
 "ipcc_2019_n_excretion"
+
+#' IPCC Tier 1 nitrogen excretion per head, as published.
+#'
+#' @description
+#' Annual nitrogen excretion per head (kg N/head/yr) by IPCC region and
+#' animal category, derived exactly as the 2019 Refinement's Tier 1 says:
+#' Equation 10.30 (Updated), \eqn{Nex = Nrate \times TAM / 1000 \times
+#' 365}, with the default rate of Table 10.19 (Updated) and the default
+#' typical animal mass of Table 10A.5 (New), to which the text under the
+#' equation points. Both inputs are stored beside the product. Tier 1 manure
+#' N2O reads this table by default; the `nex_source` manure-engine option
+#' selects it (`"ipcc_2019"`) or the older [ipcc_2019_n_excretion]
+#' (`"as_shipped"`), see [manure_engine_options].
+#'
+#' Only the Tier 1 ("Mean") column is carried for the five regions that also
+#' print high- and low-productivity values: footnote 1 of both tables says
+#' those are for the Tier 1a method, which needs heads split by productivity
+#' system. A value the tables merge across regions is repeated for each
+#' region it spans. Buffalo has no North America or Oceania row (Table 10.19
+#' prints NA, "these animal categories do not occur in these regions").
+#' Horses and mules and asses share one rate row and take their own masses.
+#'
+#' Categories: `"Dairy Cattle"`, `"Other Cattle"`, `"Buffalo"`,
+#' `"Swine - Market"` (Table 10.19 "Finishing"), `"Swine - Breeding"`,
+#' `"Poultry - Layers"` ("Hens >/= 1 yr"), `"Poultry - Broilers"`,
+#' `"Chickens"` (the chicken aggregate, for a chicken that is neither),
+#' `"Turkeys"`, `"Ducks"`, `"Sheep"`, `"Goats"`, `"Horses"`,
+#' `"Mules and Asses"` and `"Camels"`. Geese have no row in either table; a
+#' row this table prices at nothing keeps the as-shipped value, and
+#' `method_manure_n2o` says so (`nex_as_shipped_fallback`).
+#'
+#' @format A tibble with one row per `edition`, `region` and `category`:
+#'   - `edition`: `"ipcc_2019"`.
+#'   - `region`: IPCC Tier 1 region.
+#'   - `category`: animal category, as above.
+#'   - `nex_kg_n_head_yr`: annual N excretion, kg N per head per year.
+#'   - `nrate_kg_n_1000kg_day`: Table 10.19 (Updated) rate, kg N per
+#'     1000 kg animal mass per day.
+#'   - `tam_kg`: Table 10A.5 (New) typical animal mass, kg per head.
+#'   - `ipcc_category`: the row the values were read from.
+#'
+#' @section Measured effect:
+#' On FAOSTAT 2020 heads at national grain, Tier 1 N excretion goes from
+#' 144.9 Tg N (as shipped) to 126.3 Tg N: cattle 64.1 to 72.2, buffalo 11.2
+#' to 13.2, poultry 19.5 to 14.4, swine 14.4 to 12.8, sheep 15.4 to 5.1 and
+#' goats 13.1 to 3.3 Tg N. Tier 1 manure N2O goes from 2.151 to 1.962 Tg. The
+#' sheep and goat drop is the edition's: Table 10.19 (Updated) takes their
+#' rates from GLEAM (0.32 to 0.46 kg N per 1000 kg per day), about a quarter
+#' of the 2006 Table 10.19 rates outside North America (sheep 0.85 to 1.17,
+#' goats 1.28 to 1.42). FAOSTAT's 2020 Tier 1 figures for the same heads are
+#' 22.2 Tg N for sheep and 25.3 for goats, because FAOSTAT takes its rates
+#' from the 2006 table (FAOSTAT Livestock Manure methodological note, 2025).
+#' Every row resolved an IPCC region; the only fallback rows were geese and
+#' 163 buffalo head in North America and Oceania.
+#'
+#' @section Why the 2019 sheep and goat rates are kept:
+#' The gap to FAOSTAT is real, not a transcription or unit error: the 2006
+#' rates are two to four times what measured and normative excretion per kg
+#' of live weight supports, and the 2019 rates match it. Swiss feeding
+#' standards give a 75 kg ewe 9.55 kg N/yr and a 60 kg dairy goat 9.26 kg
+#' N/yr (Lazzari & Schlegel 2025, Agrarforschung Schweiz 16:26-35 and
+#' 16:81-89, Tab. 3), i.e. 0.35 and 0.42 kg N per 1000 kg per day. A database
+#' of 49 N-balance studies gives dry ewes 15.5 g N/day at 50.6 kg and dry
+#' goats 16.3 g N/day at 46.2 kg (Decandia et al. 2011, Options
+#' Mediterraneennes A 99:201-209, Table 2), i.e. 0.31 and 0.35. Only
+#' lactating ewes on 15-26 % crude-protein trial diets reach the 2006 level
+#' (40.4 g N/day at 45.8 kg, 0.88). The 2006 developing-region sheep rate is
+#' also inconsistent with the 2006 table's own intake: 1.17 x 28 kg is 33 g N
+#' per day from 0.7 kg of feed (Table 10A-9), which needs about 29 % crude
+#' protein. Decision `whep-tier1-n-excretion-ipcc-2019-rate-times-mass`
+#' (decided by agents on two independent confirmed sources, whep#601).
+#'
+#' @source
+#'   IPCC. 2019. *2019 Refinement to the 2006 IPCC Guidelines for National
+#'   Greenhouse Gas Inventories*, Vol 4, Ch 10, Equation 10.30 (Updated),
+#'   p. 10.80, Table 10.19 (Updated), pp. 10.83-10.84, and Table 10A.5
+#'   (New), pp. 10.117-10.118 (PDF md5 `c1784e747af9bb307e93f4170c12679a`,
+#'   downloaded from `ipcc-nggip.iges.or.jp`). Every rate and mass is a
+#'   transcription, read from both the PDF's text layer and its page images.
+#'
+#' @examples
+#' ipcc_n_excretion_tier1
+"ipcc_n_excretion_tier1"
 
 #' IPCC 2019 direct N2O emission factors.
 #'

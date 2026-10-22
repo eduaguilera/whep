@@ -1520,13 +1520,15 @@ generate_ipcc_2019_tables <- function() {
     # Source: UNVERIFIED. Table 10.19 publishes a RATE, kg N per 1000 kg
     # animal mass per day, in both editions (dairy cattle North America
     # 0.59 in the 2019 Refinement, 0.44 in 2006), and these annual
-    # per-head numbers do not follow from either. The Refinement's Table
-    # 10A.1 (New) supplies the missing weight, so rate x weight x 365 is
-    # fully sourced and gives 140 for North America against the 105 here,
-    # 118 Western Europe (100), 84 Eastern Europe (80), 128 Oceania (80),
-    # 72 Latin America (50), 62 Asia (50), 42 Africa (40), 64 Middle East
-    # (40) and 68 Indian Subcontinent (50). Other cattle needs the cohort
-    # population mix of Table 10A.2 (New) weighted the same way.
+    # per-head numbers do not follow from either. The Refinement's Equation
+    # 10.30 (Updated) converts the rate with the typical animal mass of
+    # Table 10A.5 (New), which gives 140 for North America against the 105
+    # here, 118 Western Europe (100), 84 Eastern Europe (80), 128 Oceania
+    # (80), 72 Latin America (50), 62 Asia (50), 42 Africa (40), 64 Middle
+    # East (40) and 68 Indian Subcontinent (50). That derivation, for every
+    # category, is `ipcc_n_excretion_tier1` (`ipcc_2019_n_excretion_tier1()`
+    # below), the engine's default since #601; this table backs only its
+    # "as_shipped" option and the rows the 2019 edition does not price.
     # See `?ipcc_2019_n_excretion` and #601.
     #
     # The two SWINE rows were checked the same way at whep#1107, because
@@ -1666,8 +1668,143 @@ generate_ipcc_tier1_editions <- function(table_10_21) {
     ipcc_manure_ef3 = dplyr::bind_rows(
       ipcc_2019_manure_ef3(),
       as_shipped_manure_ef3(table_10_21)
-    )
+    ),
+    ipcc_n_excretion_tier1 = ipcc_2019_n_excretion_tier1()
   )
+}
+
+# Annual N excretion per head, IPCC 2019 Refinement Vol 4 Ch 10, Equation
+# 10.30 (Updated), p. 10.80: Nex = Nrate x TAM / 1000 x 365. The text under
+# it names the defaults: the rate from Table 10.19 (Updated), pp. 10.83-10.84
+# (kg N per 1000 kg animal mass per day), and the typical animal mass from
+# "Annex 10A.1, Table 10A.5", pp. 10.117-10.118 (kg). Both are transcribed
+# below and the product is the only arithmetic. The PDF's text layer and its
+# rendered page images were read independently and agree on every cell.
+#
+# Only the Tier 1 ("Mean") column of the five regions that also print High
+# and Low PS is carried: footnote 1 of both tables says the high/low pair is
+# for the Tier 1a method, which needs the head count split by productivity
+# system that WHEP does not hold. The same rule as `ipcc_2019_enteric_ef_tier1`
+# above. The Mean is the table's own figure, not the midpoint of the pair:
+# Africa other cattle prints 0.45 against a 0.42 / 0.44 pair, checked on a
+# 300 dpi render.
+#
+# A cell the tables merge across regions (sheep, goats, horses, camels,
+# turkeys, ducks, mules and asses) is written out for each region it spans.
+# Buffalo has no North America or Oceania value ("NA ... these animal
+# categories do not occur in these regions", footnote 2), so those two rows
+# are absent. Horses and mules and asses share one rate row in Table 10.19
+# and take their own weights from Table 10A.5. Pullets, the swine and
+# chicken aggregates and the per-head rows (ostrich, deer, reindeer, fur
+# animals, rabbits) are not carried: no FAOSTAT live-animal item WHEP holds
+# keys on them, except the chicken aggregate, kept as "Chickens" for a
+# chicken row that is neither layer nor broiler.
+#
+# The sheep and goat rates are a quarter to a third of the 2006 Table 10.19
+# ones that FAOSTAT uses. They were checked against live-weight-normalised
+# excretion from two sources independent of GLEAM, and match it: a 75 kg
+# Swiss ewe 9.55 kg N/yr (0.35 per 1000 kg per day) and a 60 kg dairy goat
+# 9.26 kg N/yr (0.42) (Lazzari & Schlegel 2025, Agrarforschung Schweiz
+# 16:26-35 and 16:81-89, Tab. 3); dry ewes 15.5 g N/day at 50.6 kg (0.31)
+# and dry goats 16.3 g N/day at 46.2 kg (0.35) (Decandia et al. 2011,
+# Options Mediterraneennes A 99:201-209, Table 2). Decision
+# whep-tier1-n-excretion-ipcc-2019-rate-times-mass (whep#601).
+ipcc_2019_n_excretion_tier1 <- function() {
+  regions <- c(
+    "North America",
+    "Western Europe",
+    "Eastern Europe",
+    "Oceania",
+    "Latin America",
+    "Africa",
+    "Middle East",
+    "Asia",
+    "Indian Subcontinent"
+  )
+  # Columns in the order of `regions`.
+  nrate <- tibble::tribble(
+    ~category,            ~na,  ~weu, ~eeu, ~oce, ~lat, ~afr, ~mde, ~asi, ~ind,
+    "Dairy Cattle",       0.59, 0.54, 0.42, 0.72, 0.39, 0.44, 0.50, 0.44, 0.65,
+    "Other Cattle",       0.40, 0.42, 0.47, 0.46, 0.31, 0.45, 0.56, 0.38, 0.44,
+    "Buffalo",            NA,   0.45, 0.35, NA,   0.41, 0.42, 0.39, 0.44, 0.58,
+    "Swine - Market",     0.46, 0.76, 0.77, 0.72, 0.73, 0.49, 0.73, 0.70, 0.76,
+    "Swine - Breeding",   0.24, 0.38, 0.36, 0.31, 0.35, 0.29, 0.40, 0.37, 0.43,
+    "Chickens",           1.45, 0.99, 0.96, 1.42, 1.20, 1.29, 1.29, 1.10, 1.62,
+    "Poultry - Layers",   1.13, 0.87, 0.81, 1.04, 1.17, 1.20, 1.11, 1.00, 1.65,
+    "Poultry - Broilers", 1.59, 1.14, 1.12, 1.59, 1.23, 1.40, 1.43, 1.35, 1.58,
+    "Turkeys",            0.74, 0.74, 0.74, 0.74, 0.74, 0.74, 0.74, 0.74, 0.74,
+    "Ducks",              0.83, 0.83, 0.83, 0.83, 0.83, 0.83, 0.83, 0.83, 0.83,
+    "Sheep",              0.35, 0.36, 0.36, 0.43, 0.32, 0.32, 0.32, 0.32, 0.32,
+    "Goats",              0.46, 0.46, 0.44, 0.42, 0.34, 0.34, 0.34, 0.34, 0.34,
+    "Horses",             0.30, 0.26, 0.30, 0.30, 0.46, 0.46, 0.46, 0.46, 0.46,
+    "Mules and Asses",    0.30, 0.26, 0.30, 0.30, 0.46, 0.46, 0.46, 0.46, 0.46,
+    "Camels",             0.38, 0.38, 0.38, 0.38, 0.46, 0.46, 0.46, 0.46, 0.46
+  )
+  tam <- tibble::tribble(
+    ~category,            ~na,  ~weu, ~eeu, ~oce, ~lat, ~afr, ~mde, ~asi, ~ind,
+    "Dairy Cattle",       650,  600,  550,  488,  508,  260,  349,  386,  285,
+    "Other Cattle",       407,  405,  389,  359,  303,  236,  275,  299,  226,
+    "Buffalo",            NA,   509,  467,  NA,   315,  339,  381,  336,  321,
+    "Swine - Market",     61,   61,   59,   41,   51,   41,   52,   49,   51,
+    "Swine - Breeding",   184,  190,  204,  163,  143,  100,  118,  122,  121,
+    "Chickens",           1.4,  1.4,  1.3,  1.3,  1.1,  0.9,  0.9,  1.2,  1.0,
+    "Poultry - Layers",   1.5,  1.9,  1.9,  2,    1.4,  1.4,  1.2,  1.5,  1.3,
+    "Poultry - Broilers", 1.4,  1.2,  1.1,  1.2,  0.9,  0.8,  0.7,  0.8,  0.8,
+    "Turkeys",            6.8,  6.8,  6.8,  6.8,  6.8,  6.8,  6.8,  6.8,  6.8,
+    "Ducks",              2.7,  2.7,  2.7,  2.7,  2.7,  2.7,  2.7,  2.7,  2.7,
+    "Sheep",              40,   40,   40,   40,   31,   31,   31,   31,   31,
+    "Goats",              41,   40,   36,   33,   24,   24,   24,   24,   24,
+    "Horses",             377,  377,  377,  377,  238,  238,  238,  238,  238,
+    "Mules and Asses",    130,  130,  130,  130,  130,  130,  130,  130,  130,
+    "Camels",             217,  217,  217,  217,  217,  217,  217,  217,  217
+  )
+  ipcc_row <- c(
+    "Dairy Cattle" = "Dairy cattle",
+    "Other Cattle" = "Other cattle",
+    "Buffalo" = "Buffalo",
+    "Swine - Market" = "Swine, Finishing",
+    "Swine - Breeding" = "Swine, Breeding",
+    "Chickens" = "Chicken",
+    "Poultry - Layers" = "Chicken, Hens >/= 1 yr",
+    "Poultry - Broilers" = "Chicken, Broilers",
+    "Turkeys" = "Turkeys",
+    "Ducks" = "Ducks",
+    "Sheep" = "Sheep",
+    "Goats" = "Goats",
+    "Horses" = "Horses and mules and asses",
+    "Mules and Asses" = "Horses and mules and asses",
+    "Camels" = "Camels"
+  )
+  long <- function(wide, value) {
+    wide |>
+      tidyr::pivot_longer(-"category", names_to = "col", values_to = value) |>
+      dplyr::mutate(region = regions[match(.data$col, names(wide)[-1])]) |>
+      dplyr::select(-"col")
+  }
+  long(nrate, "nrate_kg_n_1000kg_day") |>
+    dplyr::inner_join(
+      long(tam, "tam_kg"),
+      by = c("category", "region"),
+      relationship = "one-to-one"
+    ) |>
+    dplyr::filter(!is.na(.data$nrate_kg_n_1000kg_day)) |>
+    dplyr::mutate(
+      edition = "ipcc_2019",
+      nex_kg_n_head_yr = .data$nrate_kg_n_1000kg_day *
+        .data$tam_kg /
+        1000 *
+        365,
+      ipcc_category = unname(ipcc_row[.data$category])
+    ) |>
+    dplyr::select(
+      "edition",
+      "region",
+      "category",
+      "nex_kg_n_head_yr",
+      "nrate_kg_n_1000kg_day",
+      "tam_kg",
+      "ipcc_category"
+    )
 }
 
 # Table 10.11 (Updated) Tier 1 cattle and buffalo factors, and Table 10.10
