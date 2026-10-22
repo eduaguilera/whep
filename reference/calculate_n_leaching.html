@@ -22,7 +22,14 @@ as retained_profile_n_t, nitrogen left in the soil profile, and
 denitrification_n_t is 0: FracLEACH says that surplus does not leach,
 not that it denitrifies, and no method here estimates its fate. Each row
 is stamped "ipcc_fracleach_wet", "ipcc_fracleach_dry_irrigated" or
-"ipcc_fracleach_dry_rainfed_retained". Under either method
+"ipcc_fracleach_dry_rainfed_retained". Eq. 11.10 and Table 11.3 define
+FracLEACH-(H) per kg of N added (F_SN + F_ON + F_PRP + F_CR + F_SOM),
+so it multiplies n_input_for_n2o_t, the same input set that prices
+direct N2O in build_nitrogen_balance(), not the surplus.
+"fracleach_surplus" applies the same fractions to n_surplus_t
+instead, the form before whep#1535: a surplus-based deviation from the
+IPCC definition, kept selectable for comparison, stamped
+"fracleach_surplus_wet" and so on. Under every method
 no3_n_t + denitrification_n_t + retained_profile_n_t equals
 n_surplus_t.'><meta property="og:description" content='Two methods for partitioning a nitrogen surplus into leached nitrate and
 topsoil-denitrified nitrogen. "meisinger_drainage" (the default) is the
@@ -47,7 +54,14 @@ as retained_profile_n_t, nitrogen left in the soil profile, and
 denitrification_n_t is 0: FracLEACH says that surplus does not leach,
 not that it denitrifies, and no method here estimates its fate. Each row
 is stamped "ipcc_fracleach_wet", "ipcc_fracleach_dry_irrigated" or
-"ipcc_fracleach_dry_rainfed_retained". Under either method
+"ipcc_fracleach_dry_rainfed_retained". Eq. 11.10 and Table 11.3 define
+FracLEACH-(H) per kg of N added (F_SN + F_ON + F_PRP + F_CR + F_SOM),
+so it multiplies n_input_for_n2o_t, the same input set that prices
+direct N2O in build_nitrogen_balance(), not the surplus.
+"fracleach_surplus" applies the same fractions to n_surplus_t
+instead, the form before whep#1535: a surplus-based deviation from the
+IPCC definition, kept selectable for comparison, stamped
+"fracleach_surplus_wet" and so on. Under every method
 no3_n_t + denitrification_n_t + retained_profile_n_t equals
 n_surplus_t.'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -112,7 +126,14 @@ as <code>retained_profile_n_t</code>, nitrogen left in the soil profile, and
 <code>denitrification_n_t</code> is 0: FracLEACH says that surplus does not leach,
 not that it denitrifies, and no method here estimates its fate. Each row
 is stamped <code>"ipcc_fracleach_wet"</code>, <code>"ipcc_fracleach_dry_irrigated"</code> or
-<code>"ipcc_fracleach_dry_rainfed_retained"</code>. Under either method
+<code>"ipcc_fracleach_dry_rainfed_retained"</code>. Eq. 11.10 and Table 11.3 define
+<code>FracLEACH-(H)</code> per kg of N added (<code>F_SN + F_ON + F_PRP + F_CR + F_SOM</code>),
+so it multiplies <code>n_input_for_n2o_t</code>, the same input set that prices
+direct N2O in <code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code>, not the surplus.
+<code>"fracleach_surplus"</code> applies the same fractions to <code>n_surplus_t</code>
+instead, the form before whep#1535: a surplus-based deviation from the
+IPCC definition, kept selectable for comparison, stamped
+<code>"fracleach_surplus_wet"</code> and so on. Under every method
 <code>no3_n_t + denitrification_n_t + retained_profile_n_t</code> equals
 <code>n_surplus_t</code>.</p>
     </div>
@@ -122,7 +143,7 @@ is stamped <code>"ipcc_fracleach_wet"</code>, <code>"ipcc_fracleach_dry_irrigate
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">calculate_n_leaching</span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
 <span>  drainage_mm <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"meisinger_drainage"</span>, <span class="st">"ipcc_fracleach"</span><span class="op">)</span>,</span>
+<span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"meisinger_drainage"</span>, <span class="st">"ipcc_fracleach"</span>, <span class="st">"fracleach_surplus"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -142,8 +163,9 @@ p. 11.25 (<code>FracLEACH-(H)</code>) and Table 11.3 (Updated), p. 11.26 (<code>
 requires <code>fert_type</code>, <code>climate</code>, <code>irrig_cat</code>, <code>land_use</code>, <code>cn_input</code>
 (may be <code>NA</code>), <code>tillage</code> (checked only for synthetic rows) and
 <code>som_share</code>; <code>method = "ipcc_fracleach"</code> requires <code>moisture_regime</code>
-(<code>"wet"</code> or <code>"dry"</code>) and, on dry rows, <code>water_regime</code> (<code>"rainfed"</code> or
-<code>"irrigated"</code>).</p></dd>
+(<code>"wet"</code> or <code>"dry"</code>), on dry rows <code>water_regime</code> (<code>"rainfed"</code> or
+<code>"irrigated"</code>), and <code>n_input_for_n2o_t</code>, the N added in IPCC Eq. 11.10;
+<code>"fracleach_surplus"</code> requires the first two.</p></dd>
 
 
 <dt id="arg-drainage-mm">drainage_mm<a class="anchor" aria-label="anchor" href="#arg-drainage-mm"></a></dt>
@@ -155,7 +177,8 @@ balance.</p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
-<dd><p><code>"meisinger_drainage"</code> (default) or <code>"ipcc_fracleach"</code>.</p></dd>
+<dd><p><code>"meisinger_drainage"</code> (default), <code>"ipcc_fracleach"</code> or
+<code>"fracleach_surplus"</code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -194,17 +217,25 @@ aborts as in <code><a href="calculate_soil_n2o.html">calculate_soil_n2o()</a></c
 <code>whep_water_regime_value</code> for a missing or unknown value, naming the
 count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
 surplus, so a dry row of unknown regime has no defensible fraction. Wet
-rows need no <code>water_regime</code>.</p>
+rows need no <code>water_regime</code>. <code>"fracleach_surplus"</code> checks the same.</p>
+<p>Under <code>"ipcc_fracleach"</code> leaching is capped at <code>n_surplus_t</code>, so it never
+exceeds the nitrogen left after crop uptake. IPCC Tier 1 has no such cap;
+rows where it binds carry the suffix <code>"_capped_surplus"</code> on their stamp
+(e.g. <code>"ipcc_fracleach_wet_capped_surplus"</code>). A missing
+<code>n_input_for_n2o_t</code> column, or a missing value in it, aborts
+(<code>whep_missing_n_added</code>, <code>whep_n_added_na</code>): read as zero it would leach
+nothing while the partition still closed.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">calculate_n_leaching</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 7</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   n_surplus_t moisture_regime no3_n_t denitrification_n_t retained_profile_n_t</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>         100 wet                  24                  76                    0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: n2o_indirect_no3_n_t &lt;dbl&gt;, method_leaching &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 8</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_surplus_t moisture_regime n_input_for_n2o_t no3_n_t denitrification_n_t</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>          60 wet                           100      24                  36</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 3 more variables: retained_profile_n_t &lt;dbl&gt;, n2o_indirect_no3_n_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_leaching &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -45,11 +45,12 @@ build_nitrogen_balance(
   11.26, or `"ipcc2019_atl_med"`), `leaching` (forwarded to
   [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md),
   default `"meisinger_drainage"`, or `"ipcc_fracleach"`, the wet/dry
-  FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and `regime`, how each
-  grid row is split into a rainfed and an irrigated part (see Details):
-  `"yield_split"` (default), `"area_split"` or `"none"`. The IPCC 2019
-  wet/dry methods read `moisture_regime` from the driver tables in
-  `data`.
+  FracLEACH-(H) of Section 11.2.2.2 p. 11.25 applied to the N added, or
+  `"fracleach_surplus"`, the same fractions on the surplus) and
+  `regime`, how each grid row is split into a rainfed and an irrigated
+  part (see Details): `"yield_split"` (default), `"area_split"` or
+  `"none"`. The IPCC 2019 wet/dry methods read `moisture_regime` from
+  the driver tables in `data`.
 
 - resolution:
 
@@ -370,7 +371,7 @@ left `NULL`; at polity resolution both tables must be supplied.
 | `n2o`: `"aguilera"`, `"ipcc2006"` | `climate`, `irrig_type` | yes | built |
 | `n2o_indirect`: `"ipcc2019"` | `moisture_regime` | yes | built |
 | `n2o_indirect`: `"ipcc2019_atl_med"` | `climate`, `irrig_type` | yes | built |
-| `leaching`: `"ipcc_fracleach"` | `moisture_regime`, `water_regime` | yes | built |
+| `leaching`: `"ipcc_fracleach"`, `"fracleach_surplus"` | `moisture_regime`, `water_regime` | yes | built |
 | `leaching`: `"meisinger_drainage"` | Meisinger's | no | note 2 |
 
 - Note 1: MANNER reads `manner_fertiliser`, `soil_ph`, `rate_kg_ha`,

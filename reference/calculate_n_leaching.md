@@ -27,7 +27,15 @@ left in the soil profile, and `denitrification_n_t` is 0: FracLEACH says
 that surplus does not leach, not that it denitrifies, and no method here
 estimates its fate. Each row is stamped `"ipcc_fracleach_wet"`,
 `"ipcc_fracleach_dry_irrigated"` or
-`"ipcc_fracleach_dry_rainfed_retained"`. Under either method
+`"ipcc_fracleach_dry_rainfed_retained"`. Eq. 11.10 and Table 11.3 define
+`FracLEACH-(H)` per kg of N added
+(`F_SN + F_ON + F_PRP + F_CR + F_SOM`), so it multiplies
+`n_input_for_n2o_t`, the same input set that prices direct N2O in
+[`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md),
+not the surplus. `"fracleach_surplus"` applies the same fractions to
+`n_surplus_t` instead, the form before whep#1535: a surplus-based
+deviation from the IPCC definition, kept selectable for comparison,
+stamped `"fracleach_surplus_wet"` and so on. Under every method
 `no3_n_t + denitrification_n_t + retained_profile_n_t` equals
 `n_surplus_t`.
 
@@ -37,7 +45,7 @@ estimates its fate. Each row is stamped `"ipcc_fracleach_wet"`,
 calculate_n_leaching(
   x,
   drainage_mm = NULL,
-  method = c("meisinger_drainage", "ipcc_fracleach"),
+  method = c("meisinger_drainage", "ipcc_fracleach", "fracleach_surplus"),
   example = FALSE
 )
 ```
@@ -56,8 +64,9 @@ Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2, p. 11.25
   `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input` (may be
   `NA`), `tillage` (checked only for synthetic rows) and `som_share`;
   `method = "ipcc_fracleach"` requires `moisture_regime` (`"wet"` or
-  `"dry"`) and, on dry rows, `water_regime` (`"rainfed"` or
-  `"irrigated"`).
+  `"dry"`), on dry rows `water_regime` (`"rainfed"` or `"irrigated"`),
+  and `n_input_for_n2o_t`, the N added in IPCC Eq. 11.10;
+  `"fracleach_surplus"` requires the first two.
 
 - drainage_mm:
 
@@ -68,7 +77,8 @@ Greenhouse Gas Inventories, Vol 4, Ch 11, Section 11.2.2.2, p. 11.25
 
 - method:
 
-  `"meisinger_drainage"` (default) or `"ipcc_fracleach"`.
+  `"meisinger_drainage"` (default), `"ipcc_fracleach"` or
+  `"fracleach_surplus"`.
 
 - example:
 
@@ -109,15 +119,24 @@ and a dry row without a `water_regime` aborts
 `whep_water_regime_value` for a missing or unknown value, naming the
 count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
 surplus, so a dry row of unknown regime has no defensible fraction. Wet
-rows need no `water_regime`.
+rows need no `water_regime`. `"fracleach_surplus"` checks the same.
+
+Under `"ipcc_fracleach"` leaching is capped at `n_surplus_t`, so it
+never exceeds the nitrogen left after crop uptake. IPCC Tier 1 has no
+such cap; rows where it binds carry the suffix `"_capped_surplus"` on
+their stamp (e.g. `"ipcc_fracleach_wet_capped_surplus"`). A missing
+`n_input_for_n2o_t` column, or a missing value in it, aborts
+(`whep_missing_n_added`, `whep_n_added_na`): read as zero it would leach
+nothing while the partition still closed.
 
 ## Examples
 
 ``` r
 calculate_n_leaching(example = TRUE)
-#> # A tibble: 1 × 7
-#>   n_surplus_t moisture_regime no3_n_t denitrification_n_t retained_profile_n_t
-#>         <dbl> <chr>             <dbl>               <dbl>                <dbl>
-#> 1         100 wet                  24                  76                    0
-#> # ℹ 2 more variables: n2o_indirect_no3_n_t <dbl>, method_leaching <chr>
+#> # A tibble: 1 × 8
+#>   n_surplus_t moisture_regime n_input_for_n2o_t no3_n_t denitrification_n_t
+#>         <dbl> <chr>                       <dbl>   <dbl>               <dbl>
+#> 1          60 wet                           100      24                  36
+#> # ℹ 3 more variables: retained_profile_n_t <dbl>, n2o_indirect_no3_n_t <dbl>,
+#> #   method_leaching <chr>
 ```
