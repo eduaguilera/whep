@@ -4,7 +4,11 @@
 \alias{create_n_prov_destiny}
 \title{GRAFS Nitrogen (N) flows}
 \usage{
-create_n_prov_destiny(example = FALSE, wood_n_method = c("tissue", "single"))
+create_n_prov_destiny(
+  example = FALSE,
+  wood_n_method = c("tissue", "single"),
+  import_processing = c("feedstock", "product")
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
@@ -27,6 +31,39 @@ Thurner, M., Yu, K., Manzoni, S., Prokushkin, A., Thurner, M. A., Wang,
 Z., and Hickler, T. (2025). Nitrogen concentrations in boreal and
 temperate tree tissues vary with tree age/size, growth rate, and climate.
 \emph{Biogeosciences} 22(5), 1475-1493. \doi{10.5194/bg-22-1475-2025}.}
+
+\item{import_processing}{How processing that Spain runs on imported
+feedstock is booked (#1014). The builder's processing volume can exceed
+what Spain grows: the soybean crush, about 3 Mt a year, runs almost
+entirely on imported beans. One of:
+\itemize{
+\item \code{"feedstock"} (default): the excess, capped at the item's net imports
+in the commodity balance sheet (\code{\link[=get_wide_cbs]{get_wide_cbs()}}), is crushed in
+Spain. The imported feedstock is booked as \code{Outside} -> \code{processing}
+on the primary item; the outputs it yields replace imports of the
+outputs and carry origin \code{Agro-industry}, and what they yield beyond
+the imports they replace is exported from \code{Agro-industry}; its N loss
+is booked as \code{processing_losses} with origin \code{Agro-industry}.
+Consumption, and so livestock intake, is unchanged. The analyses in
+this package that classify N by origin (GRAFS plot, typologies,
+indicators) still read these flows as \code{"product"} books them, with the
+crush folded back into imports of its outputs. Soybeans are crushed at
+the four
+port plants (Barcelona, Bilbao, Cartagena); other crops where their
+outputs are imported. This follows the food balance sheet convention:
+imports are booked on the commodity that crosses the border, and the
+production of a processed commodity "comprises output from domestic
+and imported raw materials" (FAO 2001, \emph{Food Balance Sheets: A
+Handbook}, ch. II.2). For Spain, "soybeans intended for crushing are
+imported" and "nearly half of the soybean meal supply is met by meal
+obtained through in-country crushing" (Guerrero 2023, USDA GAIN report
+SP2023-0018).
+\item \code{"product"}: only domestic production is processed. Spain's demand
+for the outputs (soybean cake and oil) is met by importing the
+outputs, so the import is booked on the cake, not on the beans, and
+the crush's own N loss is not booked. The volume left out is reported
+in a warning of class \code{whep_processing_excess}.
+}}
 }
 \value{
 A final tibble containing N flow data by origin and destiny.
@@ -41,10 +78,15 @@ Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
 \item \code{origin}: The origin category of N: Cropland,
 Semi-natural agroecosystems, Livestock (manure), People (waste water),
 Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
-\code{box} values, not origins; their nitrogen enters as Outside.
+\code{box} values, not origins; their nitrogen enters as Outside. The one
+exception is \code{import_processing = "feedstock"}, where Agro-industry is
+the origin of the outputs, exports and losses of the crush of imported
+feedstock: imported N, processed in Spain.
 \item \code{destiny}: The destiny category of N: population_food,
 population_other_uses, livestock_mono, livestock_rum (feed), export,
 processing_losses (N not credited to a processed output),
+processing (imported feedstock crushed in Spain, only with
+\code{import_processing = "feedstock"}),
 Cropland and semi_natural_agroecosystems (for N soil inputs).
 \item \code{mg_n}: Nitrogen amount in megagrams (Mg).
 }

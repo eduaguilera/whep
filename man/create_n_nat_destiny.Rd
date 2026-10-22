@@ -4,11 +4,47 @@
 \alias{create_n_nat_destiny}
 \title{GRAFS Nitrogen (N) flows – National Spain}
 \usage{
-create_n_nat_destiny(example = FALSE)
+create_n_nat_destiny(
+  example = FALSE,
+  import_processing = c("feedstock", "product")
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
+
+\item{import_processing}{How processing that Spain runs on imported
+feedstock is booked (#1014). The builder's processing volume can exceed
+what Spain grows: the soybean crush, about 3 Mt a year, runs almost
+entirely on imported beans. One of:
+\itemize{
+\item \code{"feedstock"} (default): the excess, capped at the item's net imports
+in the commodity balance sheet (\code{\link[=get_wide_cbs]{get_wide_cbs()}}), is crushed in
+Spain. The imported feedstock is booked as \code{Outside} -> \code{processing}
+on the primary item; the outputs it yields replace imports of the
+outputs and carry origin \code{Agro-industry}, and what they yield beyond
+the imports they replace is exported from \code{Agro-industry}; its N loss
+is booked as \code{processing_losses} with origin \code{Agro-industry}.
+Consumption, and so livestock intake, is unchanged. The analyses in
+this package that classify N by origin (GRAFS plot, typologies,
+indicators) still read these flows as \code{"product"} books them, with the
+crush folded back into imports of its outputs. Soybeans are crushed at
+the four
+port plants (Barcelona, Bilbao, Cartagena); other crops where their
+outputs are imported. This follows the food balance sheet convention:
+imports are booked on the commodity that crosses the border, and the
+production of a processed commodity "comprises output from domestic
+and imported raw materials" (FAO 2001, \emph{Food Balance Sheets: A
+Handbook}, ch. II.2). For Spain, "soybeans intended for crushing are
+imported" and "nearly half of the soybean meal supply is met by meal
+obtained through in-country crushing" (Guerrero 2023, USDA GAIN report
+SP2023-0018).
+\item \code{"product"}: only domestic production is processed. Spain's demand
+for the outputs (soybean cake and oil) is met by importing the
+outputs, so the import is booked on the cake, not on the beans, and
+the crush's own N loss is not booked. The volume left out is reported
+in a warning of class \code{whep_processing_excess}.
+}}
 }
 \value{
 A final tibble containing national N flow data by origin and destiny.

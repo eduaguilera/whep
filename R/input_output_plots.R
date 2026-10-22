@@ -260,7 +260,7 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
 # Private helpers --------------------------------------------------------------
 
 .load_nat_destiny <- function(example) {
-  create_n_nat_destiny(example = example) |>
+  create_n_nat_destiny(example = example, import_processing = "product") |>
     .rename_destiny_pascal()
 }
 

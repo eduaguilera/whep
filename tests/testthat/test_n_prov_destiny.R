@@ -2002,3 +2002,434 @@ test_that("create_n_prov_destiny rejects an unknown wood_n_method", {
     class = "rlang_error"
   )
 })
+
+# Import-fed processing, import_processing = "feedstock" (#1014) ---------------
+
+test_that(".spain_net_imports keeps Spain and nets out exports", {
+  wide <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2015, 203L, 2555L, 3500, 30,
+    2015, 203L, 2563L, 70, 510,
+    2015, 79L, 2555L, 4000, 0
+  )
+
+  out <- .spain_net_imports(wide)
+
+  expect_equal(nrow(out), 2)
+  net <- rlang::set_names(out$net_import_fm, out$Item)
+  expect_equal(net[["Soyabeans"]], 3470)
+  # A net exporter has no import to feed a crush with.
+  expect_equal(net[["Olives (including preserved)"]], 0)
+})
+
+test_that(".import_fed_volume caps the excess at net imports", {
+  excess <- tibble::tribble(
+    ~Year, ~Item, ~value_to_process, ~national_production_fm, ~excess_fm,
+    2015, "Soyabeans", 3000, 5, 2995,
+    2015, "Olives (including preserved)", 900, 700, 200,
+    2015, "Sunflower seed", 1000, 800, 200,
+    2015, "Molasses", 300, 0, 300,
+    2015, "Grapes", 40, 100, 0
+  )
+  net_imports <- tibble::tribble(
+    ~Year, ~Item, ~net_import_fm,
+    2015, "Soyabeans", 3470,
+    2015, "Olives (including preserved)", 0,
+    2015, "Sunflower seed", 150,
+    2015, "Molasses", 300
+  )
+  cropland_items <- c(
+    "Soyabeans",
+    "Olives (including preserved)",
+    "Sunflower seed",
+    "Grapes"
+  )
+
+  out <- .import_fed_volume(excess, net_imports, cropland_items)
+
+  fed <- rlang::set_names(out$import_fed_fm, out$Item)
+  # The whole excess where imports cover it, only the imports where not.
+  expect_equal(fed[["Soyabeans"]], 2995)
+  expect_equal(fed[["Sunflower seed"]], 150)
+  # A net exporter's excess is not imported feedstock (olives: a CBS stock
+  # draw), and an input this pipeline never produces (molasses) is a
+  # second-stage gap, not an import-fed crush.
+  expect_setequal(out$Item, c("Soyabeans", "Sunflower seed"))
+})
+
+test_that(".net_of_import_fed leaves only the excess imports cannot explain", {
+  excess <- tibble::tribble(
+    ~Year, ~Item, ~value_to_process, ~national_production_fm, ~excess_fm,
+    2015, "Soyabeans", 3000, 5, 2995,
+    2015, "Sunflower seed", 1000, 800, 200
+  )
+  import_fed <- tibble::tribble(
+    ~Year, ~Item, ~import_fed_fm,
+    2015, "Sunflower seed", 150
+  )
+
+  out <- .net_of_import_fed(excess, import_fed)
+
+  expect_equal(out$excess_fm, c(2995, 50))
+  expect_equal(.net_of_import_fed(excess, .no_import_fed()), excess)
+})
+
+# 100 t of imported sunflower seed crushed into 30 t of cake and 40 t of oil.
+# Seed carries 2.604 t N, cake 2.16 t N, oil none: 0.444 t N is a loss.
+.test_import_fed_crush <- function() {
+  .price_import_fed_crush(
+    import_fed = tibble::tribble(
+      ~Year, ~Item, ~import_fed_fm,
+      2015, "Sunflower seed", 100
+    ),
+    spain_coefs = tibble::tribble(
+      ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+      2015, "Sunflower seed", "Sunflower Cake", 900, 0.3,
+      2015, "Sunflower seed", "Sunflower Oil", 900, 0.4
+    ),
+    primary_biomass = tibble::tribble(
+      ~Year, ~Item, ~Name_biomass,
+      2015, "Sunflower seed", "sunflower_bm"
+    ),
+    coefs = .test_processing_coefs()
+  )
+}
+
+test_that(".price_import_fed_crush conserves the feedstock's nitrogen", {
+  crush <- .test_import_fed_crush()
+
+  expect_equal(crush$inputs$feedstock_n, 100 * .test_n_per_fm("Sunflower seed"))
+  expect_equal(
+    crush$outputs$output_n,
+    30 * .test_n_per_fm("Sunflower Cake")
+  )
+  # The N-free oil is not an N output; the cake is the only one.
+  expect_equal(crush$outputs$item, "Sunflower Cake")
+  expect_equal(
+    crush$inputs$feedstock_n,
+    sum(crush$outputs$output_n) + crush$inputs$loss_n
+  )
+  expect_gt(crush$inputs$loss_n, 0)
+})
+
+test_that(".price_import_fed_crush is empty when nothing is import-fed", {
+  crush <- .price_import_fed_crush(
+    .no_import_fed(),
+    spain_coefs = tibble::tribble(
+      ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf
+    ),
+    primary_biomass = tibble::tribble(~Year, ~Item, ~Name_biomass),
+    coefs = .test_processing_coefs()
+  )
+
+  expect_equal(nrow(crush$outputs), 0)
+  expect_equal(nrow(crush$inputs), 0)
+})
+
+# Two provinces feed sunflower cake; neither grows enough, so both import it
+# (`Outside`). Province A also grows and eats a little of its own cake.
+.test_import_fed_flows <- function() {
+  tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2015, "A", "Sunflower Cake", "rainfed", "Cropland", "Cropland", "livestock_mono", 1,
+    2015, "A", "Sunflower Cake", NA, "Cropland", "Outside", "livestock_mono", 3,
+    2015, "A", "Sunflower Cake", NA, "Cropland", "Outside", "livestock_rum", 1,
+    2015, "B", "Sunflower Cake", NA, "Cropland", "Outside", "livestock_rum", 4,
+    2015, "B", "Sunflower seed", "rainfed", "Cropland", "Cropland", "population_food", 0.5
+  )
+}
+
+.livestock_n <- function(flows) {
+  sum(flows$mg_n[flows$destiny %in% c("livestock_mono", "livestock_rum")])
+}
+
+test_that(".book_import_fed_crush books the import on the primary item", {
+  flows <- .test_import_fed_flows()
+  crush <- .test_import_fed_crush()
+  cake_n <- 30 * .test_n_per_fm("Sunflower Cake")
+  seed_n <- 100 * .test_n_per_fm("Sunflower seed")
+
+  out <- .book_import_fed_crush(flows, crush)
+
+  # The seed now carries the import, crushed in Spain ...
+  feedstock <- out |> dplyr::filter(destiny == "processing")
+  expect_equal(sum(feedstock$mg_n), seed_n)
+  expect_true(all(feedstock$item == "Sunflower seed"))
+  expect_true(all(feedstock$origin == "Outside"))
+  # ... and the cake it yields is no longer an import of cake.
+  outside_cake <- out |>
+    dplyr::filter(item == "Sunflower Cake", origin == "Outside")
+  expect_equal(sum(outside_cake$mg_n), 8 - cake_n)
+  crushed_cake <- out |>
+    dplyr::filter(item == "Sunflower Cake", origin == "Agro-industry")
+  expect_equal(sum(crushed_cake$mg_n), cake_n)
+  # The crush's N loss is booked, not dropped.
+  losses <- out |> dplyr::filter(destiny == "processing_losses")
+  expect_equal(sum(losses$mg_n), seed_n - cake_n)
+  expect_true(all(losses$origin == "Agro-industry"))
+})
+
+test_that(".book_import_fed_crush leaves livestock intake untouched", {
+  # PR #984 routed the crushed beans into feed as well as their cake, so the
+  # same N reached livestock twice. Livestock eat what the intake input says.
+  flows <- .test_import_fed_flows()
+
+  out <- .book_import_fed_crush(flows, .test_import_fed_crush())
+
+  expect_equal(.livestock_n(out), .livestock_n(flows))
+  # What enters from outside grows by the crush's loss and surplus alone:
+  # the seed's N replaces the cake's, and the difference is booked as
+  # processing_losses or exported.
+  outside_n <- function(df) sum(df$mg_n[df$origin == "Outside"])
+  agro_n <- function(df, d) {
+    sum(df$mg_n[df$origin == "Agro-industry" & df$destiny == d])
+  }
+  expect_equal(
+    outside_n(out) - outside_n(flows),
+    agro_n(out, "processing_losses") + agro_n(out, "export")
+  )
+})
+
+test_that(".book_import_fed_crush sites the crush where its cake is eaten", {
+  out <- .book_import_fed_crush(
+    .test_import_fed_flows(),
+    .test_import_fed_crush()
+  )
+
+  feedstock <- out |>
+    dplyr::filter(destiny == "processing") |>
+    dplyr::arrange(province_name)
+  # Imported cake: A 4, B 4 of the 8 t N, so the seed splits half and half.
+  expect_equal(feedstock$province_name, c("A", "B"))
+  expect_equal(feedstock$mg_n[1], feedstock$mg_n[2])
+})
+
+test_that(".book_import_fed_crush exports what Spain does not import", {
+  flows <- .test_import_fed_flows() |>
+    dplyr::mutate(mg_n = dplyr::if_else(origin == "Outside", mg_n / 10, mg_n))
+  crush <- .test_import_fed_crush()
+  cake_n <- 30 * .test_n_per_fm("Sunflower Cake")
+
+  out <- .book_import_fed_crush(flows, crush)
+
+  # Only 0.8 t N of cake is imported: the crush replaces all of it and
+  # exports the rest, as any domestic surplus is. The whole crush is booked.
+  expect_equal(
+    sum(out$mg_n[out$item == "Sunflower Cake" & out$origin == "Outside"]),
+    0
+  )
+  exported <- out |> dplyr::filter(destiny == "export")
+  expect_equal(sum(exported$mg_n), cake_n - 0.8)
+  expect_true(all(exported$origin == "Agro-industry"))
+  expect_equal(
+    sum(out$mg_n[out$destiny == "processing"]),
+    crush$inputs$feedstock_n
+  )
+  expect_equal(.livestock_n(out), .livestock_n(flows))
+})
+
+test_that(".book_import_fed_crush warns when no province imports the outputs", {
+  flows <- .test_import_fed_flows() |> dplyr::filter(origin != "Outside")
+
+  expect_warning(
+    out <- .book_import_fed_crush(flows, .test_import_fed_crush()),
+    class = "whep_import_fed_unsited"
+  )
+
+  # Nothing to site the crush in: it is left out, not booked half-way.
+  expect_false(any(out$destiny %in% c("processing", "export")))
+  expect_false(any(out$origin == "Agro-industry"))
+  expect_equal(sum(out$mg_n), sum(flows$mg_n))
+})
+
+test_that(".book_import_fed_crush is a no-op with nothing to book", {
+  flows <- .test_import_fed_flows()
+  empty <- list(
+    outputs = tibble::tibble(
+      year = double(),
+      primary_item = character(),
+      item = character(),
+      output_n = double()
+    ),
+    inputs = tibble::tibble(
+      year = double(),
+      item = character(),
+      feedstock_n = double(),
+      loss_n = double()
+    )
+  )
+
+  expect_identical(.book_import_fed_crush(flows, empty), flows)
+})
+
+test_that(".assemble_n_nat_destiny keeps the import on the crushed item", {
+  prov_raw <- .book_import_fed_crush(
+    .test_import_fed_flows(),
+    .test_import_fed_crush()
+  )
+
+  out <- .assemble_n_nat_destiny(prov_raw)
+
+  sum_where <- function(df, keep) sum(df$mg_n[keep])
+  for (o in c("Outside", "Agro-industry")) {
+    expect_equal(
+      sum_where(out, out$item == "Sunflower Cake" & out$origin == o),
+      sum_where(
+        prov_raw,
+        prov_raw$item == "Sunflower Cake" & prov_raw$origin == o
+      )
+    )
+  }
+  for (d in c("processing", "processing_losses", "export")) {
+    expect_equal(
+      sum_where(out, out$destiny == d),
+      sum_where(prov_raw, prov_raw$destiny == d)
+    )
+  }
+  expect_equal(.livestock_n(out), .livestock_n(prov_raw))
+})
+
+test_that("the builders default to the feedstock booking", {
+  expect_equal(
+    eval(formals(create_n_prov_destiny)$import_processing)[1],
+    "feedstock"
+  )
+  expect_equal(
+    eval(formals(create_n_nat_destiny)$import_processing)[1],
+    "feedstock"
+  )
+})
+
+test_that("create_n_prov_destiny rejects an unknown import_processing", {
+  expect_error(
+    create_n_prov_destiny(import_processing = "beans"),
+    class = "rlang_error"
+  )
+})
+
+test_that(".assemble_n_nat_destiny carries the crush's surplus export", {
+  flows <- .test_import_fed_flows() |>
+    dplyr::mutate(mg_n = dplyr::if_else(origin == "Outside", mg_n / 10, mg_n))
+  prov_raw <- .book_import_fed_crush(flows, .test_import_fed_crush())
+
+  out <- .assemble_n_nat_destiny(prov_raw)
+
+  agro_export <- function(df) {
+    sum(df$mg_n[df$origin == "Agro-industry" & df$destiny == "export"])
+  }
+  expect_gt(agro_export(prov_raw), 0)
+  expect_equal(agro_export(out), agro_export(prov_raw))
+  # All imported cake is replaced, at both levels.
+  expect_equal(
+    sum(out$mg_n[out$item == "Sunflower Cake" & out$origin == "Outside"]),
+    0
+  )
+})
+
+# Soybeans are crushed at the port plants (Barcelona x2, Bilbao, Cartagena).
+# Barcelona feeds 50 t N of imported cake, Lleida 100; the imported beans
+# yield 120 t N of cake and lose 2.
+.test_soy_flows <- function() {
+  tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Barcelona", "Soyabean Cake", NA_character_, "Cropland", "Outside", "livestock_mono", 50,
+    2020, "Lleida", "Soyabean Cake", NA_character_, "Cropland", "Outside", "livestock_mono", 100
+  )
+}
+
+.test_soy_crush <- function() {
+  list(
+    outputs = tibble::tibble(
+      year = 2020,
+      primary_item = "Soyabeans",
+      item = "Soyabean Cake",
+      output_n = 120
+    ),
+    inputs = tibble::tibble(
+      year = 2020,
+      item = "Soyabeans",
+      feedstock_n = 122,
+      loss_n = 2
+    )
+  )
+}
+
+test_that(".book_import_fed_crush crushes soybeans at the port plants", {
+  out <- .book_import_fed_crush(.test_soy_flows(), .test_soy_crush())
+
+  by_province <- function(d) {
+    rows <- out |> dplyr::filter(destiny == d)
+    rlang::set_names(rows$mg_n, rows$province_name)
+  }
+  feedstock <- by_province("processing")
+  expect_equal(
+    feedstock[c("Barcelona", "Bizkaia", "Murcia")],
+    c(Barcelona = 61, Bizkaia = 30.5, Murcia = 30.5)
+  )
+  # Barcelona's 60 t N of cake replaces its own 50 of imports and exports
+  # the rest; Bilbao and Cartagena export all of theirs.
+  exported <- by_province("export")
+  expect_equal(
+    exported[c("Barcelona", "Bizkaia", "Murcia")],
+    c(Barcelona = 10, Bizkaia = 30, Murcia = 30)
+  )
+  barcelona_cake <- out |>
+    dplyr::filter(province_name == "Barcelona", item == "Soyabean Cake")
+  expect_equal(
+    sum(barcelona_cake$mg_n[
+      barcelona_cake$origin == "Agro-industry" &
+        barcelona_cake$destiny == "livestock_mono"
+    ]),
+    50
+  )
+  # Lleida keeps importing its cake, now from the crushers.
+  lleida <- out |> dplyr::filter(province_name == "Lleida")
+  expect_equal(lleida$origin, "Outside")
+  expect_equal(lleida$mg_n, 100)
+  expect_equal(.livestock_n(out), .livestock_n(.test_soy_flows()))
+})
+
+test_that(".assemble_n_nat_destiny books the whole plant crush nationally", {
+  prov_raw <- .book_import_fed_crush(.test_soy_flows(), .test_soy_crush())
+
+  out <- .assemble_n_nat_destiny(prov_raw)
+
+  cake <- out |> dplyr::filter(item == "Soyabean Cake")
+  # Spain imports 150 t N of cake; the crush supplies 120 of it, so nothing
+  # is exported nationally even though the plant provinces export.
+  expect_equal(sum(cake$mg_n[cake$origin == "Agro-industry"]), 120)
+  expect_equal(sum(cake$mg_n[cake$origin == "Outside"]), 30)
+  expect_equal(sum(out$mg_n[out$destiny == "export"]), 0)
+  expect_equal(sum(out$mg_n[out$destiny == "processing"]), 122)
+  expect_equal(sum(out$mg_n[out$destiny == "processing_losses"]), 2)
+})
+
+.arrange_flows <- function(flows) {
+  flows |>
+    dplyr::summarise(mg_n = sum(mg_n), .by = -mg_n) |>
+    dplyr::arrange(year, province_name, item, origin, destiny)
+}
+
+test_that(".as_product_booking folds the crush back exactly", {
+  cases <- list(
+    soy = list(.test_soy_flows(), .test_soy_crush()),
+    sunflower = list(.test_import_fed_flows(), .test_import_fed_crush())
+  )
+  for (case in cases) {
+    booked <- .book_import_fed_crush(case[[1]], case[[2]])
+    expect_equal(
+      .arrange_flows(.as_product_booking(booked)),
+      .arrange_flows(case[[1]])
+    )
+    expect_equal(
+      .arrange_flows(.as_product_booking(.assemble_n_nat_destiny(booked))),
+      .arrange_flows(.assemble_n_nat_destiny(case[[1]]))
+    )
+  }
+})
+
+test_that(".as_product_booking leaves flows with no crush untouched", {
+  flows <- .test_import_fed_flows()
+
+  expect_identical(.as_product_booking(flows), flows)
+})

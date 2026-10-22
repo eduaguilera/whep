@@ -208,8 +208,9 @@ create_typologies_grafs_spain <- function(
 #' @keywords internal
 #' @noRd
 .grafs_prod_destiny_legacy <- function(
-  prod_destiny = create_n_prov_destiny()
+  prod_destiny = create_n_prov_destiny(import_processing = "product")
 ) {
+  prod_destiny <- .as_product_booking(prod_destiny)
   legacy_destiny <- c(
     population_food = "Food",
     population_other_uses = "Other_uses",

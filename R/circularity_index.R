@@ -21,8 +21,9 @@ create_finn_indicator <- function(n_prov_destiny = NULL, example = FALSE) {
     return(.example_finn_indicator())
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
 
   mapping <- .finn_mapping()
 

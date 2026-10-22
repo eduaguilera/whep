@@ -47,11 +47,11 @@
 #' ) |>
 #'   dplyr::select(year, province_name, human_share, import_share, Category)
 create_typologies_whep <- function(
-  prod_destiny = create_n_prov_destiny(),
+  prod_destiny = create_n_prov_destiny(import_processing = "product"),
   prod_n = create_n_production() |> dplyr::rename(production_n = prod),
   years = 2020
 ) {
-  prod_destiny <- prod_destiny |>
+  prod_destiny <- .as_product_booking(prod_destiny) |>
     dplyr::filter(
       year %in% years,
       province_name != "Sea",
