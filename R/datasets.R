@@ -411,37 +411,35 @@
 #'   matter. At 5 g/kg honey is 1.69x FBS, where it was zero. Only the
 #'   protein moves a computed number: nothing in the package reads the
 #'   carbohydrate or calcium columns.
-#' - `Maize` now carries **0.011504** (71.9 g/kg) and `Oats` **0.013344**
-#'   (83.4 g/kg), replacing the agronomic 0.01248 and 0.013415 (78.0 and
+#' - `Maize` now carries **0.009888** (61.8 g/kg) and `Oats` **0.011584**
+#'   (72.4 g/kg), replacing the agronomic 0.01248 and 0.013415 (78.0 and
 #'   83.8 g/kg, a feed-table whole grain). Their own rows, 7 `Harina de Maiz`
 #'   87 g/kg and 5 `Avena grano` 117 g/kg, are not followed: they are the
 #'   composition of what is eaten, and the flour or groats is only a
-#'   fraction of the grain that `food_t` counts, so they run 21% and 40%
-#'   above the density below. The new values are what FAO credits per kg of
-#'   primary-equivalent food: FAO's old-method food balance sheets
-#'   (`faostat-fbs-old`, element 674 x 365 / element 645, weighted by food,
-#'   element 5142), 2010, summed over the 152 countries reporting maize
-#'   (71.95) and the 88 reporting oats (83.44). That FBS vintage was built
-#'   by applying FAO's composition table (FAO, *Food balance sheets: a
-#'   handbook*, Rome, 2001, Annex I,
-#'   <https://www.fao.org/4/x9892e/x9892e00.pdf>, PDF page 64
-#'   (printed 60): maize 9.5, flour of maize 8.4, oats 13.0, oats rolled
-#'   16.0 g protein per 100 g) to the products eaten, over a quantity converted back to
-#'   grain with FAO's extraction rates (FAO, *Technical conversion factors
-#'   for agricultural commodities*,
-#'   <https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf>:
-#'   `Flour of Maize` 59-97% by country, most often 90%; `Oats, Rolled`
-#'   45-73%, most often 55%). It is stable, maize 71.2-72.4 and oats
-#'   80.7-83.4 over 1990, 2000, 2010 and 2013, and it is the benchmark the
-#'   nut factors were checked against (whep#1453). The new-method FBS sits
-#'   lower, 62.2 and 72.1 (country sum, 2010), and is not adopted: its maize
-#'   is 18% below FAO's own maize flour, 8.4 g per 100 g, at a 90% extraction
-#'   rate (75.6 g/kg). As for wheat, one world value cannot carry the
-#'   country pattern: the same FBS credits maize at 77-89 g/kg in the
-#'   countries that eat it as a staple (Lesotho and Malawi 83.7, Guatemala
-#'   89.3) and 49.3 in the United States, so 71.9 leaves those staple
-#'   countries low. The agronomic value stays selectable as
-#'   `build_food_supply(protein_basis = "product_nitrogen")`.
+#'   fraction of the grain that `food_t` counts. The new values are FAOSTAT
+#'   FBS's own World density for 2010, element 671 over element 5142
+#'   (maize 7,311,361.1 t over 118,366 kt; oats 279,096.3 t over 3,853 kt),
+#'   the construct wheat already follows (93.0). Over 2010-2023 it runs
+#'   61.6-64.3 for maize and 70.6-72.8 for oats. Decision
+#'   `whep-maize-oats-food-protein-density`, settled by agents on two
+#'   independent composition tables put through FAO's extraction rates:
+#'   - USDA FoodData Central, SR Legacy (April 2018): cornmeal, degermed
+#'     7.11 and whole-grain 8.12 g protein per 100 g (fdc_id 168929, 169697);
+#'     rolled oats, dry, 13.15 (173904).
+#'   - ANSES, Ciqual 2020: maize flour 6.23 and polenta 7.88 (alim_code 9545,
+#'     9614); oatmeal flakes 13.3 (9311).
+#'   - FAO, *Technical conversion factors for agricultural commodities*,
+#'     <https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf>:
+#'     `Flour of Maize` 90% (Kenya; 59-97% across countries), `Oats, Rolled`
+#'     58% (United States; 45-73%).
+#'
+#'   That gives 56-73 g per kg of maize and 76-77 per kg of oats, which the
+#'   FBS density fits. FAO's old-method FBS (71.9 and 83.4, food-weighted
+#'   country sum) is not adopted: it was built on FAO, *Food balance sheets:
+#'   a handbook* (2001), Annex I, <https://www.fao.org/4/x9892e/x9892e00.pdf>,
+#'   PDF page 64 (printed 60), whose rolled oats at 16.0 g per 100 g sit more
+#'   than 20% above both modern tables. The agronomic value stays selectable
+#'   as `build_food_supply(protein_basis = "product_nitrogen")`.
 #' - `Rice` is **unchanged**: its basis was settled in #751/#755.
 #' - `Vegetables, other` is **unchanged** and moves no food number: no
 #'   `item_cbs_code` bridges to it (`Vegetables, Other` 2605 reaches
@@ -450,9 +448,9 @@
 #'
 #' The olive, rye and honey values are the workbook's own composition
 #' figures, which, like the rest of this block, have no `Sources` entry: they
-#' are corroborated by the FBS oracle, not cited upstream. The workbook copy read was
-#' `afsetools/inst/extdata/Biomass_coefs.xlsx`; upstream still carries the old
-#' values in `Coefs` and should follow.
+#' are corroborated by the FBS oracle, not cited upstream. The workbook copy
+#' read was `afsetools/inst/extdata/Biomass_coefs.xlsx`; upstream still
+#' carries the old values in `Coefs` and should follow.
 #'
 #' The tree-nut rows `Almonds`, `Walnut` and `Hazelnut` pair a **kernel**
 #' nitrogen density with an `Edible_portion` that now refers to the nut **in

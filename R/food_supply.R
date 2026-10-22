@@ -38,8 +38,8 @@
 #' that mass counts milling offal as food. Five cereal rows carried the
 #' agronomic value instead, and others a bare literal; [biomass_coefs] names
 #' both sets and what became of each (#1096: `Olive`, `Rye` and `Honey` now
-#' follow their food-composition rows, `Maize` and `Oats` carry FAO's
-#' old-method FBS density, `Rice` is unchanged).
+#' follow their food-composition rows, `Maize` and `Oats` carry FAOSTAT's
+#' FBS density, `Rice` is unchanged).
 #' `Wheat` was the largest, at 1.27x FAOSTAT FBS world
 #' protein until #796, and now ships on the **flour basis**, 93 g of protein
 #' per kg, sourced and measured in [biomass_coefs]. Energy per kilogram

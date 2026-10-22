@@ -186,29 +186,29 @@ testthat::test_that("foods FAOSTAT credits with protein but WHEP zeroes are know
   testthat::expect_equal(zero$item_cbs_code, c(2541L, 2586L, 2658L, 2737L))
 })
 
-testthat::test_that("maize and oats carry FAO's balance-sheet density", {
+testthat::test_that("maize and oats carry FAOSTAT's food protein density", {
   # whep#1096: both rows carried the agronomic whole-grain nitrogen of a feed
   # table (Product_kgN_kgDM * Product_kgDM_kgFM, 78.0 and 83.8 g/kg), which
   # counts the bran and hull protein milling sends to feed. They now carry
-  # the density FAO's old-method food balance sheets credit per kg of
-  # primary-equivalent food, food-weighted over the countries reporting it in
-  # 2010: 71.9 g/kg for maize (152 countries) and 83.4 for oats (88). That
-  # FBS vintage applies FAO's own composition table (FBS handbook 2001,
-  # Annex I) to the products eaten, the same check the nut factors used.
+  # FAOSTAT FBS's own World density for 2010, element 671 over element 5142:
+  # 61.8 g/kg for maize and 72.4 for oats, the construct wheat already
+  # follows (93.0). Two independent composition tables, USDA SR Legacy and
+  # ANSES Ciqual, put through FAO's extraction rates, land at 56-73 (maize)
+  # and 76-77 (oats); the old-method FBS (71.9, 83.4) rests on rolled oats
+  # at 16.0 g/100 g, more than 20% above both tables.
   coefs <- whep::biomass_coefs |>
     dplyr::filter(.data$Name_biomass %in% c("Maize", "Oats")) |>
     dplyr::arrange(.data$Name_biomass)
-  testthat::expect_equal(coefs$N_kgN_kgFM * 6250, c(71.9, 83.4))
+  testthat::expect_equal(coefs$N_kgN_kgFM * 6250, c(61.8, 72.4))
   # Neither row reaches the agronomic value any more; that one stays
   # selectable as build_food_supply(protein_basis = "product_nitrogen").
   agronomic <- coefs$Product_kgN_kgDM * coefs$Product_kgDM_kgFM * 6250
   testthat::expect_equal(round(agronomic, 1), c(78.0, 83.8))
-  # Maize leaves the out-of-band set against the new-method FBS (62.2 g/kg);
-  # oats stays within 20% of it.
+  # Both now sit within 2% of the country-sum oracle (62.2 and 72.6 g/kg).
   paired <- .fpd_paired() |>
     dplyr::filter(.data$item_cbs_code %in% c(2514L, 2516L))
   testthat::expect_true(all(
-    paired$whep_protein_g_kgfm / paired$fbs_protein_g_kgfm < 1.2
+    abs(paired$whep_protein_g_kgfm / paired$fbs_protein_g_kgfm - 1) < 0.02
   ))
 })
 
@@ -216,7 +216,7 @@ testthat::test_that("the cereals still on agronomic nitrogen are known", {
   # whep#1096: five cereal rows carried the agronomic whole-grain nitrogen
   # (Product_kgN_kgDM * Product_kgDM_kgFM) because the workbook never derived
   # a nitrogen value for their food-composition rows. Wheat (#796) and rye now
-  # take their flour protein, maize and oats FAO's balance-sheet density.
+  # take their flour protein, maize and oats FAOSTAT's FBS density.
   # Rice's basis is #751/#755. Pinned so that changing it is a decision
   # someone makes, not a drift nobody sees.
   agronomic <- whep::biomass_coefs |>
