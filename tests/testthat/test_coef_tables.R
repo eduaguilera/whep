@@ -231,3 +231,32 @@ test_that("the live root table carries the corrected cereal root:shoot", {
   testthat::expect_equal(nrow(joined), length(cereals))
   testthat::expect_equal(joined$rs_default, joined$rs_ratio_ipcc)
 })
+
+test_that("ipcc_root_coefs labels every value with its own source", {
+  root <- whep::whep_coef_table("ipcc_root_coefs")
+  cols <- c("source_rs_default", "source_rs_variants", "source_bg_ref")
+  testthat::expect_true(all(cols %in% names(root)))
+  testthat::expect_false("source" %in% names(root))
+  for (col in cols) {
+    testthat::expect_false(any(is.na(root[[col]]) | root[[col]] == ""))
+  }
+})
+
+test_that("non-IPCC root:shoot rows are declared assumed, not cited", {
+  root <- whep::whep_coef_table("ipcc_root_coefs")
+  # IPCC (2006) Tab. 11.2 and (2019) Tab. 11.1a hold no row for these crops.
+  absent <- c(
+    "Groundnuts",
+    "Sunflower",
+    "Rapeseed",
+    "Other_oilseeds",
+    "Sugar_beet",
+    "Sugarcane",
+    "Cotton",
+    "Other_fiber",
+    "Vegetables",
+    "Sesame"
+  )
+  src <- root$source_rs_default[match(absent, root$ipcc_crop)]
+  testthat::expect_true(all(stringr::str_detect(src, "^assumed, unverified")))
+})
