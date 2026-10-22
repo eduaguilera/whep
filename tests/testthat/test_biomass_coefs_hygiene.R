@@ -101,10 +101,10 @@ testthat::test_that("the nutrition lookup drops the label row even if reached", 
 
 testthat::test_that("no food carries more than a kilogram per kilogram", {
   # The physically impossible bound: protein + lipid + carbohydrate + fibre
-  # cannot exceed 1000 g in 1 kg of fresh matter. Fourteen rows do. Urea and
+  # cannot exceed 1000 g in 1 kg of fresh matter. Thirteen rows do. Urea and
   # Ammonium chloride are feed additives where nitrogen times 6.25 is not
-  # protein at all; the rest are real coefficient defects, White sugar among
-  # them.
+  # protein at all; the rest are real coefficient defects. White sugar left
+  # the list in #752.
   impossible <- .bch_proximate() |>
     dplyr::filter(.data$proximate_g_kgfm > 1000) |>
     dplyr::pull(.data$Name_biomass)
@@ -120,7 +120,6 @@ testthat::test_that("no food carries more than a kilogram per kilogram", {
       "Winter cereals, other",
       "Canary grass",
       "Poppy seeds",
-      "White sugar",
       "Triticale",
       "Linseed",
       "Cereals nes",
@@ -131,68 +130,97 @@ testthat::test_that("no food carries more than a kilogram per kilogram", {
 
 testthat::test_that("the proximate sum against dry matter can only improve", {
   # The tighter chemical bound: the constituents must fit inside the dry
-  # matter. 74 rows fail it, but only 31 fail once fibre is left out, so about
+  # matter. 68 rows fail it, but only 25 fail once fibre is left out, so about
   # forty of them are fibre being counted inside carbohydrate as well as beside
   # it rather than a coefficient error. Both counts are ratchets: lower them
   # when a row is fixed, never raise them to admit a new one. Honey left both
   # in #1096: its composition row sums to exactly its 785 g/kg dry matter.
+  # Brown sugar, White sugar, Figs and Butter, Ghee left both in #752.
   prox <- .bch_proximate()
   with_fibre <- sum(prox$proximate_g_kgfm > prox$dry_matter_g_kgfm)
   without_fibre <- sum(
     prox$proximate_g_kgfm - dplyr::coalesce(prox$Fiber_g_kgFM, 0) >
       prox$dry_matter_g_kgfm
   )
-  testthat::expect_lte(with_fibre, 74L)
-  testthat::expect_lte(without_fibre, 31L)
+  testthat::expect_lte(with_fibre, 68L)
+  testthat::expect_lte(without_fibre, 25L)
 })
 
 testthat::test_that("no single constituent outweighs its own dry matter", {
   # The strictest reading of the bound, and the one no definitional argument
   # rescues: whatever basis the composition block is on, a single constituent
-  # cannot outweigh the dry matter it is part of. Five rows carry a
-  # carbohydrate value above their own Product_kgDM_kgFM (#752), so at least
-  # one of those two cells is wrong in each. Pinned by name: repairing one
-  # means editing this list, and a new offender fails loudly. Honey left it
-  # in #1096, when its placeholder 1000 g/kg became its `Miel` row's 780.
+  # cannot outweigh the dry matter it is part of. Seven rows used to (#752);
+  # five are repaired and two are pinned by name. What happened to each:
   #
-  # White sugar is arithmetic rather than a typo -- Equiv copies a parent's
-  # composition rescaled per kg of dry matter (exact to 1e-13), so Brown
-  # sugar's 995 g/kg at DM 0.965 becomes 1025.9 g/kg at DM 0.995, which is
-  # more than a kilogram of carbohydrate in a kilogram of fresh matter.
+  # - Honey left in #1096, when its placeholder 1000 g/kg became its `Miel`
+  #   row's 780.
+  # - Brown sugar and White sugar: the workbook ran its Equiv rescale the
+  #   wrong way round. Its `Total azucar` composition (995 g carbohydrate/kg)
+  #   was booked on Brown sugar (DM 0.965) and copied per kg of dry matter to
+  #   White sugar (DM 0.995), which made 1025.9 g of carbohydrate per kg.
+  # - Figs carried the composition of DRIED figs (`Higo`, 2810 kcal/kg) on a
+  #   fresh-fig row. Its block is now diluted by the row's own edible energy
+  #   over the dried food's (provisional).
+  # - Butter, Ghee carried 830 g fat/kg in 821.4 g/kg of dry matter; now
+  #   FAO's 81.1 g/100 g for butter of cow milk (Ciqual 2020: 81.5).
+  #
+  # Two are left. Vegetables, other: its dry matter is Tomato's (the row's
+  # Equiv) under an average-vegetable composition, and repairing it means
+  # moving the dry matter, which production reads. Tigernuts: dried `Chufa`
+  # composition (4430 kcal/kg) on a 0.30 dry matter that is a "Roots
+  # average" placeholder, and no source says which of the two is wrong.
   offenders <- whep::biomass_coefs |>
     dplyr::filter(
-      !is.na(.data$Carbohydrates_g_kgFM),
       !is.na(.data$Product_kgDM_kgFM),
-      .data$Carbohydrates_g_kgFM > .data$Product_kgDM_kgFM * 1000
+      pmax(
+        dplyr::coalesce(.data$Carbohydrates_g_kgFM, 0),
+        dplyr::coalesce(.data$Lipids_g_kgFM, 0),
+        dplyr::coalesce(.data$Fiber_g_kgFM, 0),
+        dplyr::coalesce(.data$N_kgN_kgFM, 0) * 6250
+      ) >
+        .data$Product_kgDM_kgFM * 1000
     ) |>
     dplyr::pull(.data$Name_biomass)
   testthat::expect_setequal(
     offenders,
-    c(
-      "White sugar",
-      "Brown sugar",
-      "Figs",
-      "Tigernuts",
-      "Vegetables, other"
-    )
+    c("Vegetables, other", "Tigernuts", "Urea", "Ammonium chloride")
   )
-  # Fibre never breaks the bound and lipid breaks it exactly once: Butter,
-  # Ghee carries 830 g of fat per kg of fresh matter against 821.4 g/kg of dry
-  # matter. Same class of defect, different column, so it is pinned here too
-  # rather than left to the aggregate ratchet above.
-  fatty <- whep::biomass_coefs |>
-    dplyr::filter(
-      !is.na(.data$Product_kgDM_kgFM),
-      dplyr::coalesce(.data$Lipids_g_kgFM, 0) > .data$Product_kgDM_kgFM * 1000
-    ) |>
-    dplyr::pull(.data$Name_biomass)
-  testthat::expect_setequal(fatty, "Butter, Ghee")
-  fibrous <- whep::biomass_coefs |>
-    dplyr::filter(
-      !is.na(.data$Product_kgDM_kgFM),
-      dplyr::coalesce(.data$Fiber_g_kgFM, 0) > .data$Product_kgDM_kgFM * 1000
-    )
-  testthat::expect_equal(nrow(fibrous), 0L)
+})
+
+testthat::test_that("the repaired composition rows close against dry matter", {
+  # Protein + lipid + carbohydrate + fibre fits inside the dry matter for
+  # every row #752 repaired, not only the single largest constituent.
+  repaired <- c("Brown sugar", "White sugar", "Figs")
+  prox <- .bch_proximate() |>
+    dplyr::filter(.data$Name_biomass %in% repaired)
+  testthat::expect_setequal(prox$Name_biomass, repaired)
+  testthat::expect_true(all(
+    prox$proximate_g_kgfm <= prox$dry_matter_g_kgfm + 1e-6
+  ))
+  # Butter's protein is 6 g/kg, so 811 g of fat leaves room for it too.
+  butter <- .bch_proximate() |>
+    dplyr::filter(.data$Name_biomass == "Butter, Ghee")
+  testthat::expect_equal(butter$Lipids_g_kgFM, 811)
+  testthat::expect_lte(butter$proximate_g_kgfm, butter$dry_matter_g_kgfm)
+})
+
+testthat::test_that("White sugar is Brown sugar's composition per kg DM", {
+  # The workbook's Equiv identity still holds after the repair: a child row
+  # is its parent's composition rescaled per kg of dry matter.
+  sugar <- whep::biomass_coefs |>
+    dplyr::filter(.data$Name_biomass %in% c("White sugar", "Brown sugar"))
+  white <- sugar[sugar$Name_biomass == "White sugar", ]
+  brown <- sugar[sugar$Name_biomass == "Brown sugar", ]
+  dm_ratio <- white$Product_kgDM_kgFM / brown$Product_kgDM_kgFM
+  testthat::expect_equal(
+    white$Carbohydrates_g_kgFM,
+    brown$Carbohydrates_g_kgFM * dm_ratio
+  )
+  testthat::expect_equal(
+    white$Calcium_mg_kgFM,
+    brown$Calcium_mg_kgFM * dm_ratio
+  )
+  testthat::expect_equal(white$Carbohydrates_g_kgFM, 995)
 })
 
 # Formula-derived nitrogen ceilings for the synthetic feed additives (#931).
