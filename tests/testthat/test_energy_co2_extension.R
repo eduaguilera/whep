@@ -964,9 +964,9 @@ testthat::test_that("an uncovered dissolved entity stays unpriced", {
 })
 
 testthat::test_that("a fully missing dressing region aborts, not NaN", {
-  # whep#972. `gleam_dressing_percentages` already ships one missing
-  # `dressing_percent`; it is absorbed today only because sibling rows cover
-  # the same (grp, reg). Give a region nothing but the missing row and the
+  # whep#972. `gleam_dressing_percentages` already ships missing
+  # `dressing_percent` values; they are absorbed today only because sibling
+  # rows cover the same (grp, reg). Give a region nothing but the missing row and the
   # group mean over it becomes NaN, which `.energy_join_dressing()` would then
   # average into the global fallback used by every country GLEAM cannot place,
   # silently blanking their emissions. It must abort instead.
