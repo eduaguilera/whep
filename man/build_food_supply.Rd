@@ -75,7 +75,8 @@ equivalent of the products actually eaten: a whole-grain nitrogen density on
 that mass counts milling offal as food. Five cereal rows carried the
 agronomic value instead, and others a bare literal; \link{biomass_coefs} names
 both sets and what became of each (#1096: \code{Olive}, \code{Rye} and \code{Honey} now
-follow their food-composition rows, \code{Oats}, \code{Maize} and \code{Rice} do not).
+follow their food-composition rows, \code{Maize} and \code{Oats} carry FAOSTAT's
+FBS density, \code{Rice} is unchanged).
 \code{Wheat} was the largest, at 1.27x FAOSTAT FBS world
 protein until #796, and now ships on the \strong{flour basis}, 93 g of protein
 per kg, sourced and measured in \link{biomass_coefs}. Energy per kilogram
