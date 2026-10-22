@@ -64,6 +64,24 @@
 #'     areas in that year, or in the nearest years that report them. A label
 #'     FAOSTAT never gives an item area for in that country is split evenly.
 #'   * `"equal"` gives every item sharing the label the same share.
+#' @param meat_nes_backcast Character. What the pre-1962 back-cast does with
+#'   item 1166, "Meat nes". FAO defines it as "including frog legs, marine
+#'   mammals, etc." (FAO 1994, *Definition and Classification of
+#'   Commodities*, chapter 17), so in whaling countries its 1961 anchor is
+#'   mostly whale meat: FAOSTAT has 193 kt for Japan in 1963, against 186,501
+#'   t of whale meat in Japan's own 1963 statistics (Shapiro, *The Fisheries
+#'   of Japan*, US Fish and Wildlife Service Circular 233, Table 8, p. 13;
+#'   whep#1538). WHEP has no whaling series to split the item on.
+#'   * `"agriland"` (default, current published behaviour) scales the first
+#'     reported value back on agricultural land like any herdless livestock
+#'     product, so its rows read `"LUH2_agriland"`. Whatever marine-mammal
+#'     meat the anchor holds is carried back in proportion to farmland, which
+#'     bears no relation to historical whaling: Japan's 1950-1960 back-cast is
+#'     1.89 Mt of the world's 6.46 Mt.
+#'   * `"none"` leaves the back-cast years of 1166 empty in every area. A
+#'     value supplied through `historical_data` is still kept. This also drops
+#'     the terrestrial "other meat" the item holds elsewhere (France, India,
+#'     Ethiopia), because the two cannot be told apart.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -133,6 +151,7 @@ build_primary_production <- function(
   federation_land = c("none", "successor_union"),
   land_method = c("present_day", "historical_polity"),
   fodder_split = c("fao_mix", "equal"),
+  meat_nes_backcast = c("agriland", "none"),
   .raw_data = NULL
 ) {
   if (example) {
@@ -141,6 +160,7 @@ build_primary_production <- function(
   federation_land <- rlang::arg_match(federation_land)
   land_method <- rlang::arg_match(land_method)
   fodder_split <- rlang::arg_match(fodder_split)
+  meat_nes_backcast <- rlang::arg_match(meat_nes_backcast)
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
     raw <- .read_production(
@@ -149,7 +169,8 @@ build_primary_production <- function(
       historical_data,
       federation_land = federation_land,
       land_method = land_method,
-      fodder_split = fodder_split
+      fodder_split = fodder_split,
+      meat_nes_backcast = meat_nes_backcast
     )
   } else {
     if (!is.null(historical_data)) {
@@ -355,7 +376,8 @@ build_primary_production <- function(
   historical_data = NULL,
   federation_land = "none",
   land_method = "present_day",
-  fodder_split = "fao_mix"
+  fodder_split = "fao_mix",
+  meat_nes_backcast = "agriland"
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -461,7 +483,8 @@ build_primary_production <- function(
     years_df,
     land_areas,
     federation_land = federation_land,
-    land_wide = .historical_land_wide(land_method, years)
+    land_wide = .historical_land_wide(land_method, years),
+    meat_nes_backcast = meat_nes_backcast
   )
 
   # 10. Add grassland + historical yields
@@ -3483,7 +3506,8 @@ build_primary_production <- function(
   years_df,
   land_areas,
   federation_land = "none",
-  land_wide = NULL
+  land_wide = NULL,
+  meat_nes_backcast = "agriland"
 ) {
   cli::cli_progress_step("Extending historical series")
 
@@ -3533,6 +3557,26 @@ build_primary_production <- function(
       !is.na(area),
       area != "",
       !is.na(unit)
+    ) |>
+    .drop_meat_nes_backcast(meat_nes_backcast)
+}
+
+# Item 1166 "Meat nes" holds marine-mammal meat by FAO's definition ("including
+# frog legs, marine mammals, etc.", FAO 1994, Definition and Classification of
+# Commodities, ch. 17), and in whaling countries its 1961 anchor is mostly whale meat
+# (whep#1538), which agricultural land cannot drive. Under `"none"` the rows the
+# agriland proxy produced are removed; every label `.fill_pre_faostat()` gives
+# such a row ends in `_agriland`, while an observed row keeps its own source.
+.drop_meat_nes_backcast <- function(df, meat_nes_backcast = "agriland") {
+  if (meat_nes_backcast == "agriland") {
+    return(df)
+  }
+  df |>
+    dplyr::filter(
+      !(.data$item_prod_code %in%
+        1166L &
+        .data$year < 1962L &
+        stringr::str_ends(dplyr::coalesce(.data$source, ""), "_agriland"))
     )
 }
 

@@ -14,6 +14,7 @@ build_primary_production(
   federation_land = c("none", "successor_union"),
   land_method = c("present_day", "historical_polity"),
   fodder_split = c("fao_mix", "equal"),
+  meat_nes_backcast = c("agriland", "none"),
   .raw_data = NULL
 )
 }
@@ -85,6 +86,27 @@ until whep#654 each item could get all of it.
 areas in that year, or in the nearest years that report them. A label
 FAOSTAT never gives an item area for in that country is split evenly.
 \item \code{"equal"} gives every item sharing the label the same share.
+}}
+
+\item{meat_nes_backcast}{Character. What the pre-1962 back-cast does with
+item 1166, "Meat nes". FAO defines it as "including frog legs, marine
+mammals, etc." (FAO 1994, \emph{Definition and Classification of
+Commodities}, chapter 17), so in whaling countries its 1961 anchor is
+mostly whale meat: FAOSTAT has 193 kt for Japan in 1963, against 186,501
+t of whale meat in Japan's own 1963 statistics (Shapiro, \emph{The Fisheries
+of Japan}, US Fish and Wildlife Service Circular 233, Table 8, p. 13;
+whep#1538). WHEP has no whaling series to split the item on.
+\itemize{
+\item \code{"agriland"} (default, current published behaviour) scales the first
+reported value back on agricultural land like any herdless livestock
+product, so its rows read \code{"LUH2_agriland"}. Whatever marine-mammal
+meat the anchor holds is carried back in proportion to farmland, which
+bears no relation to historical whaling: Japan's 1950-1960 back-cast is
+1.89 Mt of the world's 6.46 Mt.
+\item \code{"none"} leaves the back-cast years of 1166 empty in every area. A
+value supplied through \code{historical_data} is still kept. This also drops
+the terrestrial "other meat" the item holds elsewhere (France, India,
+Ethiopia), because the two cannot be told apart.
 }}
 
 \item{.raw_data}{Optional tibble with the same structure as the output
