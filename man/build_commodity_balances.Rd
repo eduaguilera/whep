@@ -25,7 +25,7 @@ build_commodity_balances(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
-  nut_basis = .nut_basis_choices(),
+  fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
   .fixed_data = NULL
 )
@@ -467,36 +467,53 @@ product was found, and a cigarette also holds paper and filter. Where the
 products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
 remainder stays as stock change. Only Tobacco rows from 2014 on move.}
 
-\item{nut_basis}{One of \code{"rebased"} (default) or \code{"as_published"},
-selecting how the trade of FBS item 2551 \verb{Nuts and products} is taken
-from FAOSTAT's new food balance sheets, 2010 on (whep#1495). Their nut
-trade is not one mass basis: at 2010 world imports are 13.57 Mt against
-7.69 Mt of world exports (1.76x; 1.65x at 2022), and the excess goes on
-into food, 19.47 Mt against 14.29 Mt of nuts the world grew in shell,
-with about the old vintage's protein. Regressed on species-level trade,
-importers convert kernels and prepared nuts to in-shell equivalent with
-factors 2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one
-flow lands on two bases. The old vintage closes (6.45 vs 6.51 Mt).
+\item{fbs_trade_basis}{One of \code{"rebased"} (default), \code{"rebased_no_milk"},
+\code{"nuts_only"} or \code{"as_published"}, selecting how the trade of the FBS
+items whose import side FAOSTAT's new food balance sheets put on a
+different mass basis than the export side is taken, 2010 on (whep#1495,
+whep#1550). For these items the importer converts processed forms to
+primary equivalent with far larger factors than the exporter does
+(preserved olives 3.15 vs 0.98, canned pineapples 3.1 vs about 0, peeled
+tomatoes 5.9 vs 1.3, cheese 31.0 vs 7.7, dry whey 30.6 vs 2.3), so one
+flow lands on two bases and world imports exceed world exports at 2010:
+nuts (2551) 1.76x, pineapples (2618) 1.75x, olives (2563) 2.53x,
+tomatoes (2601) 1.29x, lemons and limes (2612) 1.25x, milk excluding
+butter (2848) 1.93x. The old vintage converts both sides alike and
+closes (0.87x to 1.07x), as does product-level trade (2010 world cheese
+imports 4.73 Mt against 4.96 Mt of exports, dry whey 1.86 against 2.04
+Mt).
 
-\code{"rebased"} multiplies each area's import and export by its median
-old/new ratio over 2010-2013, clamped to \verb{[0.2, 1]} -- the old
-vintage's level with the new one's change over time, as the palm-kernel
-fix already joins them -- and takes the net trade removed out of food
-and domestic supply, so every row keeps its supply-use identity and
-production and stock change do not move. A row whose net cut is not
-positive or exceeds its food is left as published. The moved rows are
-labelled \code{"FAOSTAT_FBS_New_rebased"}, and the ratio is read from the
-pins whatever years are built. \code{"as_published"} keeps FAOSTAT's figures,
-the behaviour before whep#1495; the old vintage is scaled to whichever
-level is chosen, so 1961-2009 follows it. \strong{The default moves published
-values}, all of them in item 2551. Measured on a real 2009-2016
-build at 2010, world imports fall from 13.85 to 7.16 Mt and exports
-from 7.83 to 6.51 Mt (imports/exports 1.77x to 1.10x; 1.61x to 1.02x
-at 2016), and food from 19.79 to 14.43 Mt against 14.60 Mt of
-production; the 5.37 Mt drop is 0.11\% of the 4,692 Mt of all-item food.
-Production and stock change do not move from 2010 on. FBS's own 2551
-protein over the pin's food rises from 45.6 to 62.9 g/kg, against FAO's
-in-shell basket of 64.7 that \code{\link[=build_food_supply]{build_food_supply()}} applies.}
+\code{"rebased"} multiplies each area's import and export of these items by
+its median old/new ratio over 2010-2013, clamped to \verb{[0.2, 1]} -- the
+old vintage's level with the new one's change over time, as the
+palm-kernel fix already joins them -- and takes the net trade removed
+out of domestic supply and food, so every row keeps its supply-use
+identity and production and stock change do not move. For milk the cut
+comes out of feed first, down to the area's old-vintage feed level (the
+same clamped ratio), and only the rest out of food: whey is cheese's
+co-product, and FAO's FBS guidelines (2017) standardise neither the
+trade nor the feed of a co-product into its parent, yet the new
+vintage's import side books imported whey as milk fed to animals. That
+order is provisional (one source family). A row whose net cut is not
+positive, or exceeds what those destinies can give, is left as
+published. The moved rows are labelled \code{"FAOSTAT_FBS_New_rebased"}, and
+the ratios are read from the pins whatever years are built.
+\code{"rebased_no_milk"} leaves milk as published; \code{"nuts_only"} rebases item
+2551 alone, the behaviour from whep#1495 to whep#1550; \code{"as_published"}
+keeps FAOSTAT's figures for every item, the behaviour before whep#1495.
+The old vintage is scaled to whichever level is chosen, so 1961-2009
+follows it.
+
+\strong{The default moves published values}, in these items. Measured on a
+real 2009-2011 build at 2010, against \code{"nuts_only"}: imports/exports
+2.54x to 1.06x for olives, 1.77x to 0.94x for pineapples, 1.32x to
+0.89x for tomatoes, 1.27x to 1.04x for lemons, 1.96x to 1.16x for milk
+(imports 191.36 to 100.13 Mt, exports 97.76 to 86.64 Mt). Milk food
+falls from 520.34 to 477.96 Mt and milk feed from 79.68 to 41.86 Mt;
+all-item food from 4,686.88 to 4,624.51 Mt (-1.33\%), all-item feed from
+6,711.39 to 6,673.57 Mt (-0.56\%). FBS's own protein over the rebased
+food moves to the old vintage's density (pineapples 1.9 to 2.8 g/kg, old
+2.7; milk in low-butter importers 32.9 to 34.4, old 33.2).}
 
 \item{residue_backcast}{One of \code{"own_method"} (default),
 \code{"production_ratio"} or \code{"area_rate"}, selecting what crop residue

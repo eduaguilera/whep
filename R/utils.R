@@ -2752,6 +2752,14 @@ utils::globalVariables(
     "r_export",
     "r_import",
     "rebase_old_new",
+    # fbs_vintage_rebase.R (whep#1550) -- rebase destinies beyond food
+    "in_food",
+    "in_feed",
+    "room_food",
+    "room_feed",
+    "cut_feed",
+    "cut_food",
+    "r_feed",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

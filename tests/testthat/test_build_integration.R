@@ -158,13 +158,13 @@ test_that("build_commodity_balances returns expected columns", {
   expect_equal(names(result), expected_cols)
 })
 
-test_that("build_commodity_balances warns that nut_basis is unused", {
+test_that("build_commodity_balances warns that fbs_trade_basis is unused", {
   expect_warning(
     whep::build_commodity_balances(
-      nut_basis = "as_published",
+      fbs_trade_basis = "as_published",
       .fixed_data = cbs_fixed_fixture()
     ),
-    "nut_basis"
+    "fbs_trade_basis"
   )
 })
 
