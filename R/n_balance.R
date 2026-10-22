@@ -69,7 +69,8 @@
 #'   wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or `"ipcc2019_atl_med"`),
 #'   `leaching` (forwarded to [calculate_n_leaching()], default
 #'   `"meisinger_drainage"`, or `"ipcc_fracleach"`, the wet/dry
-#'   FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and `regime`, how each grid
+#'   FracLEACH-(H) of Section 11.2.2.2 p. 11.25 applied to the N added, or
+#'   `"fracleach_surplus"`, the same fractions on the surplus) and `regime`, how each grid
 #'   row is split into a rainfed and an irrigated part (see Details):
 #'   `"yield_split"` (default), `"area_split"` or `"none"`. The IPCC 2019
 #'   wet/dry methods read `moisture_regime` from the driver tables in `data`.
@@ -307,7 +308,7 @@
 #' |`n2o`: `"aguilera"`, `"ipcc2006"`|`climate`, `irrig_type`|yes|built|
 #' |`n2o_indirect`: `"ipcc2019"`|`moisture_regime`|yes|built|
 #' |`n2o_indirect`: `"ipcc2019_atl_med"`|`climate`, `irrig_type`|yes|built|
-#' |`leaching`: `"ipcc_fracleach"`|`moisture_regime`, `water_regime`|yes|built|
+#' |`leaching`: `"ipcc_fracleach"`, `"fracleach_surplus"`|`moisture_regime`, `water_regime`|yes|built|
 #' |`leaching`: `"meisinger_drainage"`|Meisinger's|no|note 2|
 #'
 #' - Note 1: MANNER reads `manner_fertiliser`, `soil_ph`, `rate_kg_ha`,
@@ -554,7 +555,7 @@ build_nitrogen_balance <- function(
     ),
     leaching = rlang::arg_match(
       leaching,
-      c("meisinger_drainage", "ipcc_fracleach")
+      c("meisinger_drainage", "ipcc_fracleach", "fracleach_surplus")
     ),
     regime = rlang::arg_match(
       regime,
@@ -1270,7 +1271,8 @@ build_nitrogen_balance <- function(
     data$drainage_mm
   }
   # calculate_n_leaching() stamps each row with the fraction it took (for
-  # ipcc_fracleach, wet, dry irrigated or dry rainfed), so the stamp is kept.
+  # ipcc_fracleach, wet, dry irrigated or dry rainfed, and whether the cap at
+  # the surplus bound), so the stamp is kept.
   calculate_n_leaching(joined, drainage_mm = drainage, method = m$leaching)
 }
 

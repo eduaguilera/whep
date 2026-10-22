@@ -24,7 +24,8 @@ wet/dry factors of Table 11.1 (Updated) p. 11.13; \code{"ipcc2019_atl_med"},
 wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or \code{"ipcc2019_atl_med"}),
 \code{leaching} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default
 \code{"meisinger_drainage"}, or \code{"ipcc_fracleach"}, the wet/dry
-FracLEACH-(H) of Section 11.2.2.2 p. 11.25) and \code{regime}, how each grid
+FracLEACH-(H) of Section 11.2.2.2 p. 11.25 applied to the N added, or
+\code{"fracleach_surplus"}, the same fractions on the surplus) and \code{regime}, how each grid
 row is split into a rainfed and an irrigated part (see Details):
 \code{"yield_split"} (default), \code{"area_split"} or \code{"none"}. The IPCC 2019
 wet/dry methods read \code{moisture_regime} from the driver tables in \code{data}.}
@@ -289,7 +290,7 @@ be supplied.\tabular{llll}{
    \code{n2o}: \code{"aguilera"}, \code{"ipcc2006"} \tab \code{climate}, \code{irrig_type} \tab yes \tab built \cr
    \code{n2o_indirect}: \code{"ipcc2019"} \tab \code{moisture_regime} \tab yes \tab built \cr
    \code{n2o_indirect}: \code{"ipcc2019_atl_med"} \tab \code{climate}, \code{irrig_type} \tab yes \tab built \cr
-   \code{leaching}: \code{"ipcc_fracleach"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \tab built \cr
+   \code{leaching}: \code{"ipcc_fracleach"}, \code{"fracleach_surplus"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \tab built \cr
    \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's \tab no \tab note 2 \cr
 }
 

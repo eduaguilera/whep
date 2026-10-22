@@ -1755,7 +1755,8 @@ testthat::test_that("the default manure source reproduces the pre-option balance
       nh3 = "ipcc",
       n2o = "ipcc2019_atl_med",
       n2o_indirect = "ipcc2019_atl_med",
-      leaching = "ipcc_fracleach",
+      # The golden predates FracLEACH on the N added (whep#1535).
+      leaching = "fracleach_surplus",
       regime = "none"
     ),
     data = data
@@ -1764,7 +1765,7 @@ testthat::test_that("the default manure source reproduces the pre-option balance
   atl_med <- c("ipcc2019_atl_med", "ipcc2019_atl_med_no_loss_row")
   testthat::expect_true(all(out$method_soil_n2o %in% atl_med))
   testthat::expect_true(all(out$method_n2o_indirect_nh3 %in% atl_med))
-  testthat::expect_true(all(out$method_leaching == "ipcc_fracleach_wet"))
+  testthat::expect_true(all(out$method_leaching == "fracleach_surplus_wet"))
   # Added after the golden: the retained-in-profile term (zero on wet rows),
   # the drivers' provenance and the class the leaching drivers carry.
   testthat::expect_true(all(out$retained_profile_n_t == 0))
@@ -2093,10 +2094,12 @@ testthat::test_that("the ATL/MED options reproduce the former balance", {
   data$residue_feed_share <- "legacy"
   data$residue_bedding <- "fraction"
   data$recycling_residue_basis <- "total_residue"
+  # It also predates FracLEACH on the N added (whep#1535).
   out <- .nb_run_methods(
     data = data,
     n2o = "ipcc2019_atl_med",
-    n2o_indirect = "ipcc2019_atl_med"
+    n2o_indirect = "ipcc2019_atl_med",
+    leaching = "fracleach_surplus"
   )
   testthat::expect_equal(
     sum(out$n2o_direct_n_t),
@@ -2113,6 +2116,20 @@ testthat::test_that("the ATL/MED options reproduce the former balance", {
   atl_med <- c("ipcc2019_atl_med", "ipcc2019_atl_med_no_loss_row")
   testthat::expect_true(all(out$method_soil_n2o %in% atl_med))
   testthat::expect_true(all(out$method_n2o_indirect_nh3 %in% atl_med))
+})
+
+testthat::test_that("ipcc_fracleach leaches 0.24 of the N added, capped at the surplus", {
+  out <- .nb_run_methods()
+  expected <- pmin(out$n_input_for_n2o_t * 0.24, out$surplus_t)
+  testthat::expect_equal(out$no3_n_t, expected, tolerance = 1e-9)
+  testthat::expect_true(any(out$no3_n_t > 0))
+  testthat::expect_true(any(out$no3_n_t < 0.24 * out$surplus_t))
+  testthat::expect_true(any(out$no3_n_t > 0.24 * out$surplus_t))
+  testthat::expect_equal(
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    out$surplus_t,
+    tolerance = 1e-9
+  )
 })
 
 testthat::test_that("the balance refuses loss drivers without a moisture regime", {
@@ -2148,14 +2165,19 @@ testthat::test_that("dry irrigated parts leach and dry rainfed parts do not", {
   data$n_balance_leaching_drivers$moisture_regime <- "dry"
   out <- .nb_run_methods(data, regime = "yield_split")
   irrigated <- out$water_regime == "irrigated"
+  # 0.24 of the N added (Eq. 11.10), capped at the surplus (whep#1535).
   testthat::expect_equal(
     out$no3_n_t[irrigated],
-    0.24 * out$surplus_t[irrigated],
+    pmin(0.24 * out$n_input_for_n2o_t, out$surplus_t)[irrigated],
     tolerance = 1e-12
   )
   testthat::expect_true(all(out$no3_n_t[!irrigated] == 0))
   testthat::expect_true(all(
-    out$method_leaching[irrigated] == "ipcc_fracleach_dry_irrigated"
+    out$method_leaching[irrigated] %in%
+      c(
+        "ipcc_fracleach_dry_irrigated",
+        "ipcc_fracleach_dry_irrigated_capped_surplus"
+      )
   ))
   testthat::expect_true(all(
     out$method_leaching[!irrigated] == "ipcc_fracleach_dry_rainfed_retained"
