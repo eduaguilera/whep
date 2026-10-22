@@ -1400,11 +1400,16 @@ build_soil_carbon_inputs <- function(
 # carries rice milled, its paddy tonnes times .rice_milled_extraction_rate()
 # (.fix_rice_milled_equiv(); the CBS-imputed rows are milled by the CBS
 # harmonizer at the same rate). The IPCC rice residue line (2006 Table 11.2,
-# slope 0.95, intercept 2.46 t DM/ha) and root:shoot ratio are per tonne of
-# harvested paddy, the basis the CBS reads off the pin, so `.sci_crop_npp()`
-# divides by that rate to price the straw and the root, then multiplies back:
-# the product stays the milled rice the rest of WHEP books, and the residue
-# and root keep the paddy pricing. Hectares are never touched.
+# p. 11.17: slope 0.95, intercept 2.46 Mg DM/ha) takes the harvested yield
+# (Equation 11.7, p. 11.15), and harvested rice is paddy: FAOSTAT's item
+# 0027 is "rice in the husk" (FAO 1994, Definition and Classification of
+# Commodities, ch. 1) and rice yield "is usually reported as rough rice
+# (paddy)" (Yoshida 1981, Fundamentals of Rice Crop Science, s. 1.12.1).
+# Decision whep-soil-chain-rice-residue-paddy-basis. It is also the basis
+# the CBS reads off the pin. So `.sci_crop_npp()` divides by that rate to
+# price the straw and the root, then multiplies back: the product stays the
+# milled rice the rest of WHEP books, and the residue and root keep the
+# paddy pricing. Hectares are never touched.
 .sci_paddy_basis <- function(x, factor) {
   rice <- as.character(x$item_prod_code) == "27"
   cols <- intersect(
