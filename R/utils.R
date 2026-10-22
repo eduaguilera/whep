@@ -2757,7 +2757,9 @@ utils::globalVariables(
     "in_feed",
     "room_food",
     "room_feed",
-    "room",
+    "cut_feed",
+    "cut_food",
+    "r_feed",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

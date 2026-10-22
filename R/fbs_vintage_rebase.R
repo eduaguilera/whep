@@ -58,11 +58,10 @@
 # `.fbs_rebase_destinies()` extends the rebase to those where the same
 # mechanism was verified (whep#1550). See there for the evidence per item.
 
-# `"nuts_only"` is the whep#1495 rebase alone, the behaviour before whep#1550.
-# `"rebased_with_milk"` adds milk, which `"rebased"` leaves as published: see
-# `.fbs_rebase_destinies()` on why its destiny is not settled.
+# `"rebased_no_milk"` leaves milk as published; `"nuts_only"` is the whep#1495
+# rebase alone, the behaviour before whep#1550.
 .fbs_trade_basis_choices <- function() {
-  c("rebased", "rebased_with_milk", "nuts_only", "as_published")
+  c("rebased", "rebased_no_milk", "nuts_only", "as_published")
 }
 
 # The FBS items whose trade is put on the old vintage's level, and the
@@ -92,22 +91,39 @@
 # * tomatoes: peeled 5.9 vs 1.3 (1.1 vs 1.3), paste 5.2 vs 3.8 (3.5 vs 3.8);
 # * lemons: concentrated juice 22.2 vs 11.3 (11.6 vs 10.7).
 #
-# Milk's excess is not food, and where it is cannot yet be said, so milk is
-# rebased only under `"rebased_with_milk"`. Across the 30 countries whose
-# new-vintage imports exceed the old vintage's most (85 Mt in all), feed rose
-# 35 Mt over the old vintage, and per tonne of each product imported the
-# excess follows dry whey into feed (14.3 of 17.9): China imports 12.9 Mt in
-# the new vintage (3.7 Mt in the old) and feeds 9.6 Mt (1.3 Mt), the
-# Netherlands 16.9 Mt (4.9 Mt) and 9.7 Mt (1.2 Mt). But food is not inflated:
-# FBS's own milk protein over food is 32.9 g/kg in the 69 rebased importers
-# whose processing is under a tenth of their food, against 33.2 g/kg in the
-# old vintage. Taking the cut out of food and feed in proportion (the
-# `"rebased_with_milk"` rule) closes the world, imports 1.93x to 1.13x
-# exports, but takes food from 499 to 442 Mt and raises that protein density
-# to 38.5 g/kg; taking it from feed first leaves 12 Mt of feed in rows where
-# the old vintage has 72 Mt. Part of the excess likely sits in the new
-# vintage's processing element too (205 Mt world, 0.1 Mt in the old one),
-# which is mostly the milk made into butter where it is made (whep#1583).
+# Milk's excess is mostly feed, and its cut is taken from there first (decision
+# whep-fbs-new-milk-trade-rebase-default; the trade cut is settled, the
+# feed-first order is PROVISIONAL, resting on FAO's own guidelines alone).
+#
+# * The import side is the inflated one. Product trade balances: FAOSTAT 2010
+#   world imports of whole-cow-milk cheese are 4.73 Mt against 4.96 Mt of
+#   exports, of dry whey 1.86 against 2.04 Mt (faostat-trade-totals, World),
+#   and UN Comtrade's mirror sums agree (HS 0406 0.94x, HS 0404 1.05x). FAO's
+#   own cheese extraction rates are 10-15% (Technical Conversion Factors:
+#   Netherlands 10, Russia 12, Germany 15), so at most 10 t of milk per t of
+#   cheese, as on the export side (7.7), not the import side's 31.0. IDF puts
+#   world dairy trade at 51.9 Mt in 2010, about 7% of farm milk (IDF World
+#   Dairy Situation 2011, via IDFA), where the new vintage's imports are
+#   193.7 Mt against 97.6 Mt of exports (World row; old vintage 96.6 vs
+#   104.1 Mt).
+# * Whey is cheese's co-product (FAO 2017, Guidelines for the Compilation of
+#   Food Balance Sheets, p. 65), and FAO standardises trade "only for the
+#   principal derived product" (p. 105) and does not standardise co-product
+#   feed (p. 107). The new vintage's import side converts dry whey at 30.6 t
+#   of milk per t (export side 2.3), and that mass lands in feed: China
+#   imports 265 kt of whey (UN Comtrade HS 0404) and feeds 9.6 Mt of milk in
+#   the new vintage against 1.3 Mt in the old. So milk's feed is cut first,
+#   down to the area's old-vintage level (the clamped median old/new feed
+#   ratio over 2010-2013, as for trade), and only the rest of the cut comes out
+#   of food.
+#
+# Measured on the pins at 2010: world imports 1.93x to 1.13x exports, feed 79
+# to 37 Mt, food 499 to 461 Mt. FBS's own milk protein over food, in the 69
+# rebased importers whose processing is under a tenth of their food, goes
+# from 32.9 to 34.4 g/kg (old vintage 33.2); a pro-rata cut over food and feed
+# gave 38.5, too dense, which is why it is not used. Part of the excess may
+# sit in the new vintage's processing element (205 Mt world, 0.1 Mt in the
+# old), mostly milk made into butter, which no cut touches (whep#1583).
 # Not listed, though the new vintage's imports exceed its exports there too:
 # "Vegetables, other" (2605) converts even fresh vegetables at 2.45 on the
 # import side against 1.36 on the export side, which is not this mechanism;
@@ -133,8 +149,8 @@
   all_items <- unique(.fbs_rebase_destinies()$item_cbs_code)
   switch(
     basis,
-    rebased = setdiff(all_items, 2848L),
-    rebased_with_milk = all_items,
+    rebased = all_items,
+    rebased_no_milk = setdiff(all_items, 2848L),
     nuts_only = 2551L,
     as_published = integer()
   )
@@ -145,9 +161,9 @@
   2010:2013
 }
 
-# One factor per (area_code, item_cbs_code, element) for import and export:
-# median(old / new) over the overlap, clamped to [lower bound, 1], for the
-# items `fbs_trade_basis` rebases. Empty under `"as_published"`, and when the
+# One factor per (area_code, item_cbs_code, element) for import, export and,
+# for milk, feed: median(old / new) over the overlap, clamped to [lower bound,
+# 1], for the items `fbs_trade_basis` rebases. Empty under `"as_published"`, and when the
 # build reads no new-vintage row of the items, because then there is nothing
 # to rebase.
 #
@@ -165,8 +181,8 @@
   }
   overlap <- .fbs_overlap_frames(fbs_new, fbs_old)
   keys <- c("area_code", "item_cbs_code", "element", "year")
-  new <- .fbs_rebase_rows(overlap$new, items)
-  old <- .fbs_rebase_rows(overlap$old, items)
+  new <- .fbs_factor_rows(overlap$new, items)
+  old <- .fbs_factor_rows(overlap$old, items)
   data.table::setnames(new, "value", "new")
   data.table::setnames(old, "value", "old")
   both <- merge(new, old, by = keys)[new != 0]
@@ -190,6 +206,16 @@
     element = character(),
     rebase_old_new = double()
   )
+}
+
+# The overlap rows a factor is taken from: import and export of every item,
+# and feed of the items whose cut comes out of feed first (milk).
+.fbs_factor_rows <- function(fbs, items) {
+  feed_items <- .fbs_rebase_destinies()$item_cbs_code[
+    .fbs_rebase_destinies()$element == "feed"
+  ]
+  rows <- .fbs_rebase_rows(fbs, items, c("import", "export", "feed"))
+  rows[element != "feed" | item_cbs_code %in% feed_items]
 }
 
 # Some items' rows of one vintage for some elements, summed per key, with
@@ -285,6 +311,7 @@
   )
   wide <- .add_rebase_factor(wide, factors, "import")
   wide <- .add_rebase_factor(wide, factors, "export")
+  wide <- .add_rebase_factor(wide, factors, "feed")
   corrected <- data.table::melt(
     .fbs_rebase_balance(wide),
     id.vars = keys,
@@ -307,9 +334,10 @@
   wide
 }
 
-# Cut the trade, take the net cut out of the item's destinies in proportion to
-# each, and out of domestic supply, and keep a row as published where the net
-# cut is not positive or exceeds those destinies.
+# Cut the trade and take the net cut out of domestic supply and the item's
+# destinies: first feed, down to the old vintage's level (`r_feed`), where
+# feed is one of them, then food. A row whose net cut is not positive, or
+# exceeds what those destinies can give, is kept as published.
 .fbs_rebase_balance <- function(wide) {
   wide <- ensure_columns(
     tibble::as_tibble(wide),
@@ -326,19 +354,20 @@
   wide[, cut_import := data.table::fcoalesce(import, 0) * (1 - r_import)]
   wide[, cut_export := data.table::fcoalesce(export, 0) * (1 - r_export)]
   wide[, net_cut := cut_import - cut_export]
+  wide[, room_feed := in_feed * data.table::fcoalesce(feed, 0) * (1 - r_feed)]
+  wide[, cut_feed := pmin(pmax(net_cut, 0), room_feed)]
+  # `net_cut - 0` is `net_cut` exactly, so an item that only takes from food
+  # moves exactly as under whep#1495.
+  wide[, cut_food := net_cut - cut_feed]
   wide[, room_food := in_food * data.table::fcoalesce(food, 0)]
-  wide[, room_feed := in_feed * data.table::fcoalesce(feed, 0)]
-  wide[, room := room_food + room_feed]
-  wide[, ok := net_cut > 0 & net_cut <= room]
-  # `room_food / room` is exactly 1 where food is the only destiny, so an
-  # item that only takes from food moves exactly as under whep#1495.
+  wide[, ok := net_cut > 0 & cut_food <= room_food]
   wide[
     (ok),
     `:=`(
       import = import - cut_import,
       export = export - cut_export,
-      food = food - net_cut * (room_food / room),
-      feed = feed - net_cut * (room_feed / room),
+      food = food - cut_food,
+      feed = feed - cut_feed,
       domestic_supply = domestic_supply - net_cut
     )
   ]

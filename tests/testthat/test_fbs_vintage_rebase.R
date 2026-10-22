@@ -308,7 +308,7 @@ test_that("build_commodity_balances validates fbs_trade_basis", {
     dplyr::mutate(item_cbs = "Milk - Excluding Butter", item_cbs_code = 2848)
 }
 
-.factors_for <- function(rows, basis = "rebased_with_milk") {
+.factors_for <- function(rows, basis = "rebased") {
   whep:::.fbs_rebase_factors(
     .nut_vintage(rows, "FAOSTAT_FBS_New"),
     .nut_vintage(rows, "FAOSTAT_FBS_Old"),
@@ -316,15 +316,16 @@ test_that("build_commodity_balances validates fbs_trade_basis", {
   )
 }
 
-test_that("milk rebased with milk closes the world, out of food and feed", {
+test_that("rebased milk closes the world, out of feed first, then food", {
   rows <- .milk_fbs_rows()
   before <- .nut_wide(whep:::.select_best_source(rows), 2016L)
   after <- .nut_wide(.nut_select(rows, .factors_for(rows)), 2016L)
 
   expect_equal(sum(before$import) / sum(before$export), 3)
   expect_equal(sum(after$import) / sum(after$export), 1)
-  # 2016: the importer's 630 t import falls to 210 t. The 420 t cut comes out
-  # of food (378 t) and feed (252 t) in proportion, so the 60:40 split holds.
+  # 2016: the importer's 630 t import falls to 210 t. Its feed is 3x the old
+  # vintage's, so feed falls to the old level first (252 t to 84 t) and the
+  # rest of the 420 t cut, 252 t, comes out of food (378 t to 126 t).
   expect_equal(after$food, c(50, 126))
   expect_equal(after$feed, c(0, 84))
   expect_equal(after$production, before$production)
@@ -337,7 +338,8 @@ test_that("milk rebased with milk closes the world, out of food and feed", {
 
 test_that("a milk cut beyond food but within food and feed is applied", {
   # The importer feeds most of its milk: the 420 t cut is larger than its
-  # 63 t of food but not than food plus feed, as for the Netherlands at 2010.
+  # 63 t of food, as for the Netherlands at 2010. Feed falls to a third (the
+  # old vintage's 2010-2013 level), 378 t, and food gives the other 42 t.
   rows <- .milk_fbs_rows() |>
     dplyr::mutate(
       value = dplyr::case_when(
@@ -369,10 +371,29 @@ test_that("a milk cut beyond food and feed leaves the row as published", {
   expect_equal(after, published)
 })
 
-test_that("milk stays as published under the default", {
+test_that("milk feed on the old vintage's level is not cut", {
+  # The old vintage feeds as much as the new one, so feed carries no excess:
+  # the whole 420 t cut of 2016 comes out of food, and feed does not move.
+  rows <- .milk_fbs_rows() |>
+    tidyr::pivot_wider(names_from = element, values_from = value) |>
+    dplyr::mutate(
+      feed = dplyr::if_else(area_code == 2L, 60, 0),
+      food = domestic_supply - feed
+    ) |>
+    tidyr::pivot_longer(
+      c(production, export, import, food, feed, domestic_supply),
+      names_to = "element"
+    )
+  after <- .nut_wide(.nut_select(rows, .factors_for(rows)), 2016L)
+  expect_equal(after$feed[2], 60)
+  expect_equal(after$food[2], 570 - 420)
+  expect_equal(after$import[2], 210)
+})
+
+test_that("milk stays as published under rebased_no_milk", {
   rows <- .milk_fbs_rows()
   expect_identical(
-    .nut_select(rows, .factors_for(rows, "rebased")),
+    .nut_select(rows, .factors_for(rows, "rebased_no_milk")),
     whep:::.select_best_source(rows)
   )
 })
@@ -387,23 +408,25 @@ test_that("nut feed is not a destiny the rebase takes from", {
   expect_equal(after$import[2], 630)
   expect_equal(after$food[2], 378)
   expect_equal(after$feed[2], 252)
+  expect_false("feed" %in% .factors_for(rows)$element)
 })
 
 test_that("fbs_trade_basis selects which items are rebased", {
   expect_setequal(
     whep:::.fbs_rebase_items("rebased"),
-    c(2551L, 2563L, 2601L, 2612L, 2618L)
+    c(2551L, 2563L, 2601L, 2612L, 2618L, 2848L)
   )
   expect_setequal(
-    whep:::.fbs_rebase_items("rebased_with_milk"),
-    c(2551L, 2563L, 2601L, 2612L, 2618L, 2848L)
+    whep:::.fbs_rebase_items("rebased_no_milk"),
+    c(2551L, 2563L, 2601L, 2612L, 2618L)
   )
   expect_identical(whep:::.fbs_rebase_items("nuts_only"), 2551L)
   expect_length(whep:::.fbs_rebase_items("as_published"), 0L)
 
   milk <- .milk_fbs_rows()
-  expect_gt(nrow(.factors_for(milk, "rebased_with_milk")), 0L)
-  expect_equal(nrow(.factors_for(milk, "rebased")), 0L)
+  expect_gt(nrow(.factors_for(milk, "rebased")), 0L)
+  expect_true("feed" %in% .factors_for(milk, "rebased")$element)
+  expect_equal(nrow(.factors_for(milk, "rebased_no_milk")), 0L)
   expect_equal(nrow(.factors_for(milk, "nuts_only")), 0L)
   # The processed fruit items are rebased by default.
   olives <- .nut_fbs_rows() |>
@@ -421,7 +444,7 @@ test_that("every rebased item names at least one absorbing destiny", {
   destinies <- whep:::.fbs_rebase_destinies()
   expect_setequal(
     unique(destinies$item_cbs_code),
-    whep:::.fbs_rebase_items("rebased_with_milk")
+    whep:::.fbs_rebase_items("rebased")
   )
   expect_true(all(destinies$element %in% c("food", "feed")))
   expect_setequal(
