@@ -121,9 +121,15 @@
 # to 37 Mt, food 499 to 461 Mt. FBS's own milk protein over food, in the 69
 # rebased importers whose processing is under a tenth of their food, goes
 # from 32.9 to 34.4 g/kg (old vintage 33.2); a pro-rata cut over food and feed
-# gave 38.5, too dense, which is why it is not used. Part of the excess may
-# sit in the new vintage's processing element (205 Mt world, 0.1 Mt in the
-# old), mostly milk made into butter, which no cut touches (whep#1583).
+# gave 38.5, too dense, which is why it is not used. Two residuals keep the
+# feed-first order provisional: world milk feed ends near 42 Mt, below both
+# vintages (80 Mt new, 74 Mt old), because exporters already feed less in the
+# new vintage than in the old; and in importers that make much butter the
+# food cut is still large (Russia 27.8 to 19.7 Mt at 2010), since part of the
+# excess may sit in the new vintage's processing element (205 Mt world, 0.1
+# Mt in the old), which no cut touches (whep#1583). The 2017 guidelines
+# advise national compilers; they do not say FAOSTAT's 2010- series applies
+# them.
 # Not listed, though the new vintage's imports exceed its exports there too:
 # "Vegetables, other" (2605) converts even fresh vegetables at 2.45 on the
 # import side against 1.36 on the export side, which is not this mechanism;
