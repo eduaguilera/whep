@@ -42,9 +42,11 @@
 #'     outputs and carry origin `Agro-industry`, and what they yield beyond
 #'     the imports they replace is exported from `Agro-industry`; its N loss
 #'     is booked as `processing_losses` with origin `Agro-industry`.
-#'     Consumption, and so livestock intake, is unchanged, and `Agro-industry`
-#'     consumption is imported N: the analyses in this package count it with
-#'     `Outside` (see [imported_origins()]). Soybeans are crushed at the four
+#'     Consumption, and so livestock intake, is unchanged. The analyses in
+#'     this package that classify N by origin (GRAFS plot, typologies,
+#'     indicators) still read these flows as `"product"` books them, with the
+#'     crush folded back into imports of its outputs. Soybeans are crushed at
+#'     the four
 #'     port plants (Barcelona, Bilbao, Cartagena); other crops where their
 #'     outputs are imported. This follows the food balance sheet convention:
 #'     imports are booked on the commodity that crosses the border, and the
