@@ -118,13 +118,22 @@
 # `Cereals` commodity group of `items_full`, the scope of the Smerald et al.
 # (2023) series these rows are checked against (`validation/residue_base_dm.R`).
 .residue_is_cereal <- function(item_prod) {
+  cereal_names <- whep::items_prod_full |>
+    dplyr::filter(.data$item_prod_code %in% .residue_cereal_codes()) |>
+    dplyr::pull("item_prod")
+  as.character(item_prod) %in% cereal_names
+}
+
+# The production item codes of those cereals, the key the soil carbon and
+# nitrogen chain selects the same rows by (`.sci_crop_npp()`).
+.residue_cereal_codes <- function() {
   cereal_cbs <- whep::items_full |>
     dplyr::filter(.data$comm_group == "Cereals") |>
     dplyr::pull("item_cbs_code")
-  cereal_names <- whep::items_prod_full |>
+  whep::items_prod_full |>
     dplyr::filter(.data$item_cbs_code %in% cereal_cbs) |>
-    dplyr::pull("item_prod")
-  as.character(item_prod) %in% cereal_names
+    dplyr::pull("item_prod_code") |>
+    as.character()
 }
 
 # Re-key the pin's regional residue:product ratio on Wirsenius's membership.
