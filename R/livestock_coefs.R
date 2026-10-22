@@ -817,9 +817,27 @@
 #' rates from GLEAM (0.32 to 0.46 kg N per 1000 kg per day), about a quarter
 #' of the 2006 Table 10.19 rates outside North America (sheep 0.85 to 1.17,
 #' goats 1.28 to 1.42). FAOSTAT's 2020 Tier 1 figures for the same heads are
-#' 22.2 Tg N for sheep and 25.3 for goats. Every row resolved an
-#' IPCC region; the only fallback rows were geese and 163 buffalo head in
-#' North America and Oceania.
+#' 22.2 Tg N for sheep and 25.3 for goats, because FAOSTAT takes its rates
+#' from the 2006 table (FAOSTAT Livestock Manure methodological note, 2025).
+#' Every row resolved an IPCC region; the only fallback rows were geese and
+#' 163 buffalo head in North America and Oceania.
+#'
+#' @section Why the 2019 sheep and goat rates are kept:
+#' The gap to FAOSTAT is real, not a transcription or unit error: the 2006
+#' rates are two to four times what measured and normative excretion per kg
+#' of live weight supports, and the 2019 rates match it. Swiss feeding
+#' standards give a 75 kg ewe 9.55 kg N/yr and a 60 kg dairy goat 9.26 kg
+#' N/yr (Lazzari & Schlegel 2025, Agrarforschung Schweiz 16:26-35 and
+#' 16:81-89, Tab. 3), i.e. 0.35 and 0.42 kg N per 1000 kg per day. A database
+#' of 49 N-balance studies gives dry ewes 15.5 g N/day at 50.6 kg and dry
+#' goats 16.3 g N/day at 46.2 kg (Decandia et al. 2011, Options
+#' Mediterraneennes A 99:201-209, Table 2), i.e. 0.31 and 0.35. Only
+#' lactating ewes on 15-26 % crude-protein trial diets reach the 2006 level
+#' (40.4 g N/day at 45.8 kg, 0.88). The 2006 developing-region sheep rate is
+#' also inconsistent with the 2006 table's own intake: 1.17 x 28 kg is 33 g N
+#' per day from 0.7 kg of feed (Table 10A-9), which needs about 29 % crude
+#' protein. Decision `whep-tier1-n-excretion-ipcc-2019-rate-times-mass`
+#' (decided by agents on two independent confirmed sources, whep#601).
 #'
 #' @source
 #'   IPCC. 2019. *2019 Refinement to the 2006 IPCC Guidelines for National
