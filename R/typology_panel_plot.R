@@ -9,8 +9,11 @@
 #'   If `NULL`, computed automatically (slow).
 #' @param n_prov_destiny Nitrogen flows tibble from [create_n_prov_destiny()].
 #'   If `NULL`, loaded automatically.
-#' @param area_df Cropland area per year and province, with columns `year`,
-#'   `province_name` and `area_ha`. If `NULL`, read from the `npp_ygpit` pin.
+#' @param area_df Total agricultural area per year and province (cropland
+#'   plus the semi-natural land uses dehesa, high/low forest,
+#'   pasture-shrubland and other -- see `.semi_natural_landuse_cats()`), with
+#'   columns `year`, `province_name` and `area_ha`. If `NULL`, read from the
+#'   `npp_ygpit` pin.
 #' @param typo_df Typology assignment per year and province, with columns
 #'   `year`, `province_name` and `Typology_base`. If `NULL`, derived from
 #'   `create_typo_ts_plot()`.
@@ -116,9 +119,10 @@ plot_typology_indicators_panel <- function(
 #' @param n_nat_destiny National nitrogen flows tibble from
 #'   [create_n_nat_destiny()]. If `NULL`, computed automatically (slow).
 #' @param panel_data Named list overriding the two frames otherwise read from
-#'   pins: `area_df` (`year`, `province_name`, `area_ha`) and `typo_df`
-#'   (`year`, `province_name`, `Typology_base`). Missing elements are loaded
-#'   automatically.
+#'   pins: `area_df` -- total agricultural area (cropland plus semi-natural
+#'   land uses), with columns `year`, `province_name`, `area_ha` -- and
+#'   `typo_df` (`year`, `province_name`, `Typology_base`). Missing elements
+#'   are loaded automatically.
 #'
 #' @return A patchwork ggplot object.
 #' @export
@@ -229,9 +233,18 @@ plot_typology_periods_panel <- function(
 
 # --- Private helpers: data preparation ---------------------------------------
 
+# Total agricultural area (cropland plus semi-natural land uses) per year
+# and province -- matches the denominator of the N-productivity indicator
+# (.calc_n_productivity_prov(), intens_ts_plot()) rather than cropland alone,
+# so a province where semi-natural agroecosystems dominate does not get its
+# per-hectare N surplus/intensification inflated by a small cropland-only
+# denominator. The filter is explicit (rather than summing every LandUse row
+# unfiltered) so a future npp_ygpit vintage that adds a non-agricultural
+# LandUse category does not silently widen this denominator.
 .panel_area_df <- function() {
   whep_read_file("npp_ygpit") |>
     dplyr::rename_with(tolower) |>
+    dplyr::filter(landuse %in% c("Cropland", .semi_natural_landuse_cats())) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       area_ha = sum(area_ygpit_ha, na.rm = TRUE),

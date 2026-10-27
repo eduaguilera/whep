@@ -22,9 +22,10 @@ If \code{NULL}, loaded automatically.}
 \code{\link[=create_n_nat_destiny]{create_n_nat_destiny()}}. If \code{NULL}, computed automatically (slow).}
 
 \item{panel_data}{Named list overriding the two frames otherwise read from
-pins: \code{area_df} (\code{year}, \code{province_name}, \code{area_ha}) and \code{typo_df}
-(\code{year}, \code{province_name}, \code{Typology_base}). Missing elements are loaded
-automatically.}
+pins: \code{area_df} -- total agricultural area (cropland plus semi-natural
+land uses), with columns \code{year}, \code{province_name}, \code{area_ha} -- and
+\code{typo_df} (\code{year}, \code{province_name}, \code{Typology_base}). Missing elements
+are loaded automatically.}
 }
 \value{
 A patchwork ggplot object.

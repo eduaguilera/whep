@@ -149,6 +149,50 @@ test_that("periods panel checks its plotting packages up front", {
 })
 
 
+# .panel_area_df -----------------------------------------------------------
+
+test_that(".panel_area_df sums total agricultural area, not cropland only", {
+  # A province where semi-natural land dominates: if the denominator were
+  # cropland-only (100 ha), a per-hectare indicator would be inflated
+  # relative to using the full agricultural area (100 + 50 + 20 + 10 + 15 +
+  # 5 = 200 ha, matching .calc_n_productivity_prov()'s agri_area_ha).
+  npp_ygpit <- tibble::tribble(
+    ~Year, ~Province_name, ~LandUse, ~Area_ygpit_ha,
+    2000, "A", "Cropland", 100,
+    2000, "A", "Dehesa", 50,
+    2000, "A", "Forest_high", 20,
+    2000, "A", "Forest_low", 10,
+    2000, "A", "Pasture_Shrubland", 15,
+    2000, "A", "Other", 5
+  )
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) npp_ygpit
+  )
+
+  out <- whep:::.panel_area_df()
+
+  expect_equal(out$area_ha, 200)
+})
+
+test_that(".panel_area_df excludes a non-agricultural LandUse category", {
+  # A future npp_ygpit vintage might add a LandUse the N-productivity
+  # indicator does not recognise as agricultural (e.g. "Urban"); the
+  # denominator must not silently absorb it.
+  npp_ygpit <- tibble::tribble(
+    ~Year, ~Province_name, ~LandUse, ~Area_ygpit_ha,
+    2000, "A", "Cropland", 100,
+    2000, "A", "Urban", 900
+  )
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) npp_ygpit
+  )
+
+  out <- whep:::.panel_area_df()
+
+  expect_equal(out$area_ha, 100)
+})
+
+
 # .ext_dep_values / .pollution_values -------------------------------------
 
 test_that(".ext_dep_values counts population_food_inedible on both sides", {
