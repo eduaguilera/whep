@@ -1,6 +1,16 @@
-typology_stacked_bars <- function(out_dir = NULL) {
-  indicators <- create_typo_ts_plot()
-  n_prov_destiny <- create_n_prov_destiny()
+typology_stacked_bars <- function(
+  out_dir = NULL,
+  n_prov_destiny = NULL,
+  benchmark_years = seq(1860, 2020, by = 20)
+) {
+  if (is.null(n_prov_destiny)) {
+    n_prov_destiny <- create_n_prov_destiny()
+  }
+  indicators <- create_typo_ts_plot(
+    n_prov_destiny = n_prov_destiny,
+    benchmark_years = benchmark_years,
+    out_dir = out_dir
+  )
 
   typologies_df <- indicators |>
     dplyr::group_by(year, province_name) |>
