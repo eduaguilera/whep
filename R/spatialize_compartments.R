@@ -57,7 +57,11 @@
 #' while every conservation check still passed (EA4).
 #' @noRd
 .normalize_country_grid <- function(country_grid, arg = "country_grid") {
-  .check_columns(country_grid, c("lon", "lat", "area_code"), arg)
+  .check_columns(
+    country_grid,
+    c("lon", "lat", .spatial_geo_key(country_grid)),
+    arg
+  )
 
   country_grid <- tibble::as_tibble(country_grid)
   .check_level_columns(country_grid, arg)
@@ -72,12 +76,11 @@
     )
   }
 
-  country_grid |>
-    dplyr::mutate(
-      area_code = as.integer(area_code),
-      cell_area_frac = as.numeric(cell_area_frac)
-    ) |>
-    .check_polity_share(frac_col[[1L]], arg)
+  if (.spatial_geo_key(country_grid) == "area_code") {
+    country_grid$area_code <- as.integer(country_grid$area_code)
+  }
+  country_grid$cell_area_frac <- as.numeric(country_grid$cell_area_frac)
+  .check_polity_share(country_grid, frac_col[[1L]], arg)
 }
 
 #' Check the granted-depth columns without touching them (whep#1000 T12).
@@ -322,7 +325,7 @@
 #' @noRd
 .compartment_id_cols <- function(data) {
   intersect(
-    c("polycell_id", "cell_id", "area_code", "level_polity_code"),
+    c("polycell_id", "cell_id", .spatial_geo_key(data), "level_polity_code"),
     names(data)
   )
 }
@@ -482,12 +485,19 @@
     # selects "RUS-2014-2025", not "RUS-1991-2014" -- an inclusive end bound
     # would return both epochs on every boundary year and double-count the cell
     # -- while 2025 still selects "RUS-2014-2025", because nothing succeeds it.
-    covers <- .covers_year(
-      start_vals,
-      end_vals,
-      .compartment_interval_groups(country_grid),
-      yr
-    )
+    # Native polity intervals follow upstream's half-open contract even at
+    # the last supported year. The legacy numeric path retains its historical
+    # inclusive coverage-horizon exception for existing consumers.
+    covers <- if (.spatial_geo_key(country_grid) == "polity_code") {
+      start_vals <= yr & yr < end_vals
+    } else {
+      .covers_year(
+        start_vals,
+        end_vals,
+        .compartment_interval_groups(country_grid),
+        yr
+      )
+    }
     return(country_grid[which(covers), , drop = FALSE])
   }
 
@@ -502,7 +512,10 @@
 #' own successor under different keys, leaving the open-end test blind.
 #' @noRd
 .compartment_interval_groups <- function(country_grid) {
-  cols <- intersect(c("lon", "lat", "area_code"), names(country_grid))
+  cols <- intersect(
+    c("lon", "lat", .spatial_geo_key(country_grid)),
+    names(country_grid)
+  )
   if (length(cols) == 0L) {
     return(rep("", nrow(country_grid)))
   }
@@ -571,10 +584,17 @@
     return(base_grid_cp)
   }
   base_grid_cp[residue, harvest_fraction := 0]
-  emptied <- base_grid_cp[,
-    list(pattern_max = max(harvest_fraction, na.rm = TRUE)),
-    by = .(area_code, item_prod_code)
-  ]
+  emptied <- if (.spatial_geo_key(base_grid_cp) == "polity_code") {
+    base_grid_cp[,
+      list(pattern_max = max(harvest_fraction, na.rm = TRUE)),
+      by = .(polity_code, item_prod_code)
+    ]
+  } else {
+    base_grid_cp[,
+      list(pattern_max = max(harvest_fraction, na.rm = TRUE)),
+      by = .(area_code, item_prod_code)
+    ]
+  }
   n_pairs <- sum(emptied$pattern_max <= 0, na.rm = TRUE)
   cli::cli_inform(c(
     "Zeroed {n_residue} {.field harvest_fraction} cell{?s} below
@@ -627,7 +647,7 @@
 #' so it is an invariant breach, not a coverage gap.
 #' @noRd
 .drop_uncompartmented_cells <- function(base_grid_cp) {
-  unkeyed <- is.na(base_grid_cp$area_code)
+  unkeyed <- is.na(base_grid_cp[[.spatial_geo_key(base_grid_cp)]])
   if (any(is.na(base_grid_cp$cell_area_frac) & !unkeyed)) {
     cli::cli_abort(
       "A keyed compartment has an {.val {NA}} {.field cell_area_frac}."
@@ -644,4 +664,91 @@
          {.field area_code}."
   ))
   base_grid_cp[!unkeyed]
+}
+
+# Geographic identity is a polity string whenever the caller supplies one.
+# The area-code route is retained only for legacy engine callers.
+.spatial_geo_key <- function(data) {
+  if (
+    rlang::has_name(data, "polity_code") &&
+      !rlang::has_name(data, "area_code")
+  ) {
+    "polity_code"
+  } else {
+    "area_code"
+  }
+}
+
+.check_crop_polity_keys <- function(national, grid) {
+  native <- c(
+    rlang::has_name(national, "polity_code"),
+    rlang::has_name(grid, "polity_code")
+  )
+  if (!any(native)) {
+    return(invisible(NULL))
+  }
+  # Existing numeric-grid callers can carry polity labels as metadata.
+  # Explicit native targets, or a grid with no numeric key, opt into the
+  # strict native contract; a numeric target cannot erase native identity.
+  if (!native[[1L]] && rlang::has_name(grid, "area_code")) {
+    return(invisible(NULL))
+  }
+  if (!all(native)) {
+    cli::cli_abort(
+      "Both crop targets and grid must carry {.field polity_code}.",
+      class = "whep_polity_key"
+    )
+  }
+  purrr::walk(list(national, grid), .check_crop_polity_column)
+  keys <- c("polity_code", "year", "item_prod_code")
+  .check_columns(national, keys, "country_areas")
+  if (anyDuplicated(national[keys])) {
+    cli::cli_abort(
+      "Crop targets repeat a polity, year and item; resolve the observations.",
+      class = "whep_polity_key"
+    )
+  }
+}
+
+.check_crop_polity_column <- function(data) {
+  code <- data$polity_code
+  if (!is.character(code) || anyNA(code) || any(!nzchar(trimws(code)))) {
+    cli::cli_abort(
+      "{.field polity_code} must contain nonmissing, nonempty strings.",
+      class = "whep_polity_key"
+    )
+  }
+  if (rlang::has_name(data, "level_polity_code")) {
+    cli::cli_abort(
+      "Native polity crop allocation currently accepts level-0 inputs only.",
+      class = "whep_polity_key"
+    )
+  }
+}
+
+.check_crop_polity_support <- function(national, grid) {
+  years <- sort(unique(national$year))
+  missing <- purrr::map_dfr(years, \(yr) {
+    wanted <- dplyr::filter(national, .data$year == yr)
+    available <- .filter_country_grid_year(grid, yr)
+    if (anyDuplicated(available[c("polity_code", "lon", "lat")])) {
+      cli::cli_abort(
+        "The grid repeats a polity cell in year {yr}.",
+        class = "whep_polity_key"
+      )
+    }
+    dplyr::anti_join(wanted, available, by = "polity_code")
+  })
+  if (nrow(missing)) {
+    codes <- unique(missing$polity_code)
+    cli::cli_abort(
+      c(
+        "Crop targets have no matching polity support in their year.",
+        x = "{.val {codes}}.",
+        i = "Resolve the source territory; lineage alone cannot reassign it."
+      ),
+      class = "whep_polity_support"
+    )
+  }
+  invisible(NULL)
 }
