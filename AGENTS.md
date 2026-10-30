@@ -189,10 +189,36 @@ interchangeable, and the polity-period convention, moved to
 `agent-reference/area-codes-and-polities.md`. Read it before grouping,
 joining or reducing on any of them.
 
+### Geographic identity: polity codes
+
+The maintainer confirmed on 2026-10-30: source geography codes (including
+FAOSTAT `area_code`) are ingestion identifiers. Map them to faithful
+`polity_code` identities, then use polity codes for geographic matching.
+`polity_area_code` remains an aggregation bucket, not territorial identity.
+
+Every distinct reporting territory with data needs a corresponding polity.
+Resolve an existing record first; if none represents the territory the source
+actually measured, research and create the record in `whep-polities`. Neither
+present-day ownership nor historical sovereignty alone determines a source's
+reporting footprint. Do not reassign observations merely to obtain a numeric
+key or pool successor territories merely because they share an ancestor.
+
+A scoped fix may retain a legacy adapter when complete migration would require
+a large unrelated refactor. State its limits, preserve source provenance, and
+track the remaining migration under #458 (historical grid work: #1483).
+Such patches are transitional, not exceptions to the architectural direction.
+Do not ask the maintainer to decide this direction again.
+
+Read `whep-polities/wiki/README.md` for authoritative territorial records and
+`afse-wiki/wiki/decisions/whep-polities-shared-research.md` for the shared
+precedent. The `whep-cross-repo` skill describes source/consumer validation.
+
 ### Join on codes, never on names
 
 Name-keyed joins have caused silent drops and double counts more than once.
-Join and group on integer codes inside functions; attach human-readable names
+Join and group on polity codes for geography and stable item codes for
+commodities. Resolve source geography codes at ingestion; retain legacy
+adapters only under the migration rule above. Attach human-readable names
 only at the final output stage, with the lookup helpers that now exist:
 `add_area_code()`, `add_area_name()`, `add_item_cbs_code()`,
 `add_item_cbs_name()`, `add_item_prod_code()`, `add_item_prod_name()`,
