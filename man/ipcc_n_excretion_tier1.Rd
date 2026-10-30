@@ -74,21 +74,22 @@ Every row resolved an IPCC region; the only fallback rows were geese and
 
 \section{Why the 2019 sheep and goat rates are kept}{
 
-The gap to FAOSTAT is real, not a transcription or unit error: the 2006
-rates are two to four times what measured and normative excretion per kg
-of live weight supports, and the 2019 rates match it. Swiss feeding
-standards give a 75 kg ewe 9.55 kg N/yr and a 60 kg dairy goat 9.26 kg
-N/yr (Lazzari & Schlegel 2025, Agrarforschung Schweiz 16:26-35 and
-16:81-89, Tab. 3), i.e. 0.35 and 0.42 kg N per 1000 kg per day. A database
-of 49 N-balance studies gives dry ewes 15.5 g N/day at 50.6 kg and dry
-goats 16.3 g N/day at 46.2 kg (Decandia et al. 2011, Options
-Mediterraneennes A 99:201-209, Table 2), i.e. 0.31 and 0.35. Only
-lactating ewes on 15-26 \% crude-protein trial diets reach the 2006 level
-(40.4 g N/day at 45.8 kg, 0.88). The 2006 developing-region sheep rate is
-also inconsistent with the 2006 table's own intake: 1.17 x 28 kg is 33 g N
-per day from 0.7 kg of feed (Table 10A-9), which needs about 29 \% crude
-protein. Decision \code{whep-tier1-n-excretion-ipcc-2019-rate-times-mass}
-(decided by agents on two independent confirmed sources, whep#601).
+The default follows the package's 2019 edition precedent. The difference
+from FAOSTAT is not a transcription error: FAOSTAT uses the 2006 rates.
+External comparisons give class-specific support, not validation of a
+global flock-average rate. Lazzari and Schlegel (2025, Agrarforschung
+Schweiz 16:26-35 and 16:81-89, Table 3) model a 75 kg suckler ewe at
+9.55 kg N/yr and a 60 kg dairy goat at 9.26 kg N/yr. These imply 0.35 and
+0.42 kg N per 1000 kg per day. Decandia et al. (2011, Options
+Mediterraneennes A 99:201-209, Table 2) report 15.5 g N/day at 50.6 kg
+for dry ewes and 16.3 g N/day at 46.2 kg for dry goats (0.31 and 0.35).
+The physiological scope matters: the same Lazzari sheep table models a
+dairy ewe producing 500 kg milk annually at 16.07 kg N/yr and 75 kg live
+weight, implying 0.587, above the Western European IPCC sheep rate 0.36.
+The supporting sources do not establish regional flock composition.
+Their corroboration therefore remains provisional and scope-limited,
+separate from the edition precedent. See decision
+\code{whep-tier1-n-excretion-ipcc-2019-rate-times-mass} (whep#601).
 }
 
 \examples{

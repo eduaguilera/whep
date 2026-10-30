@@ -1700,14 +1700,14 @@ generate_ipcc_tier1_editions <- function(table_10_21) {
 # keys on them, except the chicken aggregate, kept as "Chickens" for a
 # chicken row that is neither layer nor broiler.
 #
-# The sheep and goat rates are a quarter to a third of the 2006 Table 10.19
-# ones that FAOSTAT uses. They were checked against live-weight-normalised
-# excretion from two sources independent of GLEAM, and match it: a 75 kg
-# Swiss ewe 9.55 kg N/yr (0.35 per 1000 kg per day) and a 60 kg dairy goat
-# 9.26 kg N/yr (0.42) (Lazzari & Schlegel 2025, Agrarforschung Schweiz
-# 16:26-35 and 16:81-89, Tab. 3); dry ewes 15.5 g N/day at 50.6 kg (0.31)
-# and dry goats 16.3 g N/day at 46.2 kg (0.35) (Decandia et al. 2011,
-# Options Mediterraneennes A 99:201-209, Table 2). Decision
+# The 2019 edition follows the package's edition precedent. External
+# comparisons with Lazzari & Schlegel (2025, Agrarforschung Schweiz
+# 16:26-35 and 16:81-89, Table 3) and Decandia et al. (2011, Options
+# Mediterraneennes A 99:201-209, Table 2) support selected animal classes,
+# not a global flock average. In particular, the Swiss annual dairy ewe
+# implies 0.587 kg N per 1000 kg per day, above the Western European 0.36.
+# The class-specific corroboration remains provisional; the regional flock
+# composition was not validated. See ?ipcc_n_excretion_tier1 and decision
 # whep-tier1-n-excretion-ipcc-2019-rate-times-mass (whep#601).
 ipcc_2019_n_excretion_tier1 <- function() {
   regions <- c(
