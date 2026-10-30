@@ -113,9 +113,15 @@ testthat::test_that("Tier 2 gives uncovered species their Tier 1 value", {
     tier2$manure_n2o_total[uncovered],
     tier1$manure_n2o_total[uncovered]
   )
+  # Table 10.19 (Updated) prices N excretion by IPCC region for every species,
+  # and these rows carry none, so all three keep the as-shipped Global value
+  # and say so (whep#601).
   testthat::expect_true(all(
     tier2$method_manure_n2o[uncovered] ==
-      "IPCC_2019_Tier1; ef3_ipcc_2019; slurry_crust_half; indirect_ipcc_2019_per_mms"
+      paste(
+        "IPCC_2019_Tier1; nex_as_shipped_fallback; ef3_ipcc_2019;",
+        "slurry_crust_half; indirect_ipcc_2019_per_mms"
+      )
   ))
   # The covered species is untouched by the split.
   testthat::expect_equal(

@@ -30,12 +30,12 @@ assumed Medium is coarser still. Both remain selectable. The assumption is
 never chosen implicitly, and the rung used is recorded in \code{method_ghg}.
 Ignored at Tier 1, whose emission factors carry no diet dimension.}
 
-\item{options}{A named list of manure-engine options. All but nine
+\item{options}{A named list of manure-engine options. All but ten
 defaults reproduce the behaviour in force before whep#949. The exceptions
-are \code{enteric_ef_source}, \code{ef3_source} and \code{slurry_crust}, which since
-whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
-manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct manure
-N2O, \code{mcf_source}, which moved from the shipped table to the 2019
+are \code{enteric_ef_source}, \code{ef3_source}, \code{slurry_crust} and \code{nex_source},
+which since whep#601 read the 2019 Refinement's Tier 1 enteric factors,
+direct manure N2O EF3 and Tier 1 N excretion and move Tier 1 enteric
+CH4, both tiers' direct manure N2O and Tier 1 manure N2O, \code{mcf_source}, which moved from the shipped table to the 2019
 Refinement in whep#1022 and does move Tier 2 manure CH4, \code{mms_shares},
 which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 in whep#958 and does move both tiers' manure N2O, \code{pasture_bo}, which
@@ -121,6 +121,24 @@ chicken slurry, extended to the other species), \code{"none"} (0) or \code{"all"
 
 \code{method_manure_n2o} records the EF3 choice (\verb{ef3_ipcc_2019; slurry_crust_half} or \code{ef3_as_shipped}). On FAOSTAT 2020 heads the
 default lowers Tier 1 direct manure N2O from 1.523 to 1.178 Tg.
+
+\code{nex_source} selects the Tier 1 N excretion per head, which both Tier 1
+manure N2O terms scale with:
+\itemize{
+\item \code{"ipcc_2019"} (default): \link{ipcc_n_excretion_tier1}, the 2019
+Refinement's Equation 10.30 (Updated) over the Table 10.19 (Updated)
+rate and the Table 10A.5 (New) typical animal mass, by IPCC region. A
+row the edition prices at nothing keeps the as-shipped value, stamped
+\code{nex_as_shipped_fallback}.
+\item \code{"as_shipped"}: \link{ipcc_2019_n_excretion}, per-head values no IPCC table
+publishes, read before whep#601. Kept so earlier figures stay
+reproducible.
+}
+
+\code{method_manure_n2o} records which (\code{nex_ipcc_2019} or
+\code{nex_as_shipped}). On FAOSTAT 2020 heads the default lowers Tier 1 N
+excretion from 144.9 to 126.3 Tg N and Tier 1 manure N2O from 2.151 to
+1.962 Tg.
 
 \code{mms_shares} selects which half of \link{regional_mms_distribution} the
 split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement

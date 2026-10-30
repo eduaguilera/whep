@@ -1330,6 +1330,160 @@ test_that("ipcc_enteric_ef_tier1 holds the 2019 Tables 10.10 and 10.11", {
   testthat::expect_false("Poultry" %in% ef$category)
 })
 
+# 2019 Refinement Vol 4 Ch 10, Equation 10.30 (Updated), p. 10.80, over Table
+# 10.19 (Updated), pp. 10.83-10.84, and Table 10A.5 (New), pp. 10.117-10.118.
+# Only the Tier 1 ("Mean") column of the five productivity-split regions.
+test_that("ipcc_n_excretion_tier1 is Table 10.19 x Table 10A.5", {
+  nex <- whep::ipcc_n_excretion_tier1
+  assert_clean_tibble(
+    nex,
+    "ipcc_n_excretion_tier1",
+    c(
+      "edition",
+      "region",
+      "category",
+      "nex_kg_n_head_yr",
+      "nrate_kg_n_1000kg_day",
+      "tam_kg"
+    )
+  )
+  nex |>
+    pointblank::expect_col_vals_in_set("edition", "ipcc_2019") |>
+    pointblank::expect_col_vals_not_null(
+      c("nex_kg_n_head_yr", "nrate_kg_n_1000kg_day", "tam_kg")
+    ) |>
+    pointblank::expect_col_vals_gt("nex_kg_n_head_yr", 0)
+  testthat::expect_equal(
+    nrow(dplyr::distinct(nex, region, category)),
+    nrow(nex)
+  )
+  # Nine IPCC regions for every category, less buffalo in North America and
+  # Oceania, where Table 10.19 prints NA ("do not occur in these regions").
+  testthat::expect_equal(nrow(nex), 15L * 9L - 2L)
+
+  # Equation 10.30 (Updated) is the only arithmetic.
+  testthat::expect_equal(
+    nex$nex_kg_n_head_yr,
+    nex$nrate_kg_n_1000kg_day * nex$tam_kg / 1000 * 365
+  )
+
+  cell <- function(region, category, col) {
+    nex[[col]][nex$region == region & nex$category == category]
+  }
+  regions <- c(
+    "North America",
+    "Western Europe",
+    "Eastern Europe",
+    "Oceania",
+    "Latin America",
+    "Africa",
+    "Middle East",
+    "Asia",
+    "Indian Subcontinent"
+  )
+  dairy_rate <- c(0.59, 0.54, 0.42, 0.72, 0.39, 0.44, 0.50, 0.44, 0.65)
+  dairy_tam <- c(650, 600, 550, 488, 508, 260, 349, 386, 285)
+  other_rate <- c(0.40, 0.42, 0.47, 0.46, 0.31, 0.45, 0.56, 0.38, 0.44)
+  other_tam <- c(407, 405, 389, 359, 303, 236, 275, 299, 226)
+  breeding_tam <- c(184, 190, 204, 163, 143, 100, 118, 122, 121)
+  for (i in seq_along(regions)) {
+    r <- regions[i]
+    testthat::expect_equal(
+      cell(r, "Dairy Cattle", "nrate_kg_n_1000kg_day"),
+      dairy_rate[i]
+    )
+    testthat::expect_equal(cell(r, "Dairy Cattle", "tam_kg"), dairy_tam[i])
+    testthat::expect_equal(
+      cell(r, "Other Cattle", "nrate_kg_n_1000kg_day"),
+      other_rate[i]
+    )
+    testthat::expect_equal(cell(r, "Other Cattle", "tam_kg"), other_tam[i])
+    testthat::expect_equal(
+      cell(r, "Swine - Breeding", "tam_kg"),
+      breeding_tam[i]
+    )
+  }
+  # The dairy weights are also Table 10A.1 (New)'s, and North American
+  # dairy is the 140 kg N head-1 yr-1 the as-shipped table stores as 105.
+  testthat::expect_equal(
+    round(cell("North America", "Dairy Cattle", "nex_kg_n_head_yr"), 1),
+    140
+  )
+  testthat::expect_false(any(
+    nex$category == "Buffalo" & nex$region %in% c("North America", "Oceania")
+  ))
+
+  # Merged cells: one value spanning the developed regions, one the rest.
+  developed <- regions[1:4]
+  testthat::expect_equal(
+    vapply(regions, cell, numeric(1), "Sheep", "nrate_kg_n_1000kg_day"),
+    stats::setNames(c(0.35, 0.36, 0.36, 0.43, rep(0.32, 5)), regions)
+  )
+  testthat::expect_equal(
+    unique(vapply(developed, cell, numeric(1), "Sheep", "tam_kg")),
+    40
+  )
+  testthat::expect_equal(
+    vapply(regions, cell, numeric(1), "Goats", "tam_kg"),
+    stats::setNames(c(41, 40, 36, 33, rep(24, 5)), regions)
+  )
+  testthat::expect_equal(
+    unique(nex$tam_kg[nex$category == "Mules and Asses"]),
+    130
+  )
+  testthat::expect_equal(
+    unique(nex$nrate_kg_n_1000kg_day[nex$category == "Turkeys"]),
+    0.74
+  )
+})
+
+# Table 10A.5 (New) prints the Tier 1a high/low productivity weights beside
+# the Tier 1 mean for five regions, and every mean lies inside its own pair,
+# so a misread mean cell falls outside it.
+test_that("ipcc_n_excretion_tier1 masses sit inside their Tier 1a pair", {
+  tier_1a <- tibble::tribble(
+    ~region,               ~category,             ~high, ~low,
+    "Latin America",       "Dairy Cattle",          520,  500,
+    "Africa",              "Dairy Cattle",          250,  270,
+    "Middle East",         "Dairy Cattle",          510,  270,
+    "Asia",                "Dairy Cattle",          485,  355,
+    "Indian Subcontinent", "Dairy Cattle",          350,  265,
+    "Latin America",       "Other Cattle",          329,  295,
+    "Africa",              "Other Cattle",          302,  208,
+    "Middle East",         "Other Cattle",          362,  232,
+    "Asia",                "Other Cattle",          310,  296,
+    "Indian Subcontinent", "Other Cattle",          167,  236,
+    "Latin America",       "Swine - Market",         59,   47,
+    "Africa",              "Swine - Market",         54,   33,
+    "Middle East",         "Swine - Market",         60,   48,
+    "Asia",                "Swine - Market",         56,   44,
+    "Indian Subcontinent", "Swine - Market",         55,   48,
+    "Latin America",       "Swine - Breeding",      205,  121,
+    "Africa",              "Swine - Breeding",      200,   61,
+    "Middle East",         "Swine - Breeding",      157,   99,
+    "Asia",                "Swine - Breeding",      160,  102,
+    "Indian Subcontinent", "Swine - Breeding",      162,   99,
+    "Latin America",       "Poultry - Layers",      1.6,  1.3,
+    "Africa",              "Poultry - Layers",      1.9,  1.1,
+    "Middle East",         "Poultry - Layers",      1.7,  1.0,
+    "Asia",                "Poultry - Layers",      1.9,  1.3,
+    "Indian Subcontinent", "Poultry - Layers",      1.5,  1.1,
+    "Latin America",       "Poultry - Broilers",    1.2,  0.7,
+    "Africa",              "Poultry - Broilers",    0.8,  0.7,
+    "Middle East",         "Poultry - Broilers",    1.0,  0.5,
+    "Asia",                "Poultry - Broilers",    1.0,  0.7,
+    "Indian Subcontinent", "Poultry - Broilers",    1.0,  0.6
+  ) |>
+    dplyr::left_join(
+      whep::ipcc_n_excretion_tier1,
+      by = c("region", "category")
+    )
+  testthat::expect_true(all(
+    tier_1a$tam_kg >= pmin(tier_1a$high, tier_1a$low) &
+      tier_1a$tam_kg <= pmax(tier_1a$high, tier_1a$low)
+  ))
+})
+
 test_that("ipcc_manure_ef3 holds the 2019 Table 10.21 and the as-shipped EF3", {
   ef3 <- whep::ipcc_manure_ef3
   assert_clean_tibble(
