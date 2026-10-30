@@ -866,7 +866,7 @@ test_that("get_feed_intake and the local build pass feed_loss down", {
 test_that(".build_redistribute_intake hands feed_loss to the engine", {
   seen <- new.env()
   testthat::local_mocked_bindings(
-    .with_residue_kgdm = function(data, residues) data,
+    .with_residue_kgdm = function(data, residues, ...) data,
     .national_redistribute = function(production, cbs, demand_tier, data, ...) {
       seen$engine <- data$feed_loss
       list(result = tibble::tibble(), code_shares = tibble::tibble())
@@ -2199,4 +2199,143 @@ test_that("the local grain hands the heads the unfolded polity support", {
 
   expect_identical(seen$args$polity_support, support)
   expect_identical(seen$args$country_grid, "grid")
+})
+
+test_that("national intake retains crop anchors for historical residue DM", {
+  seen <- new.env()
+  testthat::local_mocked_bindings(
+    .national_redistribute = function(production, cbs, demand_tier, data, ...) {
+      seen$kgdm <- data$residue_kgdm
+      seen$years <- production$year
+      list(result = tibble::tibble(), code_shares = tibble::tibble())
+    },
+    .reshape_redistribute_intake = function(...) tibble::tibble(),
+    get_primary_residues = function(...) stop("CBS already carries the mix")
+  )
+  whep:::.build_redistribute_intake(
+    "national",
+    "ipcc",
+    "historical",
+    production = .fi_residue_crops(),
+    cbs = whep:::.cbs_residue_backcast(
+      .fi_residue_history(),
+      .fi_residue_crops(),
+      1955L
+    ),
+    years = 1955L
+  )
+  expect_equal(unique(seen$years), 1955L)
+  expect_equal(nrow(seen$kgdm), 1L)
+  expected <- whep:::.backcast_crop_residues(
+    .fi_residue_history(),
+    .fi_residue_crops(),
+    1955L
+  ) |>
+    whep:::.residue_feed_kgdm()
+  expect_equal(seen$kgdm, expected)
+  expect_gt(sum(seen$kgdm$residue_kgdm_kgfm), 0)
+  # Explicit injected residues retain their pre-existing precedence.
+  supplied <- dplyr::mutate(.fi_residue_history(), year = 1955L)
+  whep:::.build_redistribute_intake(
+    "national",
+    "ipcc",
+    "historical",
+    production = .fi_residue_crops(),
+    cbs = whep:::.cbs_residue_backcast(
+      .fi_residue_history(),
+      .fi_residue_crops(),
+      1955L
+    ),
+    years = 1955L,
+    residues = supplied
+  )
+  expect_equal(seen$kgdm, whep:::.residue_feed_kgdm(supplied))
+})
+
+test_that("historical residue content follows the CBS-selected method", {
+  crops <- dplyr::bind_rows(
+    .fi_residue_crops(),
+    .fi_residue_crops() |>
+      dplyr::mutate(unit = "ha", value = 100)
+  )
+  read_content <- function(method) {
+    cbs <- whep:::.cbs_residue_backcast(
+      .fi_residue_history(),
+      crops,
+      1955L,
+      method = method
+    )
+    out <- whep:::.with_residue_kgdm(list(), NULL, cbs)$residue_kgdm
+    expect_equal(nrow(out), 1L)
+    rows <- whep:::.backcast_crop_residues(
+      .fi_residue_history(),
+      crops,
+      1955L,
+      method = method
+    )
+    expect_equal(out, whep:::.residue_feed_kgdm(rows))
+    out$residue_kgdm_kgfm
+  }
+  expect_lt(read_content("production_ratio"), read_content("area_rate"))
+})
+
+test_that("CBS-provided crop mix is authoritative without rereading pins", {
+  cbs <- whep:::.cbs_residue_backcast(
+    .fi_residue_history(),
+    .fi_residue_crops(),
+    1955L
+  )
+  out <- whep:::.with_residue_kgdm(
+    list(),
+    stop("must not read a different residue vintage"),
+    cbs
+  )
+  expect_equal(out$residue_kgdm, attr(cbs, "residue_feed_kgdm"))
+  # Hand-built balances without provenance retain the existing gap warning.
+  flat <- tibble::tibble(
+    year = 1955L,
+    area_code = 203L,
+    item_cbs_code = 2106L,
+    feed = 100
+  )
+  missing <- whep:::.with_residue_kgdm(list(), .fi_residue_history(), flat)
+  expect_warning(
+    whep:::.build_feed_avail_national(
+      flat,
+      residue_kgdm = missing$residue_kgdm
+    ),
+    "100 t fresh"
+  )
+})
+
+test_that("local context uses the same historical CBS crop mix", {
+  cbs <- whep:::.cbs_residue_backcast(
+    .fi_residue_history(),
+    .fi_residue_crops(),
+    1955L
+  )
+  testthat::local_mocked_bindings(
+    .local_paths = function(...) list(),
+    get_primary_residues = function(...) stop("must not reread residues")
+  )
+  ctx <- whep:::.local_run_context(
+    "ipcc",
+    "historical",
+    production = .fi_residue_crops(),
+    cbs = cbs
+  )
+  expect_equal(ctx$data$residue_kgdm, attr(cbs, "residue_feed_kgdm"))
+})
+
+test_that("post-anchor residue content is unchanged", {
+  rows <- .fi_residue_history()
+  baseline <- whep:::.residue_feed_kgdm(rows)
+  cbs <- whep:::.cbs_residue_backcast(rows, .fi_residue_crops(), 1955L)
+  attr(cbs, "residue_feed_kgdm") <- dplyr::bind_rows(
+    attr(cbs, "residue_feed_kgdm"),
+    baseline
+  )
+  got <- whep:::.with_residue_kgdm(list(), rows, cbs)$residue_kgdm |>
+    dplyr::filter(.data$year >= 1961L)
+  expect_equal(got, baseline)
 })

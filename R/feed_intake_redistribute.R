@@ -49,7 +49,8 @@
   # mix's own dry-matter content, not the item's single one (whep#1215).
   data <- .with_residue_kgdm(
     .feed_demand_data(),
-    .filter_years(residues %||% get_primary_residues(), years)
+    .filter_years(residues %||% get_primary_residues(), years),
+    cbs = if (is.null(residues)) cbs
   )
   data$feed_loss <- feed_loss
   engine <- .national_redistribute(
@@ -254,6 +255,7 @@ build_feed_demand <- function(
   production = NULL,
   cbs = NULL
 ) {
+  cbs <- cbs %||% get_wide_cbs()
   list(
     paths = .local_paths(
       run_dir = run_dir,
@@ -264,8 +266,12 @@ build_feed_demand <- function(
     production = .normalise_feed_primary(
       production %||% get_primary_production()
     ),
-    cbs = .normalise_feed_cbs(cbs %||% get_wide_cbs()),
-    data = .with_residue_kgdm(.feed_demand_data(), get_primary_residues()),
+    cbs = .normalise_feed_cbs(cbs),
+    data = .with_residue_kgdm(
+      .feed_demand_data(),
+      get_primary_residues(),
+      cbs = cbs
+    ),
     demand_tier = demand_tier,
     feed_mode = feed_mode,
     grass_border_allowance = .local_intake_defaults()$grass_border_allowance
@@ -1947,9 +1953,13 @@ build_feed_demand <- function(
   )
 }
 
-# Attach the residue crop-mix dry-matter table to a `.feed_demand_data()` list.
-.with_residue_kgdm <- function(data, residues) {
-  data$residue_kgdm <- .residue_feed_kgdm(residues)
+# Use the mix computed by the CBS itself (whep#1556), including its chosen
+# historical method and aggregate proxy. This also avoids reading a different
+# pin vintage. A caller-built CBS without this attribute keeps the existing
+# residue-reader fallback and the warning for uncovered feed rows.
+.with_residue_kgdm <- function(data, residues, cbs = NULL) {
+  data$residue_kgdm <- attr(cbs, "residue_feed_kgdm") %||%
+    .residue_feed_kgdm(residues)
   data
 }
 
