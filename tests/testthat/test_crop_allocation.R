@@ -338,3 +338,18 @@ testthat::test_that("the reallocation warning agrees in number", {
     fixed = TRUE
   )
 })
+
+
+testthat::test_that("allocation weights are finite and nonnegative", {
+  purrr::walk(c("weights", "fallback"), \(table) {
+    col <- if (table == "weights") "area_weight" else "cropland_weight"
+    purrr::walk(list(c(-1, 2), c(NA_real_, 1), c(Inf, -Inf)), \(values) {
+      allocation <- .ca_allocation()
+      allocation[[table]][[col]][1:2] <- values
+      testthat::expect_error(
+        whep:::.crop_allocation_check(allocation, 2010L),
+        class = "whep_crop_allocation"
+      )
+    })
+  })
+})
