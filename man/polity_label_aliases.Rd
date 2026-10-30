@@ -32,6 +32,13 @@ on the panel's slugs. \code{\link[=resolve_polity_label]{resolve_polity_label()}
 rows passing that \code{indicator}. Absent from a snapshot taken before #703,
 which is read as all \code{NA}.
 }
+
+The table's \code{label_key} attribute records how its labels were keyed
+upstream: \code{"qualifiers_kept"} for a revision whose manifest states
+\code{label_key_why} (a label's bracketed qualifier is part of its identity, so
+\code{"british india (excl burma)"} is its own label), otherwise absent, for a
+revision that dropped qualifiers. \code{\link[=resolve_polity_label]{resolve_polity_label()}} reads labels with
+the key the snapshot was published under.
 }
 \source{
 \verb{~/whep-polities/data/final/label_alias_map.csv}.
