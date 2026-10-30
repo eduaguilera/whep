@@ -582,9 +582,9 @@ summarize_bnf <- function(x, group_by = "item_prod_code") {
     )
 }
 
-# Case-insensitive: the package's land-use vocabulary is lowercase (#1571).
+# Recognize plain cropland and SOC crop groups; missing land use is not crop.
 .bnf_is_cropland <- function(land_use) {
-  stringr::str_to_lower(land_use) == "cropland" & !is.na(land_use)
+  .soc_is_cropland(land_use) & !is.na(land_use)
 }
 
 .bnf_weed_spont_legumes <- function(x) {
