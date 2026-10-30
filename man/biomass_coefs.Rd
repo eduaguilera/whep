@@ -199,6 +199,11 @@ through \link{items_full}, so its nitrogen feeds no food number.
 now carries \strong{811 g/kg}: FAO Annex I gives butter of cow milk 81.1 g
 per 100 g (printed p. 65; buffalo and goat butter are also 81.1), and
 Ciqual 16414, unsalted butter of unknown fat content, gives 81.5.
+Applying butter observations to this combined butter/ghee row is a
+provisional scope assumption: the sources do not establish its mixture.
+Likewise, the white-sugar value retains the existing dry-matter
+constraint; the two cited observations are 998 and 1000 g/kg. These
+replacements are science decisions, even where source values agree.
 }
 
 Two rows still break the bound. \verb{Vegetables, other} has \code{Tomato}'s dry
