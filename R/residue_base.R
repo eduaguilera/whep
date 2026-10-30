@@ -551,6 +551,9 @@
 # irrigation, tops excluded (Donaldson et al. 2008, Proc. S. Afr. Sug.
 # Technol. Ass. 81, p. 533 and Table 3). Hassuani's figure sits between the
 # two South African ones and is Brazil's, 41-43% of world cane.
+# Provisional global extrapolation: the independent regional measurements
+# do not establish one constant for all countries and years; Donaldson
+# excludes tops and does not measure the same total-trash quantity.
 .residue_sugar_cane_anchored <- function(residues, products, method) {
   if (method == "pin") {
     return(residues)

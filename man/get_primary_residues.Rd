@@ -301,7 +301,10 @@ both 2010 and 2020, above every field measurement found:\tabular{lllr}{
 
 
 The default is Hassuani et al.'s 140 kg of dry matter per tonne of cane
-stalk, the average of Copersucar's field experiments across variety, age
+stalk. Its global application is \strong{provisional}: these independent
+regional measurements do not establish a constant for every country and
+year, and Donaldson excludes tops. The Brazilian value is the average
+of Copersucar's field experiments across variety, age
 and soil, which lies between the two South African figures. Brazil grows
 43\% of the pin's world cane in 2010 and 41\% in 2020. The sources are:
 Hassuani SJ, da Silva JEAR, Neves JLM (2005), \emph{Sugarcane trash recovery

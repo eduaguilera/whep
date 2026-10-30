@@ -344,7 +344,10 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' | Donaldson et al. (2008), p. 533, Table 3 | South Africa, irrigated | dead and green leaves, tops excluded | 1/9.3 = 0.108 |
 #'
 #' The default is Hassuani et al.'s 140 kg of dry matter per tonne of cane
-#' stalk, the average of Copersucar's field experiments across variety, age
+#' stalk. Its global application is **provisional**: these independent
+#' regional measurements do not establish a constant for every country and
+#' year, and Donaldson excludes tops. The Brazilian value is the average
+#' of Copersucar's field experiments across variety, age
 #' and soil, which lies between the two South African figures. Brazil grows
 #' 43% of the pin's world cane in 2010 and 41% in 2020. The sources are:
 #' Hassuani SJ, da Silva JEAR, Neves JLM (2005), *Sugarcane trash recovery
