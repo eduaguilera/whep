@@ -498,89 +498,139 @@
   )
 }
 
-# Oil palm residue (whep#1424) ------------------------------------------------
+# Residue anchored on a field measurement (whep#1424, whep#1551) ---------------
 #
-# The pin's oil palm residue is not a plausible field residue: read as gross
-# residue it is more than an oil palm plantation's whole above-ground net
-# primary production, fruit included (see `get_primary_residues()`). Its rows
-# are therefore REPLACED, not corrected: the anchor is a gross field residue
-# in its own right, Malaysia's fronds and trunks, so it runs after
+# For oil palm and sugar cane the pin's ratio is not corrected but REPLACED:
+# the anchor is a gross field residue in its own right, so it runs after
 # `.residue_gross_from_recovered()` and `.residue_ratio_corrected()` and owes
 # nothing to the pin's residue figure. Running it before them would divide an
 # anchored gross residue by the pin's recovery rate a second time. The pin's
 # residue rows are still read, and still checked by both steps, because they
-# say which (area, year) pairs carry oil palm residue.
+# say which (area, year) pairs carry the crop's residue.
 #
 # The anchored dry matter is stored as fresh mass through the same
 # `Residue_kgDM_kgFM` that `.add_residue_dm_content()` applies afterwards, so
 # `value_dm` comes out equal to the anchor.
-.residue_oil_palm_anchored <- function(residues, products, method) {
-  if (method == "pin" || !rlang::has_name(residues, "name_biomass")) {
-    return(residues)
-  }
-  is_palm <- residues$name_biomass %in% "Oil palm"
-  if (!any(is_palm)) {
-    return(residues)
-  }
-  palm <- .oil_palm_anchored_rows(
-    residues[is_palm, ],
-    dplyr::filter(products, .data$name_biomass %in% "Oil palm"),
-    method
-  )
-  dplyr::bind_rows(residues[!is_palm, ], palm)
-}
 
-.oil_palm_anchored_rows <- function(residue, products, method) {
+# Oil palm (whep#1424). The pin's oil palm residue is not a plausible field
+# residue: read as gross residue it is more than an oil palm plantation's whole
+# above-ground net primary production, fruit included (see
+# `get_primary_residues()`).
+.residue_oil_palm_anchored <- function(residues, products, method) {
+  if (method == "pin") {
+    return(residues)
+  }
   # Malaysia, 2010: fronds 46 + trunks 14 Mt DM (Agensi Inovasi Malaysia 2013,
   # National Biomass Strategy 2020, Exhibit 1) on 4.85 Mha planted (p. 10), or
   # over FAOSTAT's 83,090,935 t of fresh fruit bunches.
-  rate <- switch(
-    method,
-    per_product = 60e6 / 83090935,
-    per_hectare = 60e6 / 4.85e6
+  anchor <- list(
+    name_biomass = "Oil palm",
+    label = "oil palm",
+    product = "fruit",
+    rate = switch(
+      method,
+      per_product = 60e6 / 83090935,
+      per_hectare = 60e6 / 4.85e6
+    ),
+    basis = if (method == "per_hectare") "area_ygpit_ha" else "prod_ygpit_mg",
+    method_residue = paste0("malaysia_nbs_", method),
+    arg = "oil_palm_residue",
+    class = "whep_oil_palm_no_product"
   )
-  basis <- if (method == "per_hectare") "area_ygpit_ha" else "prod_ygpit_mg"
-  kgdm <- .oil_palm_residue_kgdm()
-  fruit <- .oil_palm_fruit_basis(products, basis)
-  .check_oil_palm_fruit(residue, fruit)
+  .residue_anchored(residues, products, anchor)
+}
+
+# Sugar cane (whep#1551). The pin's ratio gives 0.206 t of trash dry matter
+# per tonne of cane in 2010 and 2020, above every field measurement found:
+# 0.14 t DM per t of stalk in Brazil, trash being tops plus dry and green
+# leaves (Hassuani, da Silva & Neves 2005, Proc. ISSCT 25, p. 394: "the
+# average amount of trash in the field per metric tonne of cane stalk as 140
+# kg of dry matter"); 1/6 = 0.167 for dryland NCo376 in Natal, dead leaves
+# plus immature tops (Thompson 1966, Proc. S. Afr. Sug. Technol. Ass., p. 333:
+# "a ratio of 6 : 1 may be reasonably accurate"); and 1/9.3 = 0.108 under
+# irrigation, tops excluded (Donaldson et al. 2008, Proc. S. Afr. Sug.
+# Technol. Ass. 81, p. 533 and Table 3). Hassuani's figure sits between the
+# two South African ones and is Brazil's, 41-43% of world cane.
+# Provisional global extrapolation: the independent regional measurements
+# do not establish one constant for all countries and years; Donaldson
+# excludes tops and does not measure the same total-trash quantity.
+.residue_sugar_cane_anchored <- function(residues, products, method) {
+  if (method == "pin") {
+    return(residues)
+  }
+  anchor <- list(
+    name_biomass = "Sugarcane",
+    label = "sugar cane",
+    product = "cane",
+    rate = 0.14,
+    basis = "prod_ygpit_mg",
+    method_residue = "field_trash_per_product",
+    arg = "sugar_cane_residue",
+    class = "whep_sugar_cane_no_product"
+  )
+  .residue_anchored(residues, products, anchor)
+}
+
+# Replace one crop's residue rows by `anchor$rate` tonnes of dry matter per
+# unit of the crop's `anchor$basis` (tonnes of product or hectares).
+.residue_anchored <- function(residues, products, anchor) {
+  if (!rlang::has_name(residues, "name_biomass")) {
+    return(residues)
+  }
+  is_crop <- residues$name_biomass %in% anchor$name_biomass
+  if (!any(is_crop)) {
+    return(residues)
+  }
+  crop <- .residue_anchored_rows(
+    residues[is_crop, ],
+    dplyr::filter(products, .data$name_biomass %in% anchor$name_biomass),
+    anchor
+  )
+  dplyr::bind_rows(residues[!is_crop, ], crop)
+}
+
+.residue_anchored_rows <- function(residue, products, anchor) {
+  kgdm <- .residue_anchor_kgdm(anchor$name_biomass)
+  basis <- .residue_anchor_basis(products, anchor)
+  .check_residue_anchor_basis(residue, basis, anchor)
   residue |>
     dplyr::left_join(
-      fruit,
+      basis,
       by = c("year", "area"),
       relationship = "many-to-one"
     ) |>
     dplyr::mutate(
-      prod_ygpit_mg = .data$fruit_basis * rate / kgdm,
-      method_residue = paste0("malaysia_nbs_", method)
+      prod_ygpit_mg = .data$anchor_basis * anchor$rate / kgdm,
+      method_residue = anchor$method_residue
     ) |>
-    dplyr::select(-"fruit_basis")
+    dplyr::select(-"anchor_basis")
 }
 
-.oil_palm_fruit_basis <- function(products, basis) {
-  if (!rlang::has_name(products, basis)) {
+.residue_anchor_basis <- function(products, anchor) {
+  if (!rlang::has_name(products, anchor$basis)) {
     cli::cli_abort(
       c(
-        "The crop-residue pin has no {.field {basis}} column, which the oil
-         palm residue anchor needs.",
-        "i" = "Use {.code oil_palm_residue = \"pin\"} to keep the pin's own
-          oil palm residue."
+        "The crop-residue pin has no {.field {anchor$basis}} column, which the
+         {anchor$label} residue anchor needs.",
+        "i" = "Use {.code {anchor$arg} = \"pin\"} to keep the pin's own
+          {anchor$label} residue."
       ),
-      class = "whep_oil_palm_no_product"
+      class = c(anchor$class, "whep_residue_anchor_no_product")
     )
   }
   dplyr::summarise(
     products,
-    fruit_basis = sum(.data[[basis]]),
+    anchor_basis = sum(.data[[anchor$basis]]),
     .by = c("year", "area")
   )
 }
 
-# A residue row with no fruit row would come out `NA`, then sum to zero and be
-# dropped by `get_primary_residues()`: an absent input turned into no residue.
-# Refuse instead. No cli pluralisation markers, for the reason
+# A residue row with no product row would come out `NA`, then sum to zero and
+# be dropped by `get_primary_residues()`: an absent input turned into no
+# residue. Refuse instead. No cli pluralisation markers, for the reason
 # `.warn_residues_no_area()` gives.
-.check_oil_palm_fruit <- function(residue, fruit) {
-  orphan <- dplyr::anti_join(residue, fruit, by = c("year", "area"))
+.check_residue_anchor_basis <- function(residue, basis, anchor) {
+  orphan <- dplyr::anti_join(residue, basis, by = c("year", "area"))
   if (nrow(orphan) == 0L) {
     return(invisible(NULL))
   }
@@ -588,23 +638,27 @@
   labels <- unique(paste(orphan$area, orphan$year))
   cli::cli_abort(
     c(
-      "{n_orphan} oil palm residue rows have no fruit row to anchor on.",
+      "{n_orphan} {anchor$label} residue rows have no {anchor$product} row to
+       anchor on.",
       "i" = "Area and year: {.val {labels}}.",
-      "i" = "Use {.code oil_palm_residue = \"pin\"} to keep the pin's own oil
-        palm residue."
+      "i" = "Use {.code {anchor$arg} = \"pin\"} to keep the pin's own
+        {anchor$label} residue."
     ),
-    class = "whep_oil_palm_no_product"
+    class = c(anchor$class, "whep_residue_anchor_no_product")
   )
 }
 
-.oil_palm_residue_kgdm <- function(biomass_coefs = whep::biomass_coefs) {
+.residue_anchor_kgdm <- function(
+  name_biomass,
+  biomass_coefs = whep::biomass_coefs
+) {
   kgdm <- biomass_coefs$Residue_kgDM_kgFM[
-    biomass_coefs$Name_biomass %in% "Oil palm"
+    biomass_coefs$Name_biomass %in% name_biomass
   ]
   if (length(kgdm) != 1L || is.na(kgdm) || kgdm <= 0) {
     cli::cli_abort(
-      "{.field biomass_coefs} has no single positive oil palm
-       {.field Residue_kgDM_kgFM}, which the oil palm residue anchor needs."
+      "{.field biomass_coefs} has no single positive {.val {name_biomass}}
+       {.field Residue_kgDM_kgFM}, which its residue anchor needs."
     )
   }
   kgdm

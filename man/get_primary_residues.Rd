@@ -8,7 +8,8 @@ get_primary_residues(
   example = FALSE,
   cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius"),
   oil_palm_residue = c("per_product", "per_hectare", "pin"),
-  non_cereal_residue = c("ipcc", "ensemble", "ratio", "pin")
+  non_cereal_residue = c("ipcc", "ensemble", "ratio", "pin"),
+  sugar_cane_residue = c("per_product", "pin")
 )
 }
 \arguments{
@@ -60,6 +61,17 @@ through IPCC's "Tubers" line, cassava, sweet potato, yams and the other
 roots. One of \code{"ipcc"} (default), \code{"ensemble"} and \code{"ratio"}, the same
 estimators as for \code{cereal_residue}, or \code{"pin"}, the pin's ratio as for
 every other crop. See the "Non-cereal residue" section.}
+
+\item{sugar_cane_residue}{How sugar cane trash (tops and leaves) is
+obtained. One of:
+\itemize{
+\item \code{"per_product"} (default): 0.14 t of dry matter per tonne of cane,
+Hassuani, da Silva & Neves (2005).
+\item \code{"pin"}: the pin's own sugar cane residue, with the recovery rate
+undone and the ratio re-keyed like every other non-cereal crop.
+}
+
+See the "Sugar cane residue" section.}
 }
 \value{
 A tibble with the crop residue data.
@@ -93,8 +105,9 @@ visible rather than reading as zero.
 \code{cereal_residue} method for a cereal, the \code{non_cereal_residue} method
 for a non-cereal crop with its own IPCC line,
 \code{"malaysia_nbs_per_product"} or \code{"malaysia_nbs_per_hectare"} for oil
-palm unless \code{oil_palm_residue} is \code{"pin"}, and \code{"pin"} for every other
-crop.
+palm unless \code{oil_palm_residue} is \code{"pin"}, \code{"field_trash_per_product"}
+for sugar cane unless \code{sugar_cane_residue} is \code{"pin"}, and \code{"pin"} for
+every other crop.
 }
 
 The pin's residue quantities are fresh matter. Across its crops the ratio of
@@ -218,7 +231,8 @@ values. "Tubers" is IPCC's own crop class, "modelled after potatoes"; the
 crops reach it through \code{ipcc_crop_mapping.csv}, as in the soil carbon and
 nitrogen chain. The other non-cereal lines in \code{ipcc_residue_coefs.csv}
 (rapeseed, sunflower, sugar beet, sugar cane, cotton) are not in Table 11.2,
-so those crops, tree crops and vegetables keep the pin's ratio, as does
+so those crops, tree crops and vegetables keep the pin's ratio (sugar cane
+is anchored instead, see "Sugar cane residue"), as does
 every crop under \code{non_cereal_residue = "pin"}.
 
 World residue dry matter of the crops estimated from yield, Tg, the pin's
@@ -271,6 +285,42 @@ fronds and oil palm crop residues}, Feedipedia,
 60 Mt; trunks, whose sap is 75-80\% of their weight, are wetter, so the
 fresh mass is if anything understated. It sets the fresh mass booked to
 \code{Firewood}, not the dry matter.
+}
+
+\section{Sugar cane residue}{
+
+Sugar cane trash is replaced in the same way (whep#1551). IPCC (2006) Table
+11.2 and the 2019 Refinement's Table 11.2 give sugar cane no line, and the
+pin's ratio put world trash at 0.206 t of dry matter per tonne of cane in
+both 2010 and 2020, above every field measurement found:\tabular{lllr}{
+   source \tab where \tab trash \tab t DM per t cane \cr
+   Hassuani, da Silva & Neves (2005), p. 394 \tab Brazil \tab tops, dry and green leaves \tab 0.14 \cr
+   Thompson (1966), p. 333 \tab Natal, dryland \tab dead leaves and immature tops \tab 1/6 = 0.167 \cr
+   Donaldson et al. (2008), p. 533, Table 3 \tab South Africa, irrigated \tab dead and green leaves, tops excluded \tab 1/9.3 = 0.108 \cr
+}
+
+
+The default is Hassuani et al.'s 140 kg of dry matter per tonne of cane
+stalk. Its global application is \strong{provisional}: these independent
+regional measurements do not establish a constant for every country and
+year, and Donaldson excludes tops. The Brazilian value is the average
+of Copersucar's field experiments across variety, age
+and soil, which lies between the two South African figures. Brazil grows
+43\% of the pin's world cane in 2010 and 41\% in 2020. The sources are:
+Hassuani SJ, da Silva JEAR, Neves JLM (2005), \emph{Sugarcane trash recovery
+alternatives for power generation}, Proc. ISSCT 25: 394-402; Thompson GD
+(1966), \emph{The production of trash and its effects as a mulch on the soil
+and on sugarcane nutrition}, Proc. S. Afr. Sug. Technol. Ass. 40: 333-342;
+and Donaldson RA, Redshaw KA, Rhodes R, van Antwerpen R (2008), \emph{Season
+effects on productivity of some commercial South African sugarcane
+cultivars, II: trash production}, Proc. S. Afr. Sug. Technol. Ass. 81:
+528-538.
+
+The anchored dry matter is converted to fresh mass with the sugar cane
+\code{Residue_kgDM_kgFM} of \link{biomass_coefs} (0.48), so \code{value_dm} is the
+anchor exactly. World cane trash falls from 345 to 235 Tg of dry matter in
+2010 (all residue 5403 to 5293 Tg, -2.0\%) and from 384 to 261 Tg in 2020
+(6463 to 6341 Tg, -1.9\%). Choose \code{"pin"} to keep the pin's ratio.
 }
 
 \section{The batch pin on the build path}{
