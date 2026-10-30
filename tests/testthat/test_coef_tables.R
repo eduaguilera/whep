@@ -231,3 +231,29 @@ test_that("the live root table carries the corrected cereal root:shoot", {
   testthat::expect_equal(nrow(joined), length(cereals))
   testthat::expect_equal(joined$rs_default, joined$rs_ratio_ipcc)
 })
+
+test_that("unsupported non-cereal residue lines stay labelled as assumptions", {
+  # These nine lines were relabelled by #1542, also resolving #1552.
+  # IPCC 2006/2019 Table 11.2 has no crop-specific line for them; the
+  # vegetable tuber proxy is an assumption rather than an IPCC vegetable line.
+  crops <- c(
+    "Rapeseed",
+    "Sunflower",
+    "Other_oilseeds",
+    "Sugar_beet",
+    "Sugarcane",
+    "Cotton",
+    "Other_fiber",
+    "Permanent_crops",
+    "Vegetables"
+  )
+  res <- whep::whep_coef_table("ipcc_residue_coefs") |>
+    dplyr::filter(ipcc_crop %in% crops)
+
+  testthat::expect_setequal(res$ipcc_crop, crops)
+  testthat::expect_equal(nrow(res), length(crops))
+  testthat::expect_true(all(stringr::str_starts(
+    res$source_slope_intercept,
+    stringr::fixed("assumed, unverified:")
+  )))
+})
