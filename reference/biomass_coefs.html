@@ -179,21 +179,43 @@ matter; protein and carbohydrate from <code>Miel</code> sum to exactly that dry
 matter. At 5 g/kg honey is 1.69x FBS, where it was zero. Only the
 protein moves a computed number: nothing in the package reads the
 carbohydrate or calcium columns.</p></li>
-<li><p><code>Oats</code> and <code>Maize</code> are <strong>unchanged</strong>, on the agronomic value. Their rows,
-5 <code>Avena grano</code> 117 g/kg and 7 <code>Harina de Maiz</code> 87 g/kg, move <em>away</em> from
-the FBS density (72.6 and 62.2 g/kg, country sum) where the agronomic
-83.8 and 78.0 are closer, so following the row would be consistency at
-the cost of accuracy. Open for an expert.</p></li>
+<li><p><code>Maize</code> now carries <strong>0.009888</strong> (61.8 g/kg) and <code>Oats</code> <strong>0.011584</strong>
+(72.4 g/kg), replacing the agronomic 0.01248 and 0.013415 (78.0 and
+83.8 g/kg, a feed-table whole grain). Their own rows, 7 <code>Harina de Maiz</code>
+87 g/kg and 5 <code>Avena grano</code> 117 g/kg, are not followed: they are the
+composition of what is eaten, and the flour or groats is only a
+fraction of the grain that <code>food_t</code> counts. The new values are FAOSTAT
+FBS's own World density for 2010, element 671 over element 5142
+(maize 7,311,361.1 t over 118,366 kt; oats 279,096.3 t over 3,853 kt),
+the construct wheat already follows (93.0). Over 2010-2023 it runs
+61.6-64.3 for maize and 70.6-72.8 for oats. Decision
+<code>whep-maize-oats-food-protein-density</code>, settled by agents on two
+independent composition tables put through FAO's extraction rates:</p><ul><li><p>USDA FoodData Central, SR Legacy (April 2018): cornmeal, degermed
+7.11 and whole-grain 8.12 g protein per 100 g (fdc_id 168929, 169697);
+rolled oats, dry, 13.15 (173904).</p></li>
+<li><p>ANSES, Ciqual 2020: maize flour 6.23 and polenta 7.88 (alim_code 9545,
+9614); oatmeal flakes 13.3 (9311).</p></li>
+<li><p>FAO, <em>Technical conversion factors for agricultural commodities</em>,
+<a href="https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf" class="external-link">https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf</a>:
+<code>Flour of Maize</code> 90% (Kenya; 59-97% across countries), <code>Oats, Rolled</code>
+58% (United States; 45-73%).</p></li>
+</ul><p>That gives 56-73 g per kg of maize and 76-77 per kg of oats, which the
+FBS density fits. FAO's old-method FBS (71.9 and 83.4, food-weighted
+country sum) is not adopted: it was built on FAO, <em>Food balance sheets:
+a handbook</em> (2001), Annex I, <a href="https://www.fao.org/4/x9892e/x9892e00.pdf" class="external-link">https://www.fao.org/4/x9892e/x9892e00.pdf</a>,
+PDF page 64 (printed 60), whose rolled oats at 16.0 g per 100 g sit more
+than 20% above both modern tables. The agronomic value stays selectable
+as <code>build_food_supply(protein_basis = "product_nitrogen")</code>.</p></li>
 <li><p><code>Rice</code> is <strong>unchanged</strong>: its basis was settled in #751/#755.</p></li>
 <li><p><code>Vegetables, other</code> is <strong>unchanged</strong> and moves no food number: no
 <code>item_cbs_code</code> bridges to it (<code>Vegetables, Other</code> 2605 reaches
 <code>Artichoke</code> through <code>items_full</code>). Its row 113 would give 33.3 g/kg
 against the literal's 14.0, and neither is checked.</p></li>
-</ul><p>All three new values are the workbook's own composition figures, which,
-like the rest of this block, have no <code>Sources</code> entry: they are corroborated
-by the FBS oracle, not cited upstream. The workbook copy read was
-<code>afsetools/inst/extdata/Biomass_coefs.xlsx</code>; upstream still carries the old
-values in <code>Coefs</code> and should follow.</p>
+</ul><p>The olive, rye and honey values are the workbook's own composition
+figures, which, like the rest of this block, have no <code>Sources</code> entry: they
+are corroborated by the FBS oracle, not cited upstream. The workbook copy
+read was <code>afsetools/inst/extdata/Biomass_coefs.xlsx</code>; upstream still
+carries the old values in <code>Coefs</code> and should follow.</p>
 <p>The tree-nut rows <code>Almonds</code>, <code>Walnut</code> and <code>Hazelnut</code> pair a <strong>kernel</strong>
 nitrogen density with an <code>Edible_portion</code> that now refers to the nut <strong>in
 shell</strong> (whep#797). FBS item 2551 <code>Nuts and products</code> is a quantity in
