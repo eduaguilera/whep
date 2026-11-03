@@ -151,7 +151,7 @@
 # nothing under.
 .fishstat_reporter_areas <- function(countries, reporter_codes) {
   overrides <- .fishstat_area_overrides()
-  areas <- countries |>
+  areas <- tibble::as_tibble(countries) |>
     dplyr::transmute(
       reporter_code = sprintf("%03d", as.integer(.data$UN_Code)),
       reporter_iso3c = dplyr::na_if(.data$ISO3_Code, ""),
@@ -229,12 +229,12 @@
 # original script did. Rows whose commodity has no ISSCAAP group or no bridge
 # row are dropped here; that is whep#1616's classification, not geography.
 .fishstat_trade_items <- function(trade, commodities, bridge) {
-  groups <- commodities |>
+  groups <- tibble::as_tibble(commodities) |>
     dplyr::transmute(
       fao_code = .data$Code,
       isscaap_group = as.integer(.data$ISSCAAP)
     )
-  trade |>
+  tibble::as_tibble(trade) |>
     dplyr::filter(
       .data$MEASURE == "Q_tpw",
       .data$TRADE_FLOW.ALPHA_CODE %in% c("I", "E")
@@ -251,7 +251,11 @@
     ) |>
     dplyr::inner_join(groups, by = "fao_code", relationship = "many-to-one") |>
     dplyr::inner_join(
-      dplyr::distinct(bridge, .data$isscaap_group, .data$item_cbs_code),
+      dplyr::distinct(
+        tibble::as_tibble(bridge),
+        .data$isscaap_group,
+        .data$item_cbs_code
+      ),
       by = "isscaap_group",
       relationship = "many-to-one"
     )

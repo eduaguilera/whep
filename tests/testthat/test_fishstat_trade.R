@@ -288,3 +288,18 @@ testthat::test_that("the coverage summary names held reporters", {
   testthat::expect_equal(c(held$first_year, held$last_year), c(1989L, 1990L))
   testthat::expect_equal(held$tonnes, 5)
 })
+
+testthat::test_that("data.table inputs, as the script reads them, give a tibble", {
+  rows <- tibble::tribble(
+    ~COUNTRY_REPORTER.UN_CODE, ~TRADE_FLOW.ALPHA_CODE, ~PERIOD, ~VALUE,
+    690L,                      "I",                    2010L,   1
+  )
+  pin <- whep:::.prepare_fishstat_trade(
+    data.table::as.data.table(.fishstat_trade_raw(rows)),
+    data.table::as.data.table(.fishstat_commodities()),
+    data.table::as.data.table(.fishstat_countries()),
+    data.table::as.data.table(.fishstat_bridge())
+  )
+  testthat::expect_s3_class(pin, "tbl_df")
+  testthat::expect_false(data.table::is.data.table(pin))
+})
