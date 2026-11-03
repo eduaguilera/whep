@@ -31,18 +31,24 @@
 # individual countries or areas", pp. 251-254),
 # https://www.fao.org/fishery/static/Data/FI_Trade_2025.1.0.zip.
 
-# Build the `fishstat-trade` pin rows from FishStat's raw tables.
+# Reproduce the legacy geography-only aggregate for regression comparisons.
 #
 # `trade` is `TRADE_QUANTITY.csv`, `commodities` is `CL_FI_COMMODITY_ISSCFC.csv`
 # (`Code`, `ISSCAAP`), `countries` is `CL_FI_COUNTRY_GROUPS.csv` and `bridge` is
-# `fishstat_cbs_bridge.csv`. The commodity bridge is unchanged here; whep#1616
-# owns that classification and whep#1617 its weight basis.
+# `fishstat_cbs_bridge.csv`. This legacy adapter does not standardize product
+# weight. New preparation uses `.prepare_fishstat_candidate()` and is not a
+# replacement CBS pin (whep#1616/#1617).
 #
 # Returns a tibble with the legacy pin columns (`Year`, `Area Code`,
 # `Item Code`, `Element`, `Value`, `Unit`) plus `Reporter Code` (FishStat's UN
 # code), `Polity Code` and `Coverage Status`.
 .prepare_fishstat_trade <- function(trade, commodities, countries, bridge) {
   rows <- .fishstat_trade_items(trade, commodities, bridge)
+  rows <- .fishstat_resolve_reporters(rows, countries)
+  .fishstat_trade_pin_rows(rows)
+}
+
+.fishstat_resolve_reporters <- function(rows, countries) {
   reporters <- .fishstat_reporter_areas(countries, unique(rows$reporter_code))
   missing <- setdiff(unique(rows$reporter_code), reporters$reporter_code)
   if (length(missing) > 0L) {
@@ -61,7 +67,7 @@
   .check_fishstat_inclusions(rows)
   .check_fishstat_polity_overlap(rows)
   .check_fishstat_containment(rows)
-  .fishstat_trade_pin_rows(rows)
+  rows
 }
 
 # Keep the pin rows whose polity covers their year, and name the rest.
@@ -72,6 +78,7 @@
 # must not reach the CBS until the territory they report has a polity
 # (whep#1618). A pin from before that column existed passes through unchanged.
 .fishstat_adopted_rows <- function(dt) {
+  .check_fishstat_cbs_basis(dt)
   if (!rlang::has_name(dt, "Coverage Status")) {
     return(dt)
   }
