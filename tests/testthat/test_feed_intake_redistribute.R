@@ -885,6 +885,9 @@ test_that(".build_redistribute_intake hands feed_loss to the engine", {
 })
 
 test_that(".run_redistribute_national meets grass, caps concentrates", {
+  testthat::local_mocked_bindings(
+    get_primary_residues = function(...) whep:::.example_get_primary_residues()
+  )
   region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
@@ -2122,6 +2125,16 @@ test_that(".with_feed_eligibility derives, disables and yields to options", {
 })
 
 test_that("national engine never feeds crop residues to pigs (feed_table)", {
+  testthat::local_mocked_bindings(
+    get_primary_residues = function(...) {
+      tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue,
+        ~value, ~value_dm,
+        1970L, area, 2511L, 2105L, 1e6, 876000,
+        1970L, area, 2601L, 2106L, 1e6, 132000
+      )
+    }
+  )
   region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
