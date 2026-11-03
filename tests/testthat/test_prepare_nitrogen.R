@@ -790,3 +790,20 @@ test_that(".resolve_n_excretion names the columns it is missing (#621)", {
   )
   expect_match(conditionMessage(cnd1), "missing required column:")
 })
+
+test_that("spatial Nex defaults reject unpriced rows unless opted in", {
+  .need_spatialize_helper(".compute_default_n_excretion")
+  keys <- tibble::tribble(
+    ~year, ~area_code, ~species_group,
+    2020L, 231L, "buffalo",
+    2020L, 231L, "other"
+  )
+  err <- rlang::catch_cnd(.compute_default_n_excretion(keys))
+  expect_s3_class(err, "whep_missing_nex")
+  if (inherits(err, "whep_missing_nex")) {
+    expect_equal(err$missing_coefficients$species_group, keys$species_group)
+  }
+  explicit <- .compute_default_n_excretion(keys, nex_missing = "as_shipped")
+  expect_equal(explicit$nex_kg_n_head, c(55, 2))
+  expect_equal(explicit$source, c("as_shipped_global", "fallback_other_2kg"))
+})
