@@ -194,6 +194,13 @@
 #' excluded from allocation. The output retains `polity_code` and does not
 #' reconstruct identity from a numeric aggregation bucket.
 #'
+#' Native outputs record `method_weight_rainfed` and `method_weight_irrigated`
+#' for the initial weighting before capacity redistribution: `"crop_pattern"`,
+#' `"cropland_proportional"` when pattern potential is zero, or `"no_land"`
+#' when that regime has no allocatable land. A supplied `method_irrigation`
+#' is retained. CFT aggregation lists distinct constituent method labels,
+#' sorted and separated by semicolons; it does not select a new method.
+#'
 #' Polity targets must be unique per polity, year and crop. Missing identity,
 #' mixed native/legacy inputs, duplicate polity cells in a year and targets
 #' with no support in their year abort explicitly. Harvested-area targets
@@ -359,6 +366,13 @@ build_gridded_landuse <- function(
   # container-keyed table it is handed, before it splits it into units.
   if (rlang::has_name(country_areas, "level_polity_code")) {
     .check_irrigation_within_area(country_areas)
+  }
+  if (native && any(country_areas$irrigated_area_ha > 0, na.rm = TRUE)) {
+    .check_polity_prepared_water(list(
+      country_areas = country_areas,
+      gridded_cropland = gridded_cropland,
+      country_grid = country_grid
+    ))
   }
   gridded_cropland <- .ensure_gridded_irrigation(gridded_cropland)
 
@@ -634,6 +648,11 @@ build_gridded_landuse <- function(
   # below silently drops them.
   .warn_unallocated_crops(dat, yr, alloc_cols)
 
+  method_cols <- character()
+  if (.spatial_geo_key(ca) == "polity_code") {
+    dat <- .stamp_native_weights(dat)
+    method_cols <- .spatial_method_cols(dat)
+  }
   result <- dat[
     allocated_rf > 0 | allocated_ir > 0,
     c(
@@ -642,7 +661,8 @@ build_gridded_landuse <- function(
       "lat",
       "item_prod_code",
       "allocated_rf",
-      "allocated_ir"
+      "allocated_ir",
+      method_cols
     ),
     with = FALSE
   ]
@@ -1205,7 +1225,8 @@ build_gridded_landuse <- function(
     "lat",
     "item_prod_code",
     "rainfed_ha",
-    "irrigated_ha"
+    "irrigated_ha",
+    .spatial_method_cols(allocated_dt)
   ))
   stable <- allocated_dt[
     !(get(geo_key) %in% countries_to_fix),
@@ -1496,7 +1517,8 @@ build_gridded_landuse <- function(
     "lat",
     "item_prod_code",
     "rainfed_ha",
-    "irrigated_ha"
+    "irrigated_ha",
+    .spatial_method_cols(allocated)
   ))
 
   geo_key <- .spatial_geo_key(allocated)
@@ -1812,6 +1834,37 @@ build_gridded_landuse <- function(
   ))
 }
 
+# Record the actual initial weighting rule, before capacity redistribution.
+# Water regimes can use different rules for the same polity/crop/year.
+.stamp_native_weights <- function(dat) {
+  data.table::set(
+    dat,
+    j = "method_weight_rainfed",
+    value = .spatial_weight_method(dat$rf_pot_sum, dat$rainfed_sum)
+  )
+  data.table::set(
+    dat,
+    j = "method_weight_irrigated",
+    value = .spatial_weight_method(dat$ir_pot_sum, dat$irrigated_sum)
+  )
+  dat
+}
+
+.spatial_weight_method <- function(potential, land) {
+  dplyr::case_when(
+    potential > 0 ~ "crop_pattern",
+    land > 0 ~ "cropland_proportional",
+    .default = "no_land"
+  )
+}
+
+.spatial_method_cols <- function(data) {
+  intersect(
+    c("method_weight_rainfed", "method_weight_irrigated", "method_irrigation"),
+    names(data)
+  )
+}
+
 #' Aggregate crop-level results to CFT level.
 #' @noRd
 .aggregate_to_cft <- function(data, cft_mapping) {
@@ -1831,6 +1884,10 @@ build_gridded_landuse <- function(
     dplyr::summarise(
       rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
       irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
+      dplyr::across(
+        dplyr::any_of(.spatial_method_cols(data)),
+        \(x) paste(sort(unique(x), method = "radix"), collapse = ";")
+      ),
       .by = dplyr::all_of(group_cols)
     )
 }
