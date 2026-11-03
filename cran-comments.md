@@ -48,6 +48,19 @@ the version has not been bumped yet: the last dev-checkout run gave 0 errors,
   linear algebra, ODE integration, spatial aggregation). Every import is used
   unconditionally by an exported function, so moving one to `Suggests` would
   leave that entry point unusable rather than degraded.
+* **IBGE URLs: HTTP 403 or a connection timeout.** Two links cite the
+  Brazilian statistics office (IBGE): the SIDRA API home page
+  <https://apisidra.ibge.gov.br> and the aggregates API documentation
+  <https://servicodados.ibge.gov.br/api/docs/agregados?versao=3>. From the
+  networks we checked from (a Spanish research network and a remote fetch
+  service), `apisidra.ibge.gov.br` answers every automated client with a
+  403 bot challenge titled "Just a moment...", and
+  `servicodados.ibge.gov.br` times out or refuses the connection. Both pages
+  are live: Internet Archive captures show "Home Page da API Sidra" on
+  2026-10-19 and "API de dados agregados do IBGE", version 3.0.0, on
+  2026-10-14. The links are the provider's own documentation, so they stay.
+  They have not been replaced with an unrelated page that happens to load
+  (whep#1603).
 
 ## Reverse dependencies
 
