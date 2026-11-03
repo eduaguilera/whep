@@ -1007,7 +1007,7 @@ build_feed_demand <- function(
   production,
   cbs,
   demand_tier,
-  data = .feed_demand_data(),
+  data = .raw_national_feed_data(cbs),
   options = list(),
   feed_eligibility = "feed_table"
 ) {
@@ -1019,6 +1019,23 @@ build_feed_demand <- function(
     options,
     feed_eligibility
   )$result
+}
+
+# Match the public/local conversion (whep#1215, whep#1599). Prefer the
+# CBS-owned mix, including its historical method, when available (whep#1556).
+# Otherwise use the same residue reader as those paths, scoped to the CBS
+# years. An explicit `data` argument bypasses this default entirely.
+.raw_national_feed_data <- function(cbs) {
+  data <- .feed_demand_data()
+  kgdm <- attr(cbs, "residue_feed_kgdm")
+  if (!is.null(kgdm)) {
+    data$residue_kgdm <- kgdm
+    return(data)
+  }
+  .with_residue_kgdm(
+    data,
+    .filter_years(get_primary_residues(), unique(cbs$year))
+  )
 }
 
 # Run the national-grain engine, returning both the raw redistribute result and
