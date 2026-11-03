@@ -157,6 +157,11 @@ deep grid rather than from level 0. See <em>What a granted depth runs</em>.</p><
 <li><p><code>double_claim</code>: which clashes the depth read's double-claim gate
 refuses, <code>"co_presence"</code> (default) or <code>"measured"</code>, forwarded to
 <code><a href="read_level_country_grid.html">read_level_country_grid()</a></code>. The default is the fail-closed rule.</p></li>
+<li><p><code>geographic_key</code> (default <code>"reporting_area"</code>): use <code>"polity"</code> for
+inputs written by <code><a href="prepare_polity_crop_inputs.html">prepare_polity_crop_inputs()</a></code>. Native mode requires
+landuse alone, level/output level zero, <code>area_key = "grid"</code>,
+year-aware polycell geography and a prepared input directory. Its
+manifest and file checksums are verified before reading inputs.</p></li>
 <li><p><code>output_level</code> (integer, default <code>0L</code>): grain of the crop output.
 <code>0L</code> sums granted-depth rows back onto the container, so
 <code>(lon, lat, area_code, item_prod_code, year)</code> stays unique and the
@@ -226,6 +231,11 @@ historical year range present in <code>country_areas</code>.</p></dd>
     <h2 id="inputs-read-from-input-dir">Inputs read from <code>input_dir</code><a class="anchor" aria-label="anchor" href="#inputs-read-from-input-dir"></a></h2>
 
 
+<p>Native polity mode reads <code>polity_country_areas.parquet</code> and
+<code>polity_country_grid.parquet</code> in place of the reporting-area files below.
+It requires <code>polity_input_manifest.json</code>, copies that manifest beside the
+outputs and records it in <code>run_metadata.yaml</code>. Source metadata is retained
+on crop output; CFT aggregates refer to that crop-level provenance.</p>
 <p>Landuse (<code>components</code> contains <code>"landuse"</code>):</p><ul><li><p><code>country_areas.parquet</code></p></li>
 <li><p><code>crop_patterns.parquet</code></p></li>
 <li><p><code>gridded_cropland.parquet</code></p></li>
@@ -373,7 +383,7 @@ year with its share, target and <code>method_crop_alloc</code>),
 <span class="r-in"><span>  <span class="va">country_areas</span>, <span class="va">crop_patterns</span>, <span class="va">gridded_cropland</span>, <span class="va">country_grid</span>,</span></span>
 <span class="r-in"><span>  config <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>years <span class="op">=</span> <span class="fl">2000L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> →   Year 2000: 2 rows (alloc 0.01s, cap 0.01s)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> →   Year 2000: 2 rows (alloc 0.01s, cap 0s)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 11</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>

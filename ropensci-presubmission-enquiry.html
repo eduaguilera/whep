@@ -404,7 +404,7 @@ VignetteBuilder package required for checking but not installed: 'knitr'</code><
 <ul><li>
 <strong>A fresh local <code>pkgcheck</code> run.</strong> The gate figures in §2 are measured directly (coverage from Codecov, tests from the CI log, examples and exports from the tree) but <code>pkgcheck</code> itself was not re-run in this session, so its optional flags — the &gt;80-character line count, the exported-name collisions with <code>transx</code>/<code>FSK2R</code>/<code>cape</code>, the cyclomatic-complexity list — are still #46’s August figures and may have moved.</li>
 <li>
-<strong>A local <code>covr::package_coverage()</code> figure.</strong> A run was started and did not finish within the session. The 83% cited is Codecov’s number for <code>main</code>, produced by the same <code>covr</code> run in the <code>test-coverage</code> workflow, which is the right number to quote anyway.</li>
+<strong>A local <code><a href="http://covr.r-lib.org/reference/package_coverage.html" class="external-link">covr::package_coverage()</a></code> figure.</strong> A run was started and did not finish within the session. The 83% cited is Codecov’s number for <code>main</code>, produced by the same <code>covr</code> run in the <code>test-coverage</code> workflow, which is the right number to quote anyway.</li>
 <li>
 <strong>Whether rOpenSci has ever scoped a review to part of a package.</strong> The policy text does not say, either way. Question 2 in the enquiry asks it directly rather than assuming an answer.</li>
 <li>

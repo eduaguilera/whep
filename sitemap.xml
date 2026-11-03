@@ -365,6 +365,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/polycell_example_geometries.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/population_source_reach.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/prepare_livestock_emissions.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/prepare_polity_crop_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/primary_double.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/propagate_fp_uncertainty.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_admin_family.html</loc></url>
@@ -444,8 +445,10 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/validate_national_trade.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/validate_national_trade_raw.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep-package.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/whep_assert_publishable.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_clear_cache.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_coef_table.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/whep_data_access_status.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_inputs.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_list_file_versions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_polity_columns.html</loc></url>

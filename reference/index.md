@@ -33,6 +33,8 @@ comparison.
 
 - [`run_spatialize()`](https://eduaguilera.github.io/whep/reference/run_spatialize.md)
   : Run the gridded land-use spatialization pipeline
+- [`prepare_polity_crop_inputs()`](https://eduaguilera.github.io/whep/reference/prepare_polity_crop_inputs.md)
+  : Prepare crop inputs on source reporting polities
 - [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
   : Build gridded landuse dataset
 - [`build_gridded_livestock()`](https://eduaguilera.github.io/whep/reference/build_gridded_livestock.md)
@@ -654,6 +656,10 @@ Fetch large files from external sources and cache them.
   : Read a registry of pinned input files
 - [`whep_clear_cache()`](https://eduaguilera.github.io/whep/reference/whep_clear_cache.md)
   : Clear the build pipeline cache
+- [`whep_data_access_status()`](https://eduaguilera.github.io/whep/reference/whep_data_access_status.md)
+  : Check access to restricted input datasets
+- [`whep_assert_publishable()`](https://eduaguilera.github.io/whep/reference/whep_assert_publishable.md)
+  : Refuse to publish restricted data
 
 ## Code namings
 

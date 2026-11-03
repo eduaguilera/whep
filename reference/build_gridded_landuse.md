@@ -255,6 +255,14 @@ Numeric `area_code` columns, if also present, are source metadata and
 are excluded from allocation. The output retains `polity_code` and does
 not reconstruct identity from a numeric aggregation bucket.
 
+Native outputs record `method_weight_rainfed` and
+`method_weight_irrigated` for the initial weighting before capacity
+redistribution: `"crop_pattern"`, `"cropland_proportional"` when pattern
+potential is zero, or `"no_land"` when that regime has no allocatable
+land. A supplied `method_irrigation` is retained. CFT aggregation lists
+distinct constituent method labels, sorted and separated by semicolons;
+it does not select a new method.
+
 Polity targets must be unique per polity, year and crop. Missing
 identity, mixed native/legacy inputs, duplicate polity cells in a year
 and targets with no support in their year abort explicitly.
@@ -360,7 +368,7 @@ build_gridded_landuse(
   country_areas, crop_patterns, gridded_cropland, country_grid,
   config = list(years = 2000L)
 )
-#> →   Year 2000: 2 rows (alloc 0.01s, cap 0.01s)
+#> →   Year 2000: 2 rows (alloc 0.01s, cap 0s)
 #> # A tibble: 2 × 11
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                

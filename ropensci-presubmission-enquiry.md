@@ -802,10 +802,12 @@ Stated so nobody quotes these as settled:
   exported-name collisions with `transx`/`FSK2R`/`cape`, the
   cyclomatic-complexity list — are still \#46’s August figures and may
   have moved.
-- **A local `covr::package_coverage()` figure.** A run was started and
-  did not finish within the session. The 83% cited is Codecov’s number
-  for `main`, produced by the same `covr` run in the `test-coverage`
-  workflow, which is the right number to quote anyway.
+- **A local
+  [`covr::package_coverage()`](http://covr.r-lib.org/reference/package_coverage.md)
+  figure.** A run was started and did not finish within the session. The
+  83% cited is Codecov’s number for `main`, produced by the same `covr`
+  run in the `test-coverage` workflow, which is the right number to
+  quote anyway.
 - **Whether rOpenSci has ever scoped a review to part of a package.**
   The policy text does not say, either way. Question 2 in the enquiry
   asks it directly rather than assuming an answer.

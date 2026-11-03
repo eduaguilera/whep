@@ -58,12 +58,20 @@ expected name when trying to get the dataset with <code><a href="whep_read_file.
 <li><p><code>board_url</code>: The public static URL where the data is found, following
 the concept of a <em>board</em> from the
 <a href="https://pins.rstudio.com/index.html" class="external-link"><code>pins</code></a> package, which is what we
-use for storing these input datasets.</p></li>
+use for storing these input datasets. For a restricted row it is a path
+relative to the restricted board, <code>restricted:&lt;folder&gt;/_pins.yaml</code>, so
+no personal address enters the registry.</p></li>
 <li><p><code>version</code>: The specific version of the dataset, as defined by the <code>pins</code>
 package. The version is a string similar to <code>"20250714T123343Z-114b5"</code>.
 This version is the one used by default if no <code>version</code> is specified when
 calling <code><a href="whep_read_file.html">whep_read_file()</a></code>. If you want to use a different one, you can
 find the available versions of a file by using <code><a href="whep_list_file_versions.html">whep_list_file_versions()</a></code>.</p></li>
+<li><p><code>access</code>: <code>"public"</code>, or <code>"restricted"</code> for licensed or confidential
+data read from a private board with per-user credentials. See
+<code><a href="whep_data_access_status.html">whep_data_access_status()</a></code>.</p></li>
+<li><p><code>public_alternative</code>: for a restricted row, the public alias suggested
+instead when restricted access is unavailable, or <code>NA</code>. It is advice in
+error messages only; nothing is ever read in its place.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="source">Source<a class="anchor" aria-label="anchor" href="#source"></a></h2>

@@ -119,6 +119,14 @@ run_spatialize(
     [`read_level_country_grid()`](https://eduaguilera.github.io/whep/reference/read_level_country_grid.md).
     The default is the fail-closed rule.
 
+  - `geographic_key` (default `"reporting_area"`): use `"polity"` for
+    inputs written by
+    [`prepare_polity_crop_inputs()`](https://eduaguilera.github.io/whep/reference/prepare_polity_crop_inputs.md).
+    Native mode requires landuse alone, level/output level zero,
+    `area_key = "grid"`, year-aware polycell geography and a prepared
+    input directory. Its manifest and file checksums are verified before
+    reading inputs.
+
   - `output_level` (integer, default `0L`): grain of the crop output.
     `0L` sums granted-depth rows back onto the container, so
     `(lon, lat, area_code, item_prod_code, year)` stays unique and the
@@ -190,6 +198,13 @@ depth, `NULL` otherwise.
   present in `country_areas`.
 
 ## Inputs read from `input_dir`
+
+Native polity mode reads `polity_country_areas.parquet` and
+`polity_country_grid.parquet` in place of the reporting-area files
+below. It requires `polity_input_manifest.json`, copies that manifest
+beside the outputs and records it in `run_metadata.yaml`. Source
+metadata is retained on crop output; CFT aggregates refer to that
+crop-level provenance.
 
 Landuse (`components` contains `"landuse"`):
 
@@ -369,7 +384,7 @@ build_gridded_landuse(
   country_areas, crop_patterns, gridded_cropland, country_grid,
   config = list(years = 2000L)
 )
-#> →   Year 2000: 2 rows (alloc 0.01s, cap 0.01s)
+#> →   Year 2000: 2 rows (alloc 0.01s, cap 0s)
 #> # A tibble: 2 × 11
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
