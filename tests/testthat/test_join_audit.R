@@ -379,8 +379,9 @@ test_that("the enumerated baseline can only shrink", {
   # back-cast attaches the same year-free HANPP region to the production it
   # spends the cereal estimator on. Re-derived by running
   # `sum(.territorial_join_baseline()$n)`.
-  # Native polity arms: allocation, support guard and capacity reads (#1483).
-  expect_lte(sum(baseline$n), 126L)
+  # Shared allocation removes one old join; native allocator adds four.
+  # Count measured on the combined integration tree.
+  expect_lte(sum(baseline$n), 125L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -674,7 +675,9 @@ test_that("every year-free territorial grouping is classified", {
   # totals the dropped food per area for its warning (`diagnostic`).
   # Re-derived by running `sum(.territorial_grouping_baseline()$n)` on the
   # merged tree.
-  expect_lte(sum(full$n), 155L)
+  # Native allocator groups plus the two dictionary-only bucket guards.
+  # Count measured on the combined integration tree.
+  expect_lte(sum(full$n), 157L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

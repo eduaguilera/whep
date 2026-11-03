@@ -290,12 +290,6 @@
     ".n_country_to_polity", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, checked against the year-aware route over
      the real pins to 0 differences.",
-    ".n_manure_crop_layer", "inner_join", "crop, area_code, item_prod_code",
-    1L, "time_invariant",
-    "Spreads a polity-crop's harvested area onto cells by the crop-pattern
-     weights (whep#1300). The weights are the SAME single-vintage map the
-     `.sci_join_weights` row rests on, so there is no year to key them on; the
-     harvested area itself carries `year` into and out of the join.",
     ".pop_overlap_pairs", "inner_join", "reporting_polity_code", 1L,
     "identity_lookup",
     "Attaches a polity's transitive successors so `read_population()` can see
@@ -1156,6 +1150,14 @@
     "The (crop, area) pairs the pin carries, so the residue:product ratio is
      looked up once per pair rather than once per year; the ratio has no
      year (whep#1448).",
+    ".sci_areas_to_bucket", "distinct", "area_code, polity_area_code", 1L,
+    "identity_lookup",
+    "The source-code/bucket dictionary, not observations. Used only to reject
+     shared bucket adapters; source observations retain their year.",
+    ".sci_areas_to_bucket", "count", "polity_area_code", 1L,
+    "identity_lookup",
+    "Counts distinct source codes in that static dictionary to reject
+     expanding one source territory over a shared bucket support.",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
