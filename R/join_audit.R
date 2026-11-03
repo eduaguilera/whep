@@ -55,6 +55,17 @@
 .territorial_join_baseline <- function() {
   tibble::tribble(
     ~owner, ~join_fn, ~key, ~n, ~class, ~why,
+    ".redistribute_countries_dt", "[", "polity_code", 2L, "single_year",
+    "Selects one polity's allocation and capacity within one simulation year;
+     literal native key preserves audit coverage alongside the legacy arm.",
+    ".check_crop_polity_support", "anti_join", "polity_code", 1L,
+    "single_year",
+    "Checks one year's targets against that year's support. Missing polity
+     identities abort rather than being reassigned through numeric buckets.",
+    ".spatialize_year", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Native polity allocation matches exact identities within the caller's
+     simulation year; it never folds FAOSTAT codes or follows lineage.",
     ".add_federation_land_rows", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 names the territory, not one of its periods; the year rides along in
      the joined land rows.",
@@ -650,6 +661,22 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".zero_pattern_underflow", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Diagnoses one year's native polity-crop pattern after tiny signals are
+     removed; a separate identity cannot supply a missing pattern.",
+    ".spatialize_year", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Native polity allocation's within-year crop group; separate polity
+     strings never share a denominator merely through a numeric source code.",
+    ".spatialize_type_cropland", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Native polity allocation's within-year crop group; separate polity
+     strings never share a denominator merely through a numeric source code.",
+    ".warn_unallocated_crops", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Native polity allocation's within-year crop group; separate polity
+     strings never share a denominator merely through a numeric source code.",
     ".alloc_bridge_report", "summarise",
     "area_code, item_prod_code, treatment, run_id", 1L, "year_axis",
     "The length of one contiguous run of bridged years: the reduction over

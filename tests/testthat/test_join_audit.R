@@ -379,7 +379,8 @@ test_that("the enumerated baseline can only shrink", {
   # back-cast attaches the same year-free HANPP region to the production it
   # spends the cereal estimator on. Re-derived by running
   # `sum(.territorial_join_baseline()$n)`.
-  expect_lte(sum(baseline$n), 122L)
+  # Native polity arms: allocation, support guard and capacity reads (#1483).
+  expect_lte(sum(baseline$n), 126L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -673,7 +674,7 @@ test_that("every year-free territorial grouping is classified", {
   # totals the dropped food per area for its warning (`diagnostic`).
   # Re-derived by running `sum(.territorial_grouping_baseline()$n)` on the
   # merged tree.
-  expect_lte(sum(full$n), 151L)
+  expect_lte(sum(full$n), 155L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
@@ -845,9 +846,14 @@ test_that("the allocation key is audited in both the grains it can take", {
     ),
     tibble::tibble(area_code = 1L, level_polity_code = "U1")
   )
+  polity <- whep:::.alloc_target_cols(
+    tibble::tibble(polity_code = "AAA-1900-2000", item_prod_code = 15L),
+    tibble::tibble(polity_code = "AAA-1900-2000")
+  )
   want <- sort(c(
     paste(container, collapse = ", "),
-    paste(unit, collapse = ", ")
+    paste(unit, collapse = ", "),
+    paste(polity, collapse = ", ")
   ))
 
   joins <- .ja_joins()

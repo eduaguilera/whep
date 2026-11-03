@@ -768,3 +768,74 @@ testthat::test_that("get_livestock_cbs rejects an unknown cull method (#1237)", 
     class = "rlang_error"
   )
 })
+
+.cbs_empty_reader <- function(...) tibble::tibble()
+.cbs_skip_transform <- function(x, ...) x
+
+testthat::test_that("CBS readers carry the historical mix into scoped intake", {
+  # Only unrelated inputs and balancing are stubbed. The residue reader,
+  # backcast, input assembly, public formatting, caching and feed wiring run.
+  testthat::local_mocked_bindings(
+    .extract_cb = .cbs_empty_reader,
+    .extract_fao = .cbs_empty_reader,
+    .fbs_rebase_factors = .cbs_empty_reader,
+    .warn_fbs_rebase_absent = .cbs_empty_reader,
+    .cbs_silk_mass_basis = .cbs_skip_transform,
+    .cbs_tobacco_leaf_use = .cbs_skip_transform,
+    .read_fao_trade = .cbs_empty_reader,
+    .trade_silk_mass_basis = .cbs_skip_transform,
+    .read_fishstat_trade = .cbs_empty_reader,
+    .read_historical_trade = .cbs_empty_reader,
+    .read_gdp_pop = .cbs_empty_reader,
+    .primary_to_cbs = .cbs_empty_reader,
+    .primary_to_cbs_area = .cbs_empty_reader,
+    .read_land_areas_wide = .cbs_empty_reader,
+    get_primary_residues = .fi_residue_history,
+    .cbs_combine_sources = function(inputs) inputs$residue_backcast,
+    .prepare_historical_cbs = .cbs_empty_reader,
+    .cbs_extend_historical = .cbs_skip_transform,
+    .aggregate_fao_trade_to_cbs = .cbs_skip_transform,
+    .mass_only_trade = .cbs_skip_transform,
+    .fix_cbs = .cbs_skip_transform,
+    .qc_supply_use_balance = .cbs_empty_reader,
+    .cached_cbs_primary_prod = .fi_residue_crops,
+    .cache_get = function(key, expr, ...) expr,
+    get_livestock_cbs = function(...) {
+      tibble::tibble(
+        year = integer(),
+        area_code = integer(),
+        item_cbs_code = integer(),
+        unit = character(),
+        feed = double()
+      )
+    }
+  )
+  long <- whep::build_commodity_balances(
+    .fi_residue_crops(),
+    start_year = 1955L,
+    end_year = 1961L
+  )
+  expected <- whep:::.backcast_crop_residues(
+    .fi_residue_history(),
+    .fi_residue_crops(),
+    1955L
+  ) |>
+    dplyr::bind_rows(.fi_residue_history()) |>
+    whep:::.residue_feed_kgdm()
+  testthat::expect_equal(
+    dplyr::arrange(attr(long, "residue_feed_kgdm"), .data$year),
+    dplyr::arrange(expected, .data$year)
+  )
+  wide <- whep::get_wide_cbs(years = 1955L)
+  testthat::expect_equal(unique(wide$year), 1955L)
+  testthat::expect_equal(
+    dplyr::arrange(attr(wide, "residue_feed_kgdm"), .data$year),
+    dplyr::arrange(expected, .data$year)
+  )
+  kgdm <- whep:::.with_residue_kgdm(list(), NULL, wide)$residue_kgdm
+  avail <- whep:::.build_feed_avail_national(wide, residue_kgdm = kgdm)
+  content <- expected$residue_kgdm_kgfm[expected$year == 1955L]
+  testthat::expect_equal(nrow(avail), 1L)
+  testthat::expect_gt(sum(avail$avail_dm_t), 0)
+  testthat::expect_equal(sum(avail$avail_dm_t), sum(wide$feed) * content * 0.9)
+})
