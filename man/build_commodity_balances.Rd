@@ -486,39 +486,46 @@ Mt).
 
 \code{"rebased"} multiplies each area's import and export of nuts,
 pineapples, olives, tomatoes and lemons by its median old/new ratio over
-2010-2013, clamped to \verb{[0.2, 1]} -- the old vintage's level with the new
-one's change over time, as the palm-kernel fix already joins them -- and
-takes the net trade removed out of domestic supply and food, so every
-row keeps its supply-use identity and production and stock change do not
-move. A row whose net cut is not positive, or exceeds its food, is left
-as published. The moved rows are labelled \code{"FAOSTAT_FBS_New_rebased"},
-and the ratios are read from the pins whatever years are built.
+2010-2013 -- the old vintage's level with the new one's change over
+time, as the palm-kernel fix already joins them -- and takes the net
+trade removed out of domestic supply and food. The ratio is clamped to
+\verb{[0.2, 1]}, bounds that are methodological assumptions, not sourced
+values. A row whose net cut is not positive, or is not smaller than its
+food, is left as published. The old vintage is scaled to the published
+new one and the same correction is then applied to the scaled years, so
+1961-2009 follows the corrected level. Every row keeps the supply gap
+the published data give it, and production, stock change and the other
+destinies do not move in any year. Moved rows are labelled
+\code{"FAOSTAT_FBS_New_rebased"} or \code{"FAOSTAT_FBS_Old_rebased"}, and the
+ratios are read from the pins whatever years are built.
 
 Milk stays as published unless \code{"rebased_with_milk"} is asked for
-(whep#1583). Its trade level is not in doubt: converting each country's
-product trade with one factor per product on both sides puts it at the
-old vintage's level. But only about 30 Mt of its 2010 import excess has
-a measured destiny (imported whey booked as milk fed to animals); the
-other ~74 Mt shows neither in feed nor in FBS's own protein over food.
+(whep#1583). Converting each country's product trade with one factor
+per product on both sides closes the world, but puts 2010 imports
+anywhere from 61 to 128 Mt depending on the milk-equivalent basis
+(published 188.6 Mt, old vintage 94.3 Mt). Where the excess went is not
+observed: a cross-country regression associates about 30 Mt with
+imported whey entering feed, and nothing locates the rest.
 \code{"rebased_with_milk"} adds milk, taking its cut out of feed first, down
 to the area's old-vintage feed level, then out of food. That order is
-provisional. \code{"nuts_only"} rebases item 2551 alone, the behaviour from
-whep#1495 to whep#1550; \code{"as_published"} keeps FAOSTAT's figures for
-every item, the behaviour before whep#1495. The old vintage is scaled to
-whichever level is chosen, so 1961-2009 follows it.
+provisional. \code{"nuts_only"} rebases item 2551 alone; \code{"as_published"}
+keeps FAOSTAT's figures for every item, the behaviour before whep#1495.
 
 \strong{The default moves published values}, in the four fruit and vegetable
-items. Measured on a real 2009-2011 build at 2010, against
-\code{"nuts_only"}: imports/exports 2.54x to 1.06x for olives, 1.77x to
-0.94x for pineapples, 1.32x to 0.89x for tomatoes, 1.27x to 1.04x for
-lemons; their food falls from 4.26 to 2.71, 27.57 to 18.64, 142.58 to
-133.79 and 13.26 to 12.53 Mt. All-item food falls from 4,686.80 to
-4,666.80 Mt (-0.43\%); feed and every milk value do not move. FBS's own
-protein over the rebased food moves to the old vintage's density
-(pineapples 1.9 to 2.8 g/kg, old 2.7). \code{"rebased_with_milk"} further
-takes milk imports from 191.36 to 100.13 Mt (exports 97.76 to 86.64
-Mt), milk food from 520.32 to 477.95 Mt and milk feed from 79.68 to
-41.85 Mt.}
+items and, before 2010, in nuts. Measured on a real 2009-2011 build at
+2010, against \code{"nuts_only"}: imports/exports 2.54x to 1.06x for olives,
+1.77x to 0.94x for pineapples, 1.32x to 0.89x for tomatoes, 1.27x to
+1.04x for lemons; their food falls from 4.26 to 2.71, 27.57 to 18.64,
+142.58 to 133.79 and 13.26 to 12.53 Mt. All-item food falls from
+4,686.80 to 4,666.80 Mt (-0.43\%) at 2010 and from 4,532.79 to 4,513.39
+Mt (-0.43\%) at 2009; feed, production and every milk value do not move.
+Rebasing after the vintage scaling also moves 2009 nuts against the
+rebase it replaces: food 13.72 to 13.29 Mt, and production and stock
+change back to their unrebased values. FBS's own protein over the
+rebased food moves to the old vintage's density (pineapples 1.9 to 2.8
+g/kg, old 2.7). \code{"rebased_with_milk"} further takes 2010 milk imports
+from 191.36 to 100.13 Mt (exports 97.76 to 86.64 Mt), milk food from
+520.32 to 477.95 Mt and milk feed from 79.68 to 41.85 Mt.}
 
 \item{residue_backcast}{One of \code{"own_method"} (default),
 \code{"production_ratio"} or \code{"area_rate"}, selecting what crop residue
