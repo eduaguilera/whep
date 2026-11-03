@@ -136,6 +136,14 @@
 }
 
 .crop_allocation_check_sums <- function(table, col, item) {
+  invalid <- !is.finite(table[[col]]) | table[[col]] < 0
+  if (any(invalid)) {
+    cli::cli_abort(
+      "{sum(invalid)} weight{?s} in {.field {col}} of
+       {.code data$crop_allocation} {?is/are} missing, non-finite or negative.",
+      class = "whep_crop_allocation"
+    )
+  }
   sums <- dplyr::summarise(
     table,
     total = sum(.data[[col]]),
