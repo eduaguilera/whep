@@ -26,6 +26,7 @@
   if (length(years) == 0L) {
     return(inputs)
   }
+  .check_cbs_member_records(inputs[sources], records)
   expected <- .resolve_all_area_years(years) |>
     .in_span_members() |>
     dplyr::distinct(.data$year, .data$polity_area_code, .data$area_code)
@@ -45,6 +46,23 @@
   })
   attr(inputs, "coverage_log") <- log
   inputs
+}
+
+# An empty supplied record can legitimately describe zero-only observations.
+# An absent record cannot certify a nonempty source using another source's
+# metadata. Keep these cases distinct before attaching coverage labels.
+.check_cbs_member_records <- function(inputs, records) {
+  missing <- names(inputs)[purrr::map_lgl(names(inputs), \(source) {
+    nrow(inputs[[source]]) > 0L && is.null(records[[source]])
+  })]
+  if (length(missing) > 0L) {
+    cli::cli_abort(
+      "CBS sources {.val {missing}} lack supplied membership records.",
+      class = "whep_cbs_coverage_unavailable",
+      sources = missing
+    )
+  }
+  invisible(NULL)
 }
 
 .cbs_partial_years <- function(expected, reported) {

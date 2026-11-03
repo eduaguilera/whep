@@ -318,3 +318,40 @@ testthat::test_that("commodity transformations preserve source-member coverage",
   testthat::expect_equal(nrow(out$cbs_new), 0L)
   testthat::expect_equal(attr(out, "coverage_log")$missing, "277")
 })
+
+testthat::test_that("mixed source metadata cannot certify unrecorded coverage", {
+  old <- tibble::tibble(year = 2012L, area_code = 206L, value = 20)
+  new <- tibble::tibble(year = 2012L, area_code = 206L, value = 100)
+  attr(new, "bucket_members") <- tibble::tribble(
+    ~year, ~polity_area_code, ~area_code,
+    2012L, 206L, 276L,
+    2012L, 206L, 277L
+  )
+  testthat::expect_error(
+    whep:::.cbs_coverage_inputs(
+      list(fbs_old = old, fbs_new = new),
+      "complete_sources"
+    ),
+    class = "whep_cbs_coverage_unavailable"
+  )
+})
+
+
+testthat::test_that("empty membership records differ from missing metadata", {
+  .local_cbs_members()
+  inputs <- .coverage_cbs_inputs()
+  zero <- inputs$fbs_old
+  zero$value <- 0
+  attr(zero, "bucket_members") <- attr(zero, "bucket_members")[0L, ]
+  inputs$fbs_new <- zero
+  out <- whep:::.cbs_coverage_inputs(inputs, "complete_sources")
+  testthat::expect_equal(out$fbs_new$value, c(0, 0, 0))
+  testthat::expect_equal(out$fbs_old$year, c(2011L, 2013L))
+  attr(inputs$fbs_new, "bucket_members") <- NULL
+  error <- tryCatch(
+    whep:::.cbs_coverage_inputs(inputs, "complete_sources"),
+    whep_cbs_coverage_unavailable = identity
+  )
+  testthat::expect_s3_class(error, "whep_cbs_coverage_unavailable")
+  testthat::expect_identical(error$sources, "fbs_new")
+})

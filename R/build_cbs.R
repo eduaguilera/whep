@@ -540,6 +540,12 @@
 #'   [build_primary_production()] does not carry the flag out of the
 #'   production pin.
 #'
+#'   Both formats retain a `residue_feed_kgdm` attribute with the crop-mix
+#'   dry-matter content behind their residue feed, including the selected
+#'   historical back-cast. The feed allocator uses this provenance; formats
+#'   such as CSV that discard attributes cannot preserve it. Custom balances
+#'   without it retain the residue reader and warn on uncovered feed rows.
+#'
 #' @export
 #'
 #' @examples
@@ -604,6 +610,7 @@ build_commodity_balances <- function(
   }
   scale_log <- NULL
   coverage_log <- NULL
+  residue_kgdm <- attr(.fixed_data, "residue_feed_kgdm")
   if (is.null(.fixed_data)) {
     raw <- .read_cbs(
       primary_all,
@@ -624,6 +631,7 @@ build_commodity_balances <- function(
     )
     coverage_log <- attr(raw, ".cbs_coverage_log")
     scale_log <- attr(raw, ".hist_trade_scale_log")
+    residue_kgdm <- attr(raw, "residue_feed_kgdm")
     fixed <- raw |>
       .fix_cbs(
         trade_recovery = trade_recovery,
@@ -740,6 +748,9 @@ build_commodity_balances <- function(
     )
   long <- .cbs_stamp_coverage(long, coverage_log)
   attr(long, "hist_trade_scale_log") <- scale_log
+  # Keep the exact crop mix behind the feed rows, including the backcast
+  # method selected above, for the downstream feed allocator (whep#1556).
+  attr(long, "residue_feed_kgdm") <- residue_kgdm
 
   if (format == "long") {
     return(long)
@@ -763,12 +774,14 @@ build_commodity_balances <- function(
   # The long CBS is mass-only by construction (the whep#865 guards drop every
   # non-mass row), while the livestock rows are head counts. The label says
   # which is which, and each item must carry one of them (whep#1055).
-  cbs_long |>
+  wide <- cbs_long |>
     .pivot_cbs_wide() |>
     .ensure_wide_cbs_destinies() |>
     dplyr::mutate(unit = "tonnes", .after = "item_cbs_code") |>
     dplyr::bind_rows(livestock_cbs) |>
     .abort_if_units_mixed("wide CBS", key_cols = "item_cbs_code")
+  attr(wide, "residue_feed_kgdm") <- attr(cbs_long, "residue_feed_kgdm")
+  wide
 }
 
 # `.pivot_cbs_wide()` fills a missing *observation* with 0, but an element
@@ -1038,6 +1051,7 @@ build_commodity_balances <- function(
   cbs_raw <- .filter_years(cbs_raw, output_years)
   attr(cbs_raw, ".cbs_coverage_log") <- coverage_log
   attr(cbs_raw, ".years") <- output_years
+  attr(cbs_raw, "residue_feed_kgdm") <- inputs$residue_feed_kgdm
   attr(cbs_raw, ".hist_trade_scale_log") <- attr(
     inputs$trade_hist,
     "hist_trade_scale_log"
@@ -1552,6 +1566,10 @@ build_processing_coefs <- function(
     primary_cbs = primary_cbs,
     primary_cbs_area = primary_cbs_area,
     crop_residues = crop_residues,
+    residue_feed_kgdm = dplyr::bind_rows(
+      .residue_feed_kgdm(residues),
+      attr(residue_backcast, "residue_feed_kgdm")
+    ),
     residue_backcast = residue_backcast,
     land_areas_wide = land_areas_wide,
     fbs_rebase = fbs_rebase
@@ -3083,7 +3101,7 @@ build_processing_coefs <- function(
   if (nrow(rows) == 0L) {
     return(.empty_historical_cbs())
   }
-  .read_crop_residues(residues = rows) |>
+  out <- .read_crop_residues(residues = rows) |>
     tibble::as_tibble() |>
     dplyr::transmute(
       year = as.integer(.data$year),
@@ -3095,6 +3113,8 @@ build_processing_coefs <- function(
       source = .residue_backcast_source(method),
       value = .data$value
     )
+  attr(out, "residue_feed_kgdm") <- .residue_feed_kgdm(rows)
+  out
 }
 
 # Pre-1962 back-cast values outrank every other source in
