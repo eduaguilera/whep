@@ -39,23 +39,24 @@ calculate_livestock_emissions(data, tier = NULL, options = list())
 
 - options:
 
-  A named list of manure-engine options. All but nine defaults reproduce
+  A named list of manure-engine options. All but ten defaults reproduce
   the behaviour in force before whep#949. The exceptions are
-  `enteric_ef_source`, `ef3_source` and `slurry_crust`, which since
-  whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
-  manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct
-  manure N2O, `mcf_source`, which moved from the shipped table to the
-  2019 Refinement in whep#1022 and does move Tier 2 manure CH4,
-  `mms_shares`, which moved from the unsourced placeholder table to the
-  GLEAM 2.0 ingest in whep#958 and does move both tiers' manure N2O,
-  `pasture_bo`, which since whep#1137 pairs the 2019 pasture MCF with
-  its published `Bo` and moves Tier 2 manure CH4, and `tier2_uncovered`,
-  which since whep#1028 gives species with no Tier 2 method their Tier 1
-  values instead of `NA`, `indirect_n2o_source`, which since whep#1245
-  reads the 2019 Refinement's leaching factors and moves both tiers'
-  indirect manure N2O, and `indirect_n2o_fractions`, which since
-  whep#1365 weights the Table 10.22 fractions over the manure-management
-  split and moves it again.
+  `enteric_ef_source`, `ef3_source`, `slurry_crust` and `nex_source`,
+  which since whep#601 read the 2019 Refinement's Tier 1 enteric
+  factors, direct manure N2O EF3 and Tier 1 N excretion and move Tier 1
+  enteric CH4, both tiers' direct manure N2O and Tier 1 manure N2O,
+  `mcf_source`, which moved from the shipped table to the 2019
+  Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
+  which moved from the unsourced placeholder table to the GLEAM 2.0
+  ingest in whep#958 and does move both tiers' manure N2O, `pasture_bo`,
+  which since whep#1137 pairs the 2019 pasture MCF with its published
+  `Bo` and moves Tier 2 manure CH4, and `tier2_uncovered`, which since
+  whep#1028 gives species with no Tier 2 method their Tier 1 values
+  instead of `NA`, `indirect_n2o_source`, which since whep#1245 reads
+  the 2019 Refinement's leaching factors and moves both tiers' indirect
+  manure N2O, and `indirect_n2o_fractions`, which since whep#1365
+  weights the Table 10.22 fractions over the manure-management split and
+  moves it again.
 
   `indirect_n2o_source` selects the edition of
   [indirect_n2o_ef](https://eduaguilera.github.io/whep/reference/indirect_n2o_ef.md)
@@ -138,6 +139,40 @@ calculate_livestock_emissions(data, tier = NULL, options = list())
   (`ef3_ipcc_2019; slurry_crust_half` or `ef3_as_shipped`). On FAOSTAT
   2020 heads the default lowers Tier 1 direct manure N2O from 1.523 to
   1.178 Tg.
+
+  `nex_source` selects the Tier 1 N excretion per head, which both Tier
+  1 manure N2O terms scale with:
+
+  - `"ipcc_2019"` (default):
+    [ipcc_n_excretion_tier1](https://eduaguilera.github.io/whep/reference/ipcc_n_excretion_tier1.md),
+    the 2019 Refinement's Equation 10.30 (Updated) over the Table 10.19
+    (Updated) rate and the Table 10A.5 (New) typical animal mass, by
+    IPCC region. A missing coefficient aborts by default; see
+    `nex_missing` below.
+
+  - `"as_shipped"`:
+    [ipcc_2019_n_excretion](https://eduaguilera.github.io/whep/reference/ipcc_2019_n_excretion.md),
+    per-head values no IPCC table publishes, read before whep#601. Kept
+    so earlier figures stay reproducible.
+
+  `nex_missing` selects what happens when the 2019 table has no
+  coefficient for a species and region:
+
+  - `"error"` (default): abort with class `whep_missing_nex`; the
+    condition's `missing_coefficients` tibble identifies input rows,
+    species, region, category and available population context. No
+    partial result is returned.
+
+  - `"as_shipped"`: explicitly request the legacy coefficient for
+    missing 2019 rows, stamped `nex_as_shipped_fallback`. This is a
+    hybrid estimate, not a fully 2019-derived result. Rows absent from
+    both tables still abort.
+
+  `method_manure_n2o` records which (`nex_ipcc_2019` or
+  `nex_as_shipped`). On FAOSTAT 2020 heads the hybrid lowers Tier 1 N
+  excretion from 144.9 to 126.3 Tg N and Tier 1 manure N2O from 2.151 to
+  1.962 Tg when `nex_missing = "as_shipped"` explicitly permits the
+  missing geese and regional buffalo coefficients in that population.
 
   `mms_shares` selects which half of
   [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)

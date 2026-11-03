@@ -51,12 +51,12 @@ documented once and inherited by the functions that accept it.</p>
 
 
 <dl><dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
-<dd><p>A named list of manure-engine options. All but nine
+<dd><p>A named list of manure-engine options. All but ten
 defaults reproduce the behaviour in force before whep#949. The exceptions
-are <code>enteric_ef_source</code>, <code>ef3_source</code> and <code>slurry_crust</code>, which since
-whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
-manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct manure
-N2O, <code>mcf_source</code>, which moved from the shipped table to the 2019
+are <code>enteric_ef_source</code>, <code>ef3_source</code>, <code>slurry_crust</code> and <code>nex_source</code>,
+which since whep#601 read the 2019 Refinement's Tier 1 enteric factors,
+direct manure N2O EF3 and Tier 1 N excretion and move Tier 1 enteric
+CH4, both tiers' direct manure N2O and Tier 1 manure N2O, <code>mcf_source</code>, which moved from the shipped table to the 2019
 Refinement in whep#1022 and does move Tier 2 manure CH4, <code>mms_shares</code>,
 which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 in whep#958 and does move both tiers' manure N2O, <code>pasture_bo</code>, which
@@ -124,6 +124,26 @@ chicken slurry, extended to the other species), <code>"none"</code> (0) or <code
 0.002 is a single row.</p>
 <p><code>method_manure_n2o</code> records the EF3 choice (<code>ef3_ipcc_2019; slurry_crust_half</code> or <code>ef3_as_shipped</code>). On FAOSTAT 2020 heads the
 default lowers Tier 1 direct manure N2O from 1.523 to 1.178 Tg.</p>
+<p><code>nex_source</code> selects the Tier 1 N excretion per head, which both Tier 1
+manure N2O terms scale with:</p><ul><li><p><code>"ipcc_2019"</code> (default): <a href="ipcc_n_excretion_tier1.html">ipcc_n_excretion_tier1</a>, the 2019
+Refinement's Equation 10.30 (Updated) over the Table 10.19 (Updated)
+rate and the Table 10A.5 (New) typical animal mass, by IPCC region. A
+missing coefficient aborts by default; see <code>nex_missing</code> below.</p></li>
+<li><p><code>"as_shipped"</code>: <a href="ipcc_2019_n_excretion.html">ipcc_2019_n_excretion</a>, per-head values no IPCC table
+publishes, read before whep#601. Kept so earlier figures stay
+reproducible.</p></li>
+</ul><p><code>nex_missing</code> selects what happens when the 2019 table has no
+coefficient for a species and region:</p><ul><li><p><code>"error"</code> (default): abort with class <code>whep_missing_nex</code>; the condition's
+<code>missing_coefficients</code> tibble identifies input rows, species, region,
+category and available population context. No partial result is returned.</p></li>
+<li><p><code>"as_shipped"</code>: explicitly request the legacy coefficient for missing
+2019 rows, stamped <code>nex_as_shipped_fallback</code>. This is a hybrid estimate,
+not a fully 2019-derived result. Rows absent from both tables still abort.</p></li>
+</ul><p><code>method_manure_n2o</code> records which (<code>nex_ipcc_2019</code> or
+<code>nex_as_shipped</code>). On FAOSTAT 2020 heads the hybrid lowers Tier 1 N
+excretion from 144.9 to 126.3 Tg N and Tier 1 manure N2O from 2.151 to
+1.962 Tg when <code>nex_missing = "as_shipped"</code> explicitly permits the
+missing geese and regional buffalo coefficients in that population.</p>
 <p><code>mms_shares</code> selects which half of <a href="regional_mms_distribution.html">regional_mms_distribution</a> the
 split is read from: <code>"gleam_2_0"</code> (default) is the GLEAM 2.0 Supplement
 S1 Tab. 4.2-4.11 ingest, <code>"placeholder"</code> the unsourced table it replaced
