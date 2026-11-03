@@ -303,3 +303,68 @@ testthat::test_that("data.table inputs, as the script reads them, give a tibble"
   testthat::expect_s3_class(pin, "tbl_df")
   testthat::expect_false(data.table::is.data.table(pin))
 })
+
+.fishstat_coverage_pin <- function() {
+  data.table::data.table(
+    Year = 1991L,
+    `Reporter Code` = "583",
+    `Area Code` = 145L,
+    `Polity Code` = "FSM-1991-2025",
+    `Coverage Status` = "adopted",
+    `Item Code` = 2763L,
+    Element = "Import quantity",
+    Value = 6,
+    Unit = "tonnes"
+  )
+}
+
+testthat::test_that("coverage metadata cannot silently discard malformed rows", {
+  pin <- .fishstat_coverage_pin()
+  pin[["Coverage Status"]] <- NA_character_
+  testthat::expect_error(
+    whep:::.fishstat_adopted_rows(data.table::copy(pin)),
+    class = "whep_fishstat_invalid_coverage"
+  )
+  pin[["Coverage Status"]] <- "adoptted"
+  testthat::expect_error(
+    whep:::.fishstat_adopted_rows(data.table::copy(pin)),
+    class = "whep_fishstat_invalid_coverage"
+  )
+  pin <- .fishstat_coverage_pin()
+  pin[["Reporter Code"]] <- NULL
+  testthat::expect_error(
+    whep:::.fishstat_adopted_rows(data.table::copy(pin)),
+    class = "whep_fishstat_invalid_coverage"
+  )
+})
+
+testthat::test_that("adopted coverage requires its recorded polity identity", {
+  pin <- .fishstat_coverage_pin()
+  pin[["Polity Code"]] <- NA_character_
+  testthat::expect_error(
+    whep:::.fishstat_adopted_rows(data.table::copy(pin)),
+    class = "whep_fishstat_invalid_coverage"
+  )
+  pin[["Polity Code"]] <- ""
+  testthat::expect_error(
+    whep:::.fishstat_adopted_rows(data.table::copy(pin)),
+    class = "whep_fishstat_invalid_coverage"
+  )
+  pin[["Polity Code"]] <- " \t "
+  testthat::expect_error(
+    whep:::.fishstat_adopted_rows(data.table::copy(pin)),
+    class = "whep_fishstat_invalid_coverage"
+  )
+  pin[["Polity Code"]] <- NULL
+  testthat::expect_error(
+    whep:::.fishstat_adopted_rows(data.table::copy(pin)),
+    class = "whep_fishstat_invalid_coverage"
+  )
+})
+
+testthat::test_that("a declared coverage schema can represent an empty pin", {
+  pin <- .fishstat_coverage_pin()[0]
+  testthat::expect_no_error(out <- whep:::.fishstat_adopted_rows(pin))
+  testthat::expect_equal(nrow(out), 0L)
+  testthat::expect_true(all(c("Year", "Value", "Unit") %in% names(out)))
+})

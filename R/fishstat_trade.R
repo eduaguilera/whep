@@ -75,6 +75,7 @@
   if (!rlang::has_name(dt, "Coverage Status")) {
     return(dt)
   }
+  .validate_fishstat_coverage(dt)
   dt <- data.table::as.data.table(dt)
   held <- dt[dt[["Coverage Status"]] != "adopted"]
   if (nrow(held) > 0L) {
@@ -87,6 +88,32 @@
   dt <- dt[dt[["Coverage Status"]] == "adopted"]
   dt[, (extra) := NULL]
   dt
+}
+
+.validate_fishstat_coverage <- function(dt) {
+  required <- c("Reporter Code", "Polity Code", "Coverage Status")
+  if (!all(rlang::has_name(dt, required))) {
+    cli::cli_abort(
+      "FishStat coverage requires reporter, polity and status columns.",
+      class = "whep_fishstat_invalid_coverage"
+    )
+  }
+  status <- dt[["Coverage Status"]]
+  known <- c("adopted", "polity_not_live", "area_unresolved")
+  if (any(is.na(status) | !status %in% known)) {
+    cli::cli_abort(
+      "FishStat coverage status is missing or unrecognised.",
+      class = "whep_fishstat_invalid_coverage"
+    )
+  }
+  polity <- stringr::str_trim(dt[["Polity Code"]])
+  if (any(status == "adopted" & (is.na(polity) | polity == ""))) {
+    cli::cli_abort(
+      "Adopted FishStat rows must record their polity identity.",
+      class = "whep_fishstat_invalid_coverage"
+    )
+  }
+  invisible(NULL)
 }
 
 .warn_fishstat_held_rows <- function(held) {
