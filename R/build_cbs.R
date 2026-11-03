@@ -646,6 +646,11 @@
 #'   observation on a key the balance does not carry. A `unit` column says each row's denomination:
 #'   `"tonnes"`, or `"heads"` for the live-animal rows (see [get_wide_cbs()]).
 #'
+#'   The `palm_kernel_support` attribute records the queried old-vintage
+#'   history and annual new-vintage oil proxy support, including supplied
+#'   empty inputs, row counts and partial-member exclusions. Reading that
+#'   support does not expand the requested output years.
+#'
 #'   `fao_flag` is FAOSTAT's own observation-status code for the value, taken
 #'   from the source that `source` names (`"A"` official, `"E"` estimated,
 #'   `"I"` imputed, `"S"` standardized, `"SD"`, `"X"`). It is `NA` wherever
@@ -736,6 +741,7 @@ build_commodity_balances <- function(
   source_accounts <- attr(.fixed_data, "source_accounts") %||%
     .cbs_account_rows(.fixed_data)
   input_accounts <- attr(.fixed_data, "input_accounts")
+  palm_support <- attr(.fixed_data, "palm_kernel_support")
   if (is.null(.fixed_data)) {
     raw <- .read_cbs(
       primary_all,
@@ -759,6 +765,7 @@ build_commodity_balances <- function(
     residue_kgdm <- attr(raw, "residue_feed_kgdm")
     source_accounts <- attr(raw, "source_accounts")
     input_accounts <- attr(raw, "input_accounts")
+    palm_support <- attr(raw, "palm_kernel_support")
     fixed <- raw |>
       .fix_cbs(
         trade_recovery = trade_recovery,
@@ -883,12 +890,14 @@ build_commodity_balances <- function(
   attr(long, "residue_feed_kgdm") <- residue_kgdm
   attr(long, "source_accounts") <- source_accounts
   attr(long, "input_accounts") <- input_accounts
+  attr(long, "palm_kernel_support") <- palm_support
 
   if (format == "long") {
     return(long)
   }
   wide <- .cbs_long_to_wide(long, primary_all, start_year:end_year)
   attr(wide, "hist_trade_scale_log") <- scale_log
+  attr(wide, "palm_kernel_support") <- palm_support
   wide
 }
 
@@ -915,6 +924,7 @@ build_commodity_balances <- function(
   attr(wide, "residue_feed_kgdm") <- attr(cbs_long, "residue_feed_kgdm")
   attr(wide, "source_accounts") <- attr(cbs_long, "source_accounts")
   attr(wide, "input_accounts") <- attr(cbs_long, "input_accounts")
+  attr(wide, "palm_kernel_support") <- attr(cbs_long, "palm_kernel_support")
   wide
 }
 
@@ -1158,6 +1168,7 @@ build_commodity_balances <- function(
   cbs_raw0 <- .cbs_combine_sources(inputs, bucket_coverage)
   coverage_log <- attr(cbs_raw0, "coverage_log")
   source_accounts <- data.table::copy(attr(cbs_raw0, "source_accounts"))
+  palm_support <- attr(cbs_raw0, "palm_kernel_support")
   historical_rows <- .prepare_historical_cbs(
     historical_data,
     years = output_years
@@ -1196,6 +1207,7 @@ build_commodity_balances <- function(
   attr(cbs_raw, "input_accounts") <- dplyr::bind_rows(
     lapply(inputs, attr, which = "source_accounts")
   )
+  attr(cbs_raw, "palm_kernel_support") <- palm_support
   attr(cbs_raw, ".years") <- output_years
   attr(cbs_raw, "residue_feed_kgdm") <- inputs$residue_feed_kgdm
   attr(cbs_raw, ".hist_trade_scale_log") <- attr(
@@ -1650,6 +1662,10 @@ build_processing_coefs <- function(
       keep_members = TRUE
     )
   }
+  palm_support <- .cbs_palm_support(
+    list(fbs_new = fbs_new, fbs_old = fbs_old),
+    years
+  )
   # Which vintage sets the trade level of the items FBS_New books on two
   # bases (whep#1495, whep#1550).
   fbs_rebase <- .fbs_rebase_factors(fbs_new, fbs_old, fbs_trade_basis)
@@ -1709,6 +1725,7 @@ build_processing_coefs <- function(
   list(
     fbs_new = fbs_new,
     fbs_old = fbs_old,
+    palm_support = palm_support,
     cbs_crops = cbs_crops,
     cbs_animals = cbs_animals,
     cbs_new = cbs_new,
@@ -3580,6 +3597,7 @@ build_processing_coefs <- function(
   bucket_coverage = .cbs_coverage_choices()
 ) {
   inputs <- .cbs_coverage_inputs(inputs, bucket_coverage)
+  inputs <- .cbs_palm_coverage(inputs, bucket_coverage)
   items <- whep::items_full
   cbs_trade <- whep::cbs_trade_codes
 
@@ -3620,10 +3638,12 @@ build_processing_coefs <- function(
   out <- .select_best_source(cbs_raw_all, rebase = inputs$fbs_rebase)
   attr(out, "coverage_log") <- attr(inputs, "coverage_log")
   attr(out, "source_accounts") <- source_accounts
+  attr(out, "palm_kernel_support") <- attr(inputs, "palm_kernel_support")
   out
 }
 
 .fix_palm_kernels <- function(inputs) {
+  inputs <- inputs$palm_support %||% inputs
   pk <- dplyr::bind_rows(
     inputs$fbs_old |>
       dplyr::mutate(source = "FAOSTAT_FBS_Old"),

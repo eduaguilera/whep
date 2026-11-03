@@ -776,6 +776,8 @@ testthat::test_that("CBS readers carry the historical mix into scoped intake", {
   # Only unrelated inputs and balancing are stubbed. The residue reader,
   # backcast, input assembly, public formatting, caching and feed wiring run.
   testthat::local_mocked_bindings(
+    # Palm inputs are unrelated to this residue-only source combination.
+    .cbs_palm_support = function(...) NULL,
     .extract_cb = .cbs_empty_reader,
     .extract_fao = .cbs_empty_reader,
     .fbs_rebase_factors = .cbs_empty_reader,

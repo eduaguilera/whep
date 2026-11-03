@@ -695,6 +695,11 @@ unit, sign and pin version; and \code{unmatched_source_accounts} any
 observation on a key the balance does not carry. A \code{unit} column says each row's denomination:
 \code{"tonnes"}, or \code{"heads"} for the live-animal rows (see \code{\link[=get_wide_cbs]{get_wide_cbs()}}).
 
+The \code{palm_kernel_support} attribute records the queried old-vintage
+history and annual new-vintage oil proxy support, including supplied
+empty inputs, row counts and partial-member exclusions. Reading that
+support does not expand the requested output years.
+
 \code{fao_flag} is FAOSTAT's own observation-status code for the value, taken
 from the source that \code{source} names (\code{"A"} official, \code{"E"} estimated,
 \code{"I"} imputed, \code{"S"} standardized, \code{"SD"}, \code{"X"}). It is \code{NA} wherever
