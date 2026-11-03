@@ -113,6 +113,7 @@ other ATL row (the ATL table defines only <code>"Tier_1"</code> and <code>"Flood
 <span>  water <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"precip"</span>, <span class="st">"precip_irrig"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  config <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  methods <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -121,7 +122,12 @@ other ATL row (the ATL table defines only <code>"Tier_1"</code> and <code>"Flood
     <h2 id="source">Source<a class="anchor" aria-label="anchor" href="#source"></a></h2>
     <p>IPCC (2019), 2019 Refinement to the 2006 IPCC Guidelines for National
 Greenhouse Gas Inventories, Volume 4, Chapter 11, Table 11.1, footnote 4
-(p. 11.13).</p>
+(p. 11.13). Allen, R. G., Pereira, L. S., Raes, D. &amp; Smith, M. (1998).
+Crop evapotranspiration. FAO Irrigation and Drainage Paper 56, Table 22.
+Pribyl, D. W. (2010). A critical review of the conventional SOC to SOM
+conversion factor. Geoderma 156, 75-83.
+<a href="https://doi.org/10.1016/j.geoderma.2010.02.003" class="external-link">doi:10.1016/j.geoderma.2010.02.003</a>
+.</p>
     </div>
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
@@ -149,7 +155,23 @@ window also sets the precipitation-only class of rows without a crop.</p></dd>
 <code><a href="build_cell_moisture_regime.html">build_cell_moisture_regime()</a></code> (<code>climate</code>, <code>crop_depth</code>, <code>lpjml_years</code>,
 <code>lpjml_grid</code>, <code>regime_areas</code>, <code>country_grid</code>), plus <code>moisture_regime</code>, a
 <code><a href="build_cell_moisture_regime.html">build_cell_moisture_regime()</a></code> result to use instead of building it.
-Climate is read once and shared.</p></dd>
+Climate is read once and shared. The leaching drivers read
+<code>carbon_balance</code> (required) and, each read when absent, <code>lpjml_drainage</code>
+and <code>lpjml_runoff</code> (annual <code><a href="read_lpjml_hydrology.html">read_lpjml_hydrology()</a></code> tables),
+<code>soil_hydraulic</code>, <code>soil_mass</code>, <code>soil_texture_fao</code>, <code>soil_drainage</code>,
+<code>image_gnm_runoff</code> (their readers' results), <code>carbon_inputs</code> (a gridded
+<code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> result) and <code>regime_areas</code>.</p></dd>
+
+
+<dt id="arg-methods">methods<a class="anchor" aria-label="anchor" href="#arg-methods"></a></dt>
+<dd><p>Named list choosing which leaching drivers are built and
+how: <code>leaching</code>, the <code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code> method (<code>"ipcc_fracleach"</code>,
+the default, <code>"fracleach_surplus"</code>, <code>"meisinger_drainage"</code> or
+<code>"image_gnm"</code>); <code>som_source</code>,
+<code>"carbon_balance"</code> (default) or <code>"hwsd"</code> (HWSD's observed topsoil
+carbon); <code>som_factor</code>, <code>"pribyl_2010"</code> (default, 2) or <code>"conventional"</code>
+(1.724); <code>root_depth</code>, <code>"by_regime"</code> (default), <code>"midpoint"</code>, <code>"upper"</code>,
+<code>"lower"</code>, <code>"topsoil_30cm"</code> or <code>"top_1m"</code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -165,21 +187,21 @@ with <code>moisture_regime</code> (<code>"wet"</code> or <code>"dry"</code>), <c
 <code>"MED"</code>), <code>irrig_type</code>, <code>method_moisture_regime</code>, <code>method_climate</code>
 (<code>"from_moisture_regime"</code>) and <code>climate_fill_km</code>.</p></li>
 <li><p><code>n_balance_leaching_drivers</code>: one row per balance key, with
-<code>moisture_regime</code>, <code>method_moisture_regime</code> and <code>climate_fill_km</code>.</p></li>
+<code>moisture_regime</code>, <code>method_moisture_regime</code> and <code>climate_fill_km</code>, plus
+the drivers of <code>methods$leaching</code> and their stamps (see Leaching
+drivers).</p></li>
 </ul><p>Both are join tables keyed on the balance key; the balance they are
 joined to carries the polity columns.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Which driver columns each loss method reads, and which this function
-supplies:</p><table class="table table"><tr><td>Method</td><td>Driver columns</td><td>Supplied</td></tr><tr><td><code>nh3</code>: <code>"ipcc"</code></td><td><code>fert_type</code></td><td>yes</td></tr><tr><td><code>nh3</code>: <code>"manner"</code>, <code>"manner_default"</code></td><td>MANNER's, see below</td><td>no</td></tr><tr><td><code>n2o</code>: <code>"ipcc2019"</code></td><td><code>moisture_regime</code></td><td>yes</td></tr><tr><td><code>n2o</code>: <code>"ipcc2019_atl_med"</code></td><td><code>climate</code></td><td>yes</td></tr><tr><td><code>n2o</code>: <code>"aguilera"</code>, <code>"ipcc2006"</code></td><td><code>climate</code>, <code>irrig_type</code></td><td>yes</td></tr><tr><td><code>n2o_indirect</code>: <code>"ipcc2019"</code></td><td><code>moisture_regime</code></td><td>yes</td></tr><tr><td><code>n2o_indirect</code>: <code>"ipcc2019_atl_med"</code></td><td><code>climate</code>, <code>irrig_type</code></td><td>yes</td></tr><tr><td><code>leaching</code>: <code>"ipcc_fracleach"</code></td><td><code>moisture_regime</code>, <code>water_regime</code></td><td>yes</td></tr><tr><td><code>leaching</code>: <code>"meisinger_drainage"</code></td><td>Meisinger's, see below</td><td>no</td></tr></table><p>The two methods it does not supply are later work. MANNER reads
-<code>manner_fertiliser</code>, <code>soil_ph</code>, <code>rate_kg_ha</code>, <code>rainfall_mm</code>, <code>irrigated</code>,
-<code>temp_c</code>, <code>temp_c_annual_mean</code>, <code>windspeed_ms</code>, <code>technique</code>, <code>system</code>,
-<code>incorporation_delay_h</code> and <code>species</code> (see <code><a href="calculate_nh3.html">calculate_nh3()</a></code>); Meisinger
-reads <code>fert_type</code>, <code>climate</code>, <code>irrig_cat</code>, <code>land_use</code>, <code>cn_input</code>,
-<code>tillage</code>, <code>som_share</code> and <code>drainage_mm</code> (see <code><a href="calculate_n_leaching.html">calculate_n_leaching()</a></code>).
-<code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code> refuses either before assembling any input
-unless its driver table is supplied.</p>
+supplies:</p><table class="table table"><tr><td>Method</td><td>Driver columns</td><td>Supplied</td></tr><tr><td><code>nh3</code>: <code>"ipcc"</code></td><td><code>fert_type</code></td><td>yes</td></tr><tr><td><code>nh3</code>: <code>"manner"</code>, <code>"manner_default"</code></td><td>MANNER's, see below</td><td>no</td></tr><tr><td><code>n2o</code>: <code>"ipcc2019"</code></td><td><code>moisture_regime</code></td><td>yes</td></tr><tr><td><code>n2o</code>: <code>"ipcc2019_atl_med"</code></td><td><code>climate</code></td><td>yes</td></tr><tr><td><code>n2o</code>: <code>"aguilera"</code>, <code>"ipcc2006"</code></td><td><code>climate</code>, <code>irrig_type</code></td><td>yes</td></tr><tr><td><code>n2o_indirect</code>: <code>"ipcc2019"</code></td><td><code>moisture_regime</code></td><td>yes</td></tr><tr><td><code>n2o_indirect</code>: <code>"ipcc2019_atl_med"</code></td><td><code>climate</code>, <code>irrig_type</code></td><td>yes</td></tr><tr><td><code>leaching</code>: <code>"ipcc_fracleach"</code></td><td><code>moisture_regime</code>, <code>water_regime</code></td><td>yes</td></tr><tr><td><code>leaching</code>: <code>"fracleach_surplus"</code></td><td>same as <code>"ipcc_fracleach"</code></td><td>yes</td></tr><tr><td><code>leaching</code>: <code>"meisinger_drainage"</code></td><td>Meisinger's, see below</td><td>yes</td></tr><tr><td><code>leaching</code>: <code>"image_gnm"</code></td><td>IMAGE-GNM's, see below</td><td>yes</td></tr></table><p>MANNER's drivers are later work: it reads <code>manner_fertiliser</code>, <code>soil_ph</code>,
+<code>rate_kg_ha</code>, <code>rainfall_mm</code>, <code>irrigated</code>, <code>temp_c</code>, <code>temp_c_annual_mean</code>,
+<code>windspeed_ms</code>, <code>technique</code>, <code>system</code>, <code>incorporation_delay_h</code> and
+<code>species</code> (see <code><a href="calculate_nh3.html">calculate_nh3()</a></code>), and <code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code> refuses
+it before assembling any input unless its driver table is supplied.</p>
+<p>The leaching table carries the drivers of <code>methods$leaching</code> only.</p>
 <p><code>method_moisture_regime</code> is <code><a href="build_cell_moisture_regime.html">build_cell_moisture_regime()</a></code>'s stamp. A row
 that took its cell's precipitation-only class carries the extra field
 <code>cell_rainfed_class=no_crop_item</code> (no crop item) or
@@ -187,6 +209,69 @@ that took its cell's precipitation-only class carries the extra field
 row's water regime), and a row in a cell that took climate variables from
 its nearest CRU cell the field <code>nearest_cru_cell=&lt;col&gt;[+&lt;col&gt;...]</code>, naming
 them.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="leaching-drivers">Leaching drivers<a class="anchor" aria-label="anchor" href="#leaching-drivers"></a></h2>
+
+
+<p>Under <code>methods$leaching = "meisinger_drainage"</code> or <code>"image_gnm"</code> every
+driver is a source layer joined on the cell, polity, commodity balance item
+and year, never on a name, and stamped:</p><ul><li><p><code>land_use</code>: <code>"Grassland"</code> on the grass item (3000), <code>"Cropland"</code>
+otherwise.</p></li>
+<li><p><code>drainage_mm</code> (Meisinger) and <code>runoff_mm</code> (IMAGE-GNM): the year's LPJmL
+deep seepage and total runoff (<code><a href="read_lpjml_hydrology.html">read_lpjml_hydrology()</a></code> <code>"drainage"</code> and
+<code>"runoff"</code>, from <code>WHEP_LPJML_RUN_DIR</code>), whole-cell quantities both water
+regime rows of a cell share (<code>method_drainage</code>, <code>method_runoff</code>).</p></li>
+<li><p><code>soil_field_capacity</code>, <code>soil_wilting_point</code> and <code>soil_porosity</code>:
+<code><a href="read_soil_hydraulic.html">read_soil_hydraulic()</a></code> (<code>method_soil_hydraulic</code>).</p></li>
+<li><p><code>som_share</code> (Meisinger, a fraction) and <code>soil_organic_carbon_pct</code>
+(IMAGE-GNM): the 0-30 cm soil organic carbon stock of the row's land use
+in <code>data$carbon_balance</code> (<code><a href="build_carbon_balance.html">build_carbon_balance()</a></code>; cropland classes
+area-weighted), over the HWSD topsoil mass of <code><a href="read_hwsd_topsoil_mass.html">read_hwsd_topsoil_mass()</a></code>;
+<code>som_share</code> multiplies the carbon fraction by the SOM:SOC factor,
+<code>som_soc_factor_pribyl</code> (2) of <a href="n_attenuation_constants.html">n_attenuation_constants</a> by default
+(<code>method_som</code>). A cell-polity the carbon balance lacks takes the cell's
+stock in its other polities, stamped <code>cell_other_polity</code>; a cell it
+lacks altogether (the carbon balance runs on the CRU and LPJmL grids
+only) takes the stock of the nearest cell holding the row's land use,
+stamped <code>nearest_cell_same_land_use=&lt;km&gt;km</code>.</p></li>
+<li><p><code>c_input_t</code> (Meisinger): the C the row's inputs carry to the soil, t C per
+year: the crop's <code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> carbon, pooled over the
+item's production items, on crop rows, and <code>data$carbon_balance</code>'s
+grassland input on the grass item (<code>method_c_input</code>). Both regime rows
+of an item carry the item's whole C; <code><a href="build_nitrogen_balance.html">build_nitrogen_balance()</a></code> divides
+it by the item's whole <code>n_input_full_nosom_t</code> into <code>cn_input</code>. A crop
+row without a
+carbon input of its item in its cell and polity keeps <code>c_input_t</code>
+missing, stamped <code>no_carbon_input</code>, and the balance gives it its item's
+C:N in the polity, else globally (<code>polity_item_cn</code>, <code>global_item_cn</code>).
+A grass row off the carbon balance carries the nearest grassland cell's
+C input density as <code>c_input_mgc_ha</code> (Mg C/ha/yr), which the balance puts
+on the key's grass area, stamped <code>nearest_cell_same_land_use=&lt;km&gt;km</code>.</p></li>
+<li><p><code>root_depth_cm</code> (Meisinger): FAO-56 Table 22's maximum effective rooting
+depth (<a href="fao56_root_depth.html">fao56_root_depth</a>) of the row's production items, pooled by
+WHEP's hectares of each in the row's water regime: by default the upper
+end of each range on rainfed rows and the lower end on irrigated rows
+(Table 22 footnote 1); an item with no hectares in the regime takes the
+plain mean over its production items (<code>method_root_depth</code>).</p></li>
+<li><p><code>climate</code> (ATL on wet rows, MED on dry), <code>irrig_cat</code> (<code>"Irrigated"</code> or
+<code>"Rainfed"</code>, from <code>water_regime</code>) and <code>tillage</code> (<code>"Tillage"</code>, the only
+class the Meisinger synthetic block holds; <code>method_tillage</code>).</p></li>
+<li><p><code>surface_runoff_fraction</code> and <code>slope_m_per_km</code> (IMAGE-GNM):
+<code><a href="read_image_gnm_runoff.html">read_image_gnm_runoff()</a></code> (<code>method_image_gnm_runoff</code>).</p></li>
+<li><p><code>temp_c_annual_mean</code> (IMAGE-GNM): the year's CRU mean annual
+temperature, from the climate the classes are built on.</p></li>
+<li><p><code>soil_texture_class</code> and <code>soil_drainage_class</code> (IMAGE-GNM):
+<code><a href="read_soil_texture_fao.html">read_soil_texture_fao()</a></code> and <code><a href="read_soil_drainage.html">read_soil_drainage()</a></code>
+(<code>method_soil_texture_fao</code>, <code>method_soil_drainage</code>).</p></li>
+</ul><p>A balance cell a layer lacks takes the value of the nearest cell that holds
+it, by great-circle distance between cell centres, and its stamp carries
+the distance (<code>nearest_lpjml_cell=&lt;km&gt;km</code>, <code>nearest_hwsd_cell=&lt;km&gt;km</code>,
+<code>nearest_image_gnm_cell=&lt;km&gt;km</code>). A row without a crop item carries no N:
+it takes the HWSD topsoil depth (30 cm) and no C input, and a row of that
+kind carrying N is refused. A row carrying no N whose soil carbon or root
+depth is otherwise missing takes HWSD's topsoil carbon or the topsoil
+depth, stamped <code>zero_n_row</code>; it leaches nothing.</p>
     </div>
     <div class="section level2">
     <h2 id="errors">Errors<a class="anchor" aria-label="anchor" href="#errors"></a></h2>
@@ -205,6 +290,15 @@ row means the balance and the moisture regime disagree on the item's
 regime land; the error names the count and the items carrying most N.</p></li>
 <li><p>Every error of <code><a href="build_cell_moisture_regime.html">build_cell_moisture_regime()</a></code>, including
 <code>whep_absent_input</code> for an absent climate or irrigation layer.</p></li>
+<li><p>For the leaching drivers, all also <code>whep_absent_input</code>:
+<code>whep_n_loss_drivers_carbon_balance</code> (no <code>data$carbon_balance</code>),
+<code>whep_n_loss_drivers_soc</code> and <code>whep_n_loss_drivers_root_depth</code> (a row
+carrying N without soil carbon of its land use in any cell, or without
+root depth), <code>whep_n_loss_drivers_temperature</code> and
+<code>whep_n_loss_drivers_layer</code> (a layer with no complete cell, or without a
+year asked for); a layer whose values are all zero or missing aborts as
+<code><a href="check_inputs_supplied.html">check_inputs_supplied()</a></code> does. <code>whep_n_loss_drivers_no_item_n</code>: a row
+without a crop item carries N.</p></li>
 </ul></div>
 
     <div class="section level2">

@@ -225,6 +225,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/evidence_for.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/expand_polycell_years.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/expand_trade_sources.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/fao56_root_depth.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/feed_characteristics.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/feed_taxonomy.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/fertiliser_n2o_modifiers.html</loc></url>
@@ -275,6 +276,8 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/human_kgn_cap_total_reference.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/human_n_reference.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/hwsd_texture_usda.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/image_gnm_leaching_factors.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/image_gnm_runoff_factors.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/index.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/indirect_n2o_ef.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/interp_vec.html</loc></url>
@@ -386,8 +389,10 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glw_density.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glwd_water.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_habitual_cv.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_hwsd_topsoil_mass.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_hwsd_topsoil_soc.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_hyde_population.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_image_gnm_runoff.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_level_country_grid.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_crop_cover.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_grass_productivity.html</loc></url>
@@ -403,8 +408,10 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/read_polycell_support.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_reporting_support.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_soil_drainage.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_soil_ph.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_soil_texture_fao.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_spam_yields.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_wpp_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/reconcile_admin_allocation.html</loc></url>

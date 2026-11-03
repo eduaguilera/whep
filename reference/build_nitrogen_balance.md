@@ -44,9 +44,17 @@ build_nitrogen_balance(
   default `"ipcc2019"`, the wet/dry EF4 of Table 11.3 (Updated) p.
   11.26, or `"ipcc2019_atl_med"`), `leaching` (forwarded to
   [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md),
-  default `"meisinger_drainage"`, or `"ipcc_fracleach"`, the wet/dry
-  FracLEACH-(H) of Section 11.2.2.2 p. 11.25 applied to the N added, or
-  `"fracleach_surplus"`, the same fractions on the surplus) and
+  default `"meisinger_drainage"`; `"ipcc_fracleach"`, the wet/dry
+  FracLEACH-(H) of Section 11.2.2.2 p. 11.25 applied to the N added;
+  `"fracleach_surplus"`, the same fractions on the surplus; or
+  `"image_gnm"`, the IMAGE-GNM root zone of Beusen et al. 2015, eqs.
+  10-14 p. 4052), `leaching_transport`, `leaching_none_class` and
+  `leaching_initial_pool` (forwarded to
+  [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)
+  as `transport`, default `"swat_mixing"`, `none_class`, default
+  `"retention"`, and `initial_pool`, default `"steady_state"`; read only
+  under `"meisinger_drainage"`, which threads the retained nitrate
+  through the years of the balance on each key without its year) and
   `regime`, how each grid row is split into a rainfed and an irrigated
   part (see Details): `"yield_split"` (default), `"area_split"` or
   `"none"`. The IPCC 2019 wet/dry methods read `moisture_regime` from
@@ -166,17 +174,21 @@ build_nitrogen_balance(
     on the split balance's own rows (the IPCC 2019 wet/dry class and the
     ATL/MED drivers mapped from it; see its table of which methods it
     supplies), and `method_drivers` says so. That needs the
-    rainfed/irrigated split (`methods$regime` other than `"none"`);
-    `leaching = "meisinger_drainage"` and the MANNER `nh3` methods read
-    drivers it does not supply and are refused before any input is
-    assembled unless their table is supplied. At polity resolution both
-    must be supplied.
+    rainfed/irrigated split (`methods$regime` other than `"none"`). The
+    leaching drivers are built for `methods$leaching`; the Meisinger and
+    IMAGE-GNM ones read the balance's own `data$carbon_balance`. The
+    MANNER `nh3` methods read drivers it does not supply and are refused
+    before any input is assembled unless their table is supplied. At
+    polity resolution both must be supplied.
 
   - `n_loss_driver_inputs`: optional list passed as `data` to
     [`build_n_loss_drivers()`](https://eduaguilera.github.io/whep/reference/build_n_loss_drivers.md)
     when it runs (`climate`, `crop_depth`, `lpjml_years`, `lpjml_grid`,
-    `regime_areas`, `moisture_regime`); the balance's own `country_grid`
-    is shared with it.
+    `regime_areas`, `moisture_regime`, and the leaching layers it
+    lists); the balance's own `country_grid` and `carbon_balance` are
+    shared with it. `n_loss_driver_methods`: optional list of its
+    `methods` (`som_source`, `som_factor`, `root_depth`); its `leaching`
+    is always `methods$leaching`.
 
   - `n_balance_drivers`: additional per-`(key, fert_type)` driver
     columns
@@ -199,22 +211,29 @@ build_nitrogen_balance(
     is read from `n_balance_leaching_drivers`, which must hold at most
     one row per balance key (a many-to-one join aborts on duplicate keys
     rather than fanning the rows out and misaligning `drainage_mm`).
-    Missing required drivers abort inside the called `calculate_*()`
-    function, naming the exact column; for the MANNER `nh3` methods the
-    check runs on `n_balance_drivers` before any input is assembled,
-    because no function in the package supplies those drivers (only
-    `windspeed_ms` has a reader,
+    Under `"meisinger_drainage"` it carries no `fert_type`, which the
+    balance sets on each input part (see Details), and a `c_input_t` (t
+    C per year) it carries in place of `cn_input` is divided by the
+    item's `n_input_full_nosom_t`, summed over the water regimes; a
+    `c_input_mgc_ha` density is first put on the item's `area_ha`, and a
+    key with N and no C input takes its item's C:N over the polity, else
+    over the year, stamped in `method_c_input` (an item with none
+    aborts, `whep_n_balance_c_input`). Missing required drivers abort
+    inside the called `calculate_*()` function, naming the exact column;
+    for the MANNER `nh3` methods the check runs on `n_balance_drivers`
+    before any input is assembled, because no function in the package
+    supplies those drivers (only `windspeed_ms` has a reader,
     [`read_lpjml_wind()`](https://eduaguilera.github.io/whep/reference/read_lpjml_wind.md),
     not wired in).
 
   - `drainage_mm`: annual drainage (mm) for
-    [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md),
-    as a numeric vector aligned to the balance-key rows, or already
-    present as a `drainage_mm` column via `n_balance_leaching_drivers`.
-    At grid resolution the rainfed/irrigated split doubles the rows, so
-    an aligned vector only fits with `methods$regime = "none"`;
-    otherwise supply drainage as a column of
-    `n_balance_leaching_drivers`.
+    [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)'s
+    `"meisinger_drainage"` (`"image_gnm"` reads `runoff_mm` instead), as
+    a numeric vector aligned to the balance-key rows, or already present
+    as a `drainage_mm` column via `n_balance_leaching_drivers`. At grid
+    resolution the rainfed/irrigated split doubles the rows, so an
+    aligned vector only fits with `methods$regime = "none"`; otherwise
+    supply drainage as a column of `n_balance_leaching_drivers`.
 
 - gwp:
 
@@ -241,8 +260,15 @@ per-hectare rate), the input aggregates (`n_input_full_t`,
 `n_output_full_t`), the loss terms (`nh3_n_t`, `n2o_direct_n_t`,
 `no3_n_t`, `denitrification_n_t`, `retained_profile_n_t`,
 `n2o_indirect_no3_n_t`, `n2o_indirect_nh3_n_t`;
-`no3_n_t + denitrification_n_t + retained_profile_n_t` is the surplus,
-see
+`no3_n_t + denitrification_n_t + retained_profile_n_t` is the surplus
+plus, under `"meisinger_drainage"`, the nitrate the profile carried in
+from the key's previous year, `retained_carried_in_n_t`, and less, under
+`"image_gnm"`, the `surface_runoff_n_t` it computes from the inputs, to
+at most the surplus; on grassland and natural rows with a total runoff
+below 3 mm/yr `"image_gnm"` holds the whole surplus as inactive N in
+`retained_profile_n_t` and books its surface runoff beside it;
+`"image_gnm"` also reports the eroded soil N, `erosion_n_t`, which no
+budget pays for; see
 [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)),
 the (post-cap) `som_sequestration_n_t`, `n_balance_t`, `surplus_t`,
 `surplus_share`, the five NUE ratios (`nue_std`, `nue_residues`,
@@ -372,7 +398,8 @@ left `NULL`; at polity resolution both tables must be supplied.
 | `n2o_indirect`: `"ipcc2019"` | `moisture_regime` | yes | built |
 | `n2o_indirect`: `"ipcc2019_atl_med"` | `climate`, `irrig_type` | yes | built |
 | `leaching`: `"ipcc_fracleach"`, `"fracleach_surplus"` | `moisture_regime`, `water_regime` | yes | built |
-| `leaching`: `"meisinger_drainage"` | Meisinger's | no | note 2 |
+| `leaching`: `"meisinger_drainage"` | Meisinger's | yes | built, note 2 |
+| `leaching`: `"image_gnm"` | IMAGE-GNM's | yes | built, note 3 |
 
 - Note 1: MANNER reads `manner_fertiliser`, `soil_ph`, `rate_kg_ha`,
   `rainfall_mm`, `irrigated`, `temp_c`, `temp_c_annual_mean`,
@@ -382,12 +409,40 @@ left `NULL`; at polity resolution both tables must be supplied.
   Drivers must be supplied; global drivers planned.
 
 - Note 2: Meisinger reads `fert_type`, `climate`, `irrig_cat`,
-  `land_use`, `cn_input`, `tillage`, `som_share` and `drainage_mm` (see
-  [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)).
-  Drivers must be supplied; global drivers planned.
+  `land_use`, `cn_input`, `tillage`, `som_share`, `drainage_mm`,
+  `root_depth_cm` and, by transport, `soil_porosity` (`"swat_mixing"`)
+  or `soil_field_capacity` (`"burns"`); see
+  [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md).
+  The builder supplies them from LPJmL, HWSD, FAO-56 and the carbon
+  balance (see its Leaching drivers section).
 
-`build_nitrogen_balance()` refuses a method of note 1 or note 2 before
-assembling any input unless its driver table is supplied.
+- Note 3: IMAGE-GNM reads `runoff_mm` (the year's total runoff, LPJmL
+  `mrunoff.nc`), `surface_runoff_fraction`, `slope_m_per_km` (both from
+  [`read_image_gnm_runoff()`](https://eduaguilera.github.io/whep/reference/read_image_gnm_runoff.md)),
+  `land_use`, `temp_c_annual_mean`, `soil_field_capacity`,
+  `soil_wilting_point`, `soil_texture_class`, `soil_drainage_class` and
+  `soil_organic_carbon_pct`, plus the balance's own `n_input_std_t`,
+  `nh3_n_t` and `area_ha`; see
+  [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md).
+  The builder supplies them, as for note 2.
+
+`build_nitrogen_balance()` refuses a method of note 1 before assembling
+any input unless its driver table is supplied.
+
+**Meisinger per input part.** Under `"meisinger_drainage"` each balance
+key's surplus is split over the inputs of `n_input_full_t` (biological
+fixation, excreta, liquid and solid manure, synthetic fertiliser, human
+N, deposition and soil organic matter mineralisation) in proportion to
+their N, `n_surplus_t * N_f / n_input_full_t`, and each part is leached
+on its own Meisinger rows (Synthetic or Manure topsoil denitrification,
+its own subsoil reduction), as the regional reconstruction this cascade
+is ported from does (its surplus share is surplus over the full input,
+recycled residues excluded). Each part carries its own retained nitrate
+from year to year, on the key and the part's `fert_type`, and the parts'
+flows sum to the key, so
+`no3_n_t + denitrification_n_t + retained_profile_n_t` equals the
+surplus plus `retained_carried_in_n_t` on every key. A key with no input
+carries no surplus and is stamped `meisinger_drainage_no_input`.
 
 ## Polity columns
 
@@ -444,11 +499,11 @@ extra column.
 
 ``` r
 build_nitrogen_balance(example = TRUE)
-#> # A tibble: 1 × 45
+#> # A tibble: 1 × 46
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020        10               10 AUS-1901-2025         Australia            
-#> # ℹ 40 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 41 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_cbs_code <int>, area_ha <dbl>, n_input_full_t <dbl>,
 #> #   n_input_full_nosom_t <dbl>, n_input_std_t <dbl>, n_input_som_t <dbl>,
 #> #   n_input_for_n2o_t <dbl>, prod_n_t <dbl>, used_residue_n_t <dbl>,

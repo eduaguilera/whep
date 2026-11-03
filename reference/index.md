@@ -264,6 +264,12 @@ bins, and the C:N leaching-attenuation and indirect-N2O constants.
   : Nitrogen leaching-attenuation and indirect-N2O constants.
 - [`ipcc_2019_soil_n_ef`](https://eduaguilera.github.io/whep/reference/ipcc_2019_soil_n_ef.md)
   : IPCC 2019 Tier 1 soil nitrogen emission and leaching factors.
+- [`fao56_root_depth`](https://eduaguilera.github.io/whep/reference/fao56_root_depth.md)
+  : FAO-56 maximum effective rooting depth by production item.
+- [`image_gnm_leaching_factors`](https://eduaguilera.github.io/whep/reference/image_gnm_leaching_factors.md)
+  : IMAGE-GNM soil denitrification and land-use leaching factors.
+- [`image_gnm_runoff_factors`](https://eduaguilera.github.io/whep/reference/image_gnm_runoff_factors.md)
+  : IMAGE-GNM surface runoff and erosion factors.
 
 ## Human-population nitrogen coefficient tables
 
@@ -412,12 +418,18 @@ balance.
   : Estimate direct soil N2O emissions from applied nitrogen.
 - [`calculate_n_leaching()`](https://eduaguilera.github.io/whep/reference/calculate_n_leaching.md)
   : Estimate nitrate leaching, topsoil denitrification and indirect N2O.
+- [`read_image_gnm_runoff()`](https://eduaguilera.github.io/whep/reference/read_image_gnm_runoff.md)
+  : Read IMAGE-GNM's surface runoff fraction and slope layers.
 - [`calculate_indirect_n2o_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_indirect_n2o_nh3.md)
   : Estimate indirect N2O from volatilised ammonia.
 - [`read_lpjml_wind()`](https://eduaguilera.github.io/whep/reference/read_lpjml_wind.md)
   : Read gridded LPJmL-forcing windspeed onto WHEP's grid.
 - [`read_soil_ph()`](https://eduaguilera.github.io/whep/reference/read_soil_ph.md)
   : Read gridded soil pH onto WHEP's grid.
+- [`read_soil_drainage()`](https://eduaguilera.github.io/whep/reference/read_soil_drainage.md)
+  : Read gridded soil drainage class from HWSD onto WHEP's grid.
+- [`read_soil_texture_fao()`](https://eduaguilera.github.io/whep/reference/read_soil_texture_fao.md)
+  : Read gridded FAO soil texture class from HWSD onto WHEP's grid.
 - [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
   : Assemble WHEP's cell-polity crosswalk with true grid-cell area.
 - [`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
@@ -546,6 +558,8 @@ its observational benchmark.
   : Read natural-land soil cover from an LPJmL run.
 - [`read_hwsd_topsoil_soc()`](https://eduaguilera.github.io/whep/reference/read_hwsd_topsoil_soc.md)
   : Read observed topsoil organic carbon from HWSD onto WHEP's grid.
+- [`read_hwsd_topsoil_mass()`](https://eduaguilera.github.io/whep/reference/read_hwsd_topsoil_mass.md)
+  : Read the topsoil soil mass from HWSD onto WHEP's grid.
 
 ## Crop NPP, BNF and coefficient tables
 

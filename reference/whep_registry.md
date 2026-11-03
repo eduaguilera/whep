@@ -62,7 +62,7 @@ and
 # This package's own registry is itself a valid registry.
 system.file("extdata", "whep_inputs.csv", package = "whep") |>
   whep_registry()
-#> # A tibble: 88 × 5
+#> # A tibble: 90 × 5
 #>    alias                   board_url           version access public_alternative
 #>    <chr>                   <chr>               <chr>   <chr>  <chr>             
 #>  1 commodity_balance_sheet https://saco.csic.… 202507… public NA                
@@ -75,5 +75,5 @@ system.file("extdata", "whep_inputs.csv", package = "whep") |>
 #>  8 faostat-production      https://saco.csic.… 202603… public NA                
 #>  9 faostat-production-old  https://saco.csic.… 202603… public NA                
 #> 10 faostat-landuse         https://saco.csic.… 202610… public NA                
-#> # ℹ 78 more rows
+#> # ℹ 80 more rows
 ```
