@@ -467,7 +467,16 @@
 #'
 #'   **The default moves published values**, in the four fruit and vegetable
 #'   items. Measured on a real 2009-2011 build at 2010, against
-#'   `"nuts_only"`: @@NUMBERS@@
+#'   `"nuts_only"`: imports/exports 2.54x to 1.06x for olives, 1.77x to
+#'   0.94x for pineapples, 1.32x to 0.89x for tomatoes, 1.27x to 1.04x for
+#'   lemons; their food falls from 4.26 to 2.71, 27.57 to 18.64, 142.58 to
+#'   133.79 and 13.26 to 12.53 Mt. All-item food falls from 4,686.80 to
+#'   4,666.80 Mt (-0.43%); feed and every milk value do not move. FBS's own
+#'   protein over the rebased food moves to the old vintage's density
+#'   (pineapples 1.9 to 2.8 g/kg, old 2.7). `"rebased_with_milk"` further
+#'   takes milk imports from 191.36 to 100.13 Mt (exports 97.76 to 86.64
+#'   Mt), milk food from 520.32 to 477.95 Mt and milk feed from 79.68 to
+#'   41.85 Mt.
 #' @param residue_backcast One of `"own_method"` (default),
 #'   `"production_ratio"` or `"area_rate"`, selecting what crop residue
 #'   (Straw, Other crop residues, Firewood) grows back along before the first
