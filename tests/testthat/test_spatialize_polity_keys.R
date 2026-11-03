@@ -27,6 +27,23 @@
   do.call(whep::build_gridded_landuse, c(fixture, list(config = config)))
 }
 
+testthat::test_that("native irrigated targets cannot disappear without water", {
+  fix <- .polity_crop_fixture()
+  fix$country_areas$irrigated_area_ha <- c(10, 0)
+  testthat::expect_error(.run_polity_crop(fix))
+  fix$gridded_cropland$irrigated_ha <- c(0, 10)
+  testthat::expect_error(
+    .run_polity_crop(fix),
+    class = "whep_polity_input_irrigation"
+  )
+  fix$gridded_cropland$irrigated_ha <- c(10, 0)
+  out <- .run_polity_crop(fix)
+  testthat::expect_equal(out$rainfed_ha + out$irrigated_ha, c(30, 70))
+  testthat::expect_equal(out$irrigated_ha, c(10, 0))
+  fix$country_grid <- dplyr::select(fix$country_grid, -start_year, -end_year)
+  testthat::expect_equal(.run_polity_crop(fix), out)
+})
+
 testthat::test_that("native targets cannot silently lose an undated territory", {
   purrr::walk(list(NA_integer_, Inf, 1900.5, "1900"), \(invalid) {
     fix <- .polity_crop_fixture()

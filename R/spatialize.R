@@ -355,6 +355,13 @@ build_gridded_landuse <- function(
   if (rlang::has_name(country_areas, "level_polity_code")) {
     .check_irrigation_within_area(country_areas)
   }
+  if (native && any(country_areas$irrigated_area_ha > 0, na.rm = TRUE)) {
+    .check_polity_prepared_water(list(
+      country_areas = country_areas,
+      gridded_cropland = gridded_cropland,
+      country_grid = country_grid
+    ))
+  }
   gridded_cropland <- .ensure_gridded_irrigation(gridded_cropland)
 
   if (!is.null(years)) {

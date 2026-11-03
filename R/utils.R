@@ -2752,6 +2752,8 @@ utils::globalVariables(
     "r_export",
     "r_import",
     "rebase_old_new",
+    # polity_source_targets.R -- source-specific territorial interval join.
+    "source_area_code",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL
