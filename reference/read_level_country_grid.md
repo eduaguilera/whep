@@ -24,7 +24,8 @@ read_level_country_grid(
   reference_year = NULL,
   grid_vintage = c("year_aware", "snapshot_2015"),
   containers = NULL,
-  double_claim = c("co_presence", "measured")
+  double_claim = c("co_presence", "measured"),
+  geographic_key = c("reporting_area", "polity")
 )
 ```
 
@@ -79,13 +80,29 @@ read_level_country_grid(
   (default) or `"measured"`. See *Which double claims are refused*. Only
   read at `level >= 1L`.
 
+- geographic_key:
+
+  Geographic identity for the level-0 year-aware read. `"polity"`
+  retains each supplied `polity_code`, including territories without a
+  FAOSTAT code. It neither folds source codes nor assigns land to modern
+  owners. `"reporting_area"` retains the legacy interface for consumers
+  not yet migrated. Polity mode requires explicit validity intervals and
+  a partition without duplicate or measured excess claims. It cannot
+  establish absence of geometric overlap from area totals alone;
+  validate the source partition before supplying it. Use its result with
+  polity-keyed inputs to
+  [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md).
+
 ## Value
 
-A `tibble` with `lon`, `lat`, `area_code` (integer, the container's
-reporting code), `level_polity_code` (character, `NA` at level 0),
-`level` (integer), `cell_area_frac`, `polycell_id`, `start_year`,
-`end_year`, `cell_area_ha` and `land_area_ha`. At level 0 with
-`grid_vintage = "snapshot_2015"` the six columns
+With `geographic_key = "polity"`, a `tibble` with `polity_code`, `lon`,
+`lat`, `start_year`, `end_year`, `cell_area_ha`, `land_area_ha` and
+`cell_area_frac`. Source numeric codes are not used or returned.
+Otherwise a `tibble` with `lon`, `lat`, `area_code` (integer, the
+container's reporting code), `level_polity_code` (character, `NA` at
+level 0), `level` (integer), `cell_area_frac`, `polycell_id`,
+`start_year`, `end_year`, `cell_area_ha` and `land_area_ha`. At level 0
+with `grid_vintage = "snapshot_2015"` the six columns
 `.carbon_cell_support()` returns are passed through unchanged; with
 `"year_aware"` those six arrive alongside `start_year` and `end_year`.
 

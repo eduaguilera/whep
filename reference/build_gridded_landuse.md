@@ -247,6 +247,35 @@ cropland; the ceiling carries no LUH2 type split, so it is computed over
 the same cropland the ceiling itself multiplies, and a herbaceous-only
 denominator would leave the two inconsistent.
 
+## Polity-native geographic matching
+
+When both `country_areas` and `country_grid` supply `polity_code`, the
+engine matches exact polity strings, without requiring `area_code`.
+Numeric `area_code` columns, if also present, are source metadata and
+are excluded from allocation. The output retains `polity_code` and does
+not reconstruct identity from a numeric aggregation bucket.
+
+Polity targets must be unique per polity, year and crop. Missing
+identity, mixed native/legacy inputs, duplicate polity cells in a year
+and targets with no support in their year abort explicitly.
+Harvested-area targets must be finite and nonnegative. Native grids may
+be static or carry explicit years or one complete validity-interval
+pair; supplied dates must be finite whole years, and annual dates must
+fall inside any supplied half-open interval. Missing bounds cannot
+silently extend native support. A predecessor relationship alone never
+moves a target onto a different polity's cells. Resolve source geography
+to its faithful reporting territory before calling the engine.
+
+Numeric targets with a numeric grid retain the legacy path even when the
+grid also carries polity labels as metadata. Supplying `polity_code` on
+the targets opts into native identity and requires it on the grid too.
+
+This native path currently supports level-0 allocation and
+`config$area_key = "grid"` only. The numeric-key path remains available
+for legacy inputs; its vintage reconciliation is not applied to native
+inputs. Regional and subnational pipeline migration is tracked in WHEP
+issues 458 and 1483.
+
 ## Which area code the output is keyed on
 
 The chain allocates *from* a national table keyed on `area_code` and

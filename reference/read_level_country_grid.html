@@ -81,7 +81,8 @@ province.</p>
 <span>  reference_year <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  grid_vintage <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"year_aware"</span>, <span class="st">"snapshot_2015"</span><span class="op">)</span>,</span>
 <span>  containers <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  double_claim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"co_presence"</span>, <span class="st">"measured"</span><span class="op">)</span></span>
+<span>  double_claim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"co_presence"</span>, <span class="st">"measured"</span><span class="op">)</span>,</span>
+<span>  geographic_key <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"reporting_area"</span>, <span class="st">"polity"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -133,10 +134,25 @@ depth. <code>NULL</code> (default) reads every admitted edge. Only read at
 <code>"co_presence"</code> (default) or <code>"measured"</code>. See <em>Which double claims are
 refused</em>. Only read at <code>level &gt;= 1L</code>.</p></dd>
 
+
+<dt id="arg-geographic-key">geographic_key<a class="anchor" aria-label="anchor" href="#arg-geographic-key"></a></dt>
+<dd><p>Geographic identity for the level-0 year-aware read.
+<code>"polity"</code> retains each supplied <code>polity_code</code>, including territories
+without a FAOSTAT code. It neither folds source codes nor assigns land
+to modern owners. <code>"reporting_area"</code> retains the legacy interface for
+consumers not yet migrated. Polity mode requires explicit validity
+intervals and a partition without duplicate or measured excess claims.
+It cannot establish absence of geometric overlap from area totals alone;
+validate the source partition before supplying it. Use its result with
+polity-keyed inputs to <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A <code>tibble</code> with <code>lon</code>, <code>lat</code>, <code>area_code</code> (integer, the container's
+    <p>With <code>geographic_key = "polity"</code>, a <code>tibble</code> with <code>polity_code</code>,
+<code>lon</code>, <code>lat</code>, <code>start_year</code>, <code>end_year</code>, <code>cell_area_ha</code>, <code>land_area_ha</code>
+and <code>cell_area_frac</code>. Source numeric codes are not used or returned.
+Otherwise a <code>tibble</code> with <code>lon</code>, <code>lat</code>, <code>area_code</code> (integer, the container's
 reporting code), <code>level_polity_code</code> (character, <code>NA</code> at level 0),
 <code>level</code> (integer), <code>cell_area_frac</code>, <code>polycell_id</code>, <code>start_year</code>,
 <code>end_year</code>, <code>cell_area_ha</code> and <code>land_area_ha</code>. At level 0 with
