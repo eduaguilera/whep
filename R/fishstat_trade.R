@@ -138,17 +138,19 @@
 
 # Map each FishStat reporter to a FAOSTAT area code.
 #
-# `Identifier` in `CL_FI_COUNTRY_GROUPS.csv` is FAO's country code, the
-# FAOSTAT area code for every reporter but the three in
-# `.fishstat_area_overrides()`. Matching on it rather than on ISO3 keeps the
-# former entities, whose ISO3 FishStat leaves blank (`Sudan [former]` 206,
-# `Ethiopia PDR [former]` 62). Where FishStat does give an ISO3 and FAOSTAT's
-# area carries one too, they must agree: a disagreement means the two code
-# spaces diverged on that reporter, and the row would be booked to the wrong
-# country without changing a single total. Only the reporters that trade are
-# checked: the country list also carries entries FishStat numbers in a third
-# way (Zanzibar, 836, holds identifier 276, FAOSTAT's Sudan) and reports
-# nothing under.
+# The codelist calls `Identifier` only an identifier; that it is the FAOSTAT
+# area code is measured, not stated. Of the 225 reporters with trade in
+# `FI_Trade_2025.1.0`, 220 carry an ISO3 equal to the ISO3 of the FAOSTAT area
+# with the same code, 2 have a blank ISO3 and a FAOSTAT area of the same name
+# (`Sudan [former]` 206, `Ethiopia PDR [former]` 62), and 3 carry an identifier
+# that is no FAOSTAT area at all (`.fishstat_area_overrides()`). Matching on
+# the identifier rather than on ISO3 is what keeps those two former entities.
+# Where FishStat gives an ISO3 and the FAOSTAT area carries one too, they must
+# agree: a disagreement means the two code spaces diverged on that reporter,
+# and the row would be booked to the wrong country without changing a single
+# total. Only the reporters that trade are checked: the country list also
+# carries entries numbered a third way (Zanzibar, 836, holds identifier 276,
+# FAOSTAT's Sudan) that report nothing.
 .fishstat_reporter_areas <- function(countries, reporter_codes) {
   overrides <- .fishstat_area_overrides()
   areas <- tibble::as_tibble(countries) |>
