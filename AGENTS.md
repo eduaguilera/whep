@@ -174,10 +174,8 @@ does not depend on the answer while it is outstanding.
 
 ## Running things
 
-`.Rprofile` runs
-[`devtools::load_all()`](https://devtools.r-lib.org/reference/load_all.html)
-on session start, so a plain `Rscript`/`R` session already has the
-package loaded.
+`.Rprofile` runs `devtools::load_all()` on session start, so a plain
+`Rscript`/`R` session already has the package loaded.
 
 ``` r
 
@@ -535,11 +533,10 @@ Conventions of the codebase (follow them; they are how the code reads):
     without `CI` set, so a `skip_on_ci()` test runs there for real. Use
     `skip_on_cran()`, which fires wherever `NOT_CRAN` is unset
     (r-universe, CRAN) while `r-lib/actions/setup-r` and
-    [`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
-    both set it. A real-data test that genuinely cannot be rescoped onto
-    a fixture needs **both**. Guarding on a local file or `WHEP_*` env
-    var is equally fine — that is what the LPJmL/HWSD/LUH2 smoke tests
-    do.
+    `devtools::test()` both set it. A real-data test that genuinely
+    cannot be rescoped onto a fixture needs **both**. Guarding on a
+    local file or `WHEP_*` env var is equally fine — that is what the
+    LPJmL/HWSD/LUH2 smoke tests do.
   - The `offline-tests` job is the enforcement, and it only sees these
     tests because it unsets `CI`. If it fails alone, add a fixture — do
     not skip the test and do not relax the job.
@@ -574,17 +571,16 @@ The PR must pass these GitHub Actions checks:
 
 1.  **R-CMD-check** (4 platforms, 60-min job cap over a 40-min cap on
     the check step itself — setup is download and varies, the check step
-    is what can hang):
-    [`rcmdcheck::rcmdcheck()`](http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.md)
-    with no errors, warnings, or notes. Tests run here, which is why a
-    network-dependent test breaks the build. **R-devel is not one of the
-    four**: RSPM ships no R-devel binaries, so that leg source-builds
-    the geo stack every time the R-devel snapshot rolls its cache key,
-    and it told you nothing about your change while you waited. It runs
-    as a separate weekly job (`R-CMD-check-devel`, Wednesdays 04:00 UTC,
-    also `workflow_dispatch`) with `continue-on-error`, so a new R is
-    still caught early without blocking a merge. Check it when R
-    releases; do not expect it green on a PR.
+    is what can hang): `rcmdcheck::rcmdcheck()` with no errors,
+    warnings, or notes. Tests run here, which is why a network-dependent
+    test breaks the build. **R-devel is not one of the four**: RSPM
+    ships no R-devel binaries, so that leg source-builds the geo stack
+    every time the R-devel snapshot rolls its cache key, and it told you
+    nothing about your change while you waited. It runs as a separate
+    weekly job (`R-CMD-check-devel`, Wednesdays 04:00 UTC, also
+    `workflow_dispatch`) with `continue-on-error`, so a new R is still
+    caught early without blocking a merge. Check it when R releases; do
+    not expect it green on a PR.
 2.  **lint** (`lintr`): with `object_usage_linter`,
     `line_length_linter`, `indentation_linter` and `commas_linter`
     disabled (they conflict with `air`). `inst/scripts` and
@@ -639,10 +635,9 @@ rcmdcheck::rcmdcheck(
 devtools::test()
 ```
 
-Why a green
-[`devtools::test()`](https://devtools.r-lib.org/reference/test.html) is
-not a green CI — the three build layouts and how they disagree — moved
-to `agent-reference/build-verification-notes.md`. Read it if a change
+Why a green `devtools::test()` is not a green CI — the three build
+layouts and how they disagree — moved to
+`agent-reference/build-verification-notes.md`. Read it if a change
 touches package data, a lazy-loaded object or anything under `inst/`.
 
 ``` bash

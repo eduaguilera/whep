@@ -15,10 +15,20 @@ exactly 1000 mm is dry (Volume 4, Chapter 11, Table 11.1, footnote 4, p.
 default the inputs are averaged over the 30 years ending in each year
 before they are classified.
 
-The water term is precipitation plus, on irrigated rows, the irrigation
-depth of the row's crops (`water = "precip_irrig"`, the default), or
-precipitation alone (`water = "precip"`). Rainfed rows get no
-irrigation.
+The water term is precipitation alone (`water = "precip"`, the default),
+as footnote 4 defines the classes, or precipitation plus, on irrigated
+rows, the irrigation depth of the row's crops
+(`water = "precip_irrig"`). Precipitation alone is the default because
+the IPCC dry factors already price irrigated dry land: 63% of the
+dry-climate cases the dry EF1 was fitted on were irrigated, and
+irrigated dry fields alone give an EF1 of 0.004 (n = 94) against 0.005
+for all dry and 0.014 for wet climates (Volume 4, Chapter 11, Annex
+11A.2, p. 11.30, and Table 2A.2, p. 11.31). The leaching fraction treats
+"dry climate regions where irrigation ... is used" as a dry-climate case
+of its own (p. 11.25). Counting irrigation as precipitation would put
+irrigated dry land on the wet factors, pricing irrigation twice (issue
+\#1531). Rainfed rows get no irrigation in either case, and only
+`"precip_irrig"` reads the LPJmL irrigation depth.
 
 ## Usage
 
@@ -26,7 +36,7 @@ irrigation.
 build_cell_moisture_regime(
   years = NULL,
   window = c("trailing_30", "annual", "normal"),
-  water = c("precip_irrig", "precip"),
+  water = c("precip", "precip_irrig"),
   data = NULL,
   config = list(),
   example = FALSE
@@ -56,8 +66,9 @@ Climatic Research Unit, University of East Anglia.
 
 - water:
 
-  The water term: `"precip_irrig"` (default, precipitation plus the
-  irrigation depth of the row's crops and regime) or `"precip"`.
+  The water term: `"precip"` (default, precipitation alone, as IPCC
+  defines the classes) or `"precip_irrig"` (precipitation plus the
+  irrigation depth of the row's crops and regime).
 
 - data:
 
@@ -145,13 +156,13 @@ Inputs:
   gaps is not lent but left to the classifier, which reports the years
   without it. The distance is `climate_fill_km`, and a message of class
   `whep_moisture_regime_nearest_climate` counts the cells by the
-  variables they took. The cell's own water term, irrigation included,
-  is then applied.
+  variables they took. The cell's own water term, irrigation included
+  under `water = "precip_irrig"`, is then applied.
 
-- Irrigation depth is LPJmL's applied irrigation per crop stand, pooled
-  to the commodity balance item by WHEP's irrigated hectares. LPJmL's
-  paddy water on its rainfed rice stand is not counted: rainfed rows get
-  none.
+- Irrigation depth (`water = "precip_irrig"` only) is LPJmL's applied
+  irrigation per crop stand, pooled to the commodity balance item by
+  WHEP's irrigated hectares. LPJmL's paddy water on its rainfed rice
+  stand is not counted: rainfed rows get none.
 
 ## Irrigation depth stamps
 

@@ -11,9 +11,19 @@ Both tests are strict, so a value of exactly 1 or exactly 1000 mm is dry
 (Volume 4, Chapter 11, Table 11.1, footnote 4, p. 11.13). Footnote 4 bases
 the disaggregation on long-term averages, so by default the inputs are
 averaged over the 30 years ending in each year before they are classified.
-The water term is precipitation plus, on irrigated rows, the irrigation
-depth of the row's crops (water = &quot;precip_irrig&quot;, the default), or
-precipitation alone (water = &quot;precip&quot;). Rainfed rows get no irrigation."><meta property="og:description" content="Classify each cell, polity, commodity balance item, water regime and year
+The water term is precipitation alone (water = &quot;precip&quot;, the default),
+as footnote 4 defines the classes, or precipitation plus, on irrigated
+rows, the irrigation depth of the row's crops (water = &quot;precip_irrig&quot;).
+Precipitation alone is the default because the IPCC dry factors already
+price irrigated dry land: 63% of the dry-climate cases the dry EF1 was
+fitted on were irrigated, and irrigated dry fields alone give an EF1 of
+0.004 (n = 94) against 0.005 for all dry and 0.014 for wet climates
+(Volume 4, Chapter 11, Annex 11A.2, p. 11.30, and Table 2A.2, p. 11.31).
+The leaching fraction treats &quot;dry climate regions where irrigation ... is
+used&quot; as a dry-climate case of its own (p. 11.25). Counting irrigation as
+precipitation would put irrigated dry land on the wet factors, pricing
+irrigation twice (issue #1531). Rainfed rows get no irrigation in either
+case, and only &quot;precip_irrig&quot; reads the LPJmL irrigation depth."><meta property="og:description" content="Classify each cell, polity, commodity balance item, water regime and year
 of WHEP's own crop land use as IPCC 2019 wet or dry, the classes the Tier 1
 managed-soil factors are keyed on.
 A zone is tropical where the mean annual temperature exceeds 18 degC and
@@ -25,9 +35,19 @@ Both tests are strict, so a value of exactly 1 or exactly 1000 mm is dry
 (Volume 4, Chapter 11, Table 11.1, footnote 4, p. 11.13). Footnote 4 bases
 the disaggregation on long-term averages, so by default the inputs are
 averaged over the 30 years ending in each year before they are classified.
-The water term is precipitation plus, on irrigated rows, the irrigation
-depth of the row's crops (water = &quot;precip_irrig&quot;, the default), or
-precipitation alone (water = &quot;precip&quot;). Rainfed rows get no irrigation."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+The water term is precipitation alone (water = &quot;precip&quot;, the default),
+as footnote 4 defines the classes, or precipitation plus, on irrigated
+rows, the irrigation depth of the row's crops (water = &quot;precip_irrig&quot;).
+Precipitation alone is the default because the IPCC dry factors already
+price irrigated dry land: 63% of the dry-climate cases the dry EF1 was
+fitted on were irrigated, and irrigated dry fields alone give an EF1 of
+0.004 (n = 94) against 0.005 for all dry and 0.014 for wet climates
+(Volume 4, Chapter 11, Annex 11A.2, p. 11.30, and Table 2A.2, p. 11.31).
+The leaching fraction treats &quot;dry climate regions where irrigation ... is
+used&quot; as a dry-climate case of its own (p. 11.25). Counting irrigation as
+precipitation would put irrigated dry land on the wet factors, pricing
+irrigation twice (issue #1531). Rainfed rows get no irrigation in either
+case, and only &quot;precip_irrig&quot; reads the LPJmL irrigation depth."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -79,9 +99,19 @@ Both tests are strict, so a value of exactly 1 or exactly 1000 mm is dry
 (Volume 4, Chapter 11, Table 11.1, footnote 4, p. 11.13). Footnote 4 bases
 the disaggregation on long-term averages, so by default the inputs are
 averaged over the 30 years ending in each year before they are classified.</p>
-<p>The water term is precipitation plus, on irrigated rows, the irrigation
-depth of the row's crops (<code>water = "precip_irrig"</code>, the default), or
-precipitation alone (<code>water = "precip"</code>). Rainfed rows get no irrigation.</p>
+<p>The water term is precipitation alone (<code>water = "precip"</code>, the default),
+as footnote 4 defines the classes, or precipitation plus, on irrigated
+rows, the irrigation depth of the row's crops (<code>water = "precip_irrig"</code>).
+Precipitation alone is the default because the IPCC dry factors already
+price irrigated dry land: 63% of the dry-climate cases the dry EF1 was
+fitted on were irrigated, and irrigated dry fields alone give an EF1 of
+0.004 (n = 94) against 0.005 for all dry and 0.014 for wet climates
+(Volume 4, Chapter 11, Annex 11A.2, p. 11.30, and Table 2A.2, p. 11.31).
+The leaching fraction treats "dry climate regions where irrigation ... is
+used" as a dry-climate case of its own (p. 11.25). Counting irrigation as
+precipitation would put irrigated dry land on the wet factors, pricing
+irrigation twice (issue #1531). Rainfed rows get no irrigation in either
+case, and only <code>"precip_irrig"</code> reads the LPJmL irrigation depth.</p>
     </div>
 
     <div class="section level2">
@@ -89,7 +119,7 @@ precipitation alone (<code>water = "precip"</code>). Rainfed rows get no irrigat
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_cell_moisture_regime</span><span class="op">(</span></span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  window <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"trailing_30"</span>, <span class="st">"annual"</span>, <span class="st">"normal"</span><span class="op">)</span>,</span>
-<span>  water <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"precip_irrig"</span>, <span class="st">"precip"</span><span class="op">)</span>,</span>
+<span>  water <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"precip"</span>, <span class="st">"precip_irrig"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  config <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -119,8 +149,9 @@ or <code>"normal"</code> (one fixed period, <code>config$normal_period</code>).<
 
 
 <dt id="arg-water">water<a class="anchor" aria-label="anchor" href="#arg-water"></a></dt>
-<dd><p>The water term: <code>"precip_irrig"</code> (default, precipitation plus
-the irrigation depth of the row's crops and regime) or <code>"precip"</code>.</p></dd>
+<dd><p>The water term: <code>"precip"</code> (default, precipitation alone, as
+IPCC defines the classes) or <code>"precip_irrig"</code> (precipitation plus the
+irrigation depth of the row's crops and regime).</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
@@ -200,10 +231,11 @@ keeps the variables it has; a variable with gaps is not lent but left to
 the classifier, which reports the years without it. The distance is
 <code>climate_fill_km</code>, and a message of class
 <code>whep_moisture_regime_nearest_climate</code> counts the cells by the variables
-they took. The cell's own water term, irrigation included, is then
-applied.</p></li>
-<li><p>Irrigation depth is LPJmL's applied irrigation per crop stand, pooled to
-the commodity balance item by WHEP's irrigated hectares. LPJmL's paddy
+they took. The cell's own water term, irrigation included under
+<code>water = "precip_irrig"</code>, is then applied.</p></li>
+<li><p>Irrigation depth (<code>water = "precip_irrig"</code> only) is LPJmL's applied
+irrigation per crop stand, pooled to the commodity balance item by
+WHEP's irrigated hectares. LPJmL's paddy
 water on its rainfed rice stand is not counted: rainfed rows get none.</p></li>
 </ul></div>
     <div class="section level2">

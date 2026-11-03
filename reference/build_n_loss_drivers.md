@@ -43,7 +43,7 @@ on every other ATL row (the ATL table defines only `"Tier_1"` and
 build_n_loss_drivers(
   rows = NULL,
   window = c("trailing_30", "annual", "normal"),
-  water = c("precip_irrig", "precip"),
+  water = c("precip", "precip_irrig"),
   data = NULL,
   config = list(),
   example = FALSE
