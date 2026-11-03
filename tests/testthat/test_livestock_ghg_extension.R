@@ -419,25 +419,31 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   )
   # The shipped Tier 1 default, re-measured on this same fixture. Tier 1 reads
   # no MCF table, so `mms_shares`, `indirect_n2o_source`,
-  # `indirect_n2o_fractions`, `enteric_ef_source` and `ef3_source` are the
-  # flips that reach it; the Tier 2 default is locked in the test below.
+  # `indirect_n2o_fractions`, `enteric_ef_source`, `ef3_source` and
+  # `nex_source` are the flips that reach it; the Tier 2 default is locked in
+  # the test below.
   # Against the 2006 indirect N2O edition, whose totals are 1887669000,
   # 1472445000 and 910771875, the 2019 leaching factors raised the sector
   # totals by 0.355, 0.682 and 0.276 percent (whep#1245), to 1894361400,
   # 1482483600 and 913281525. Against that single-fraction form, the Table
   # 10.22 per-MMS fractions moved the sector totals by +0.044, +0.174 and
   # -0.706 percent (whep#1365), to the totals `shipped_tier1` below
-  # reproduces with the two whep#601 options pinned back to `"as_shipped"`.
+  # reproduces with the three whep#601 options pinned back to `"as_shipped"`.
   # whep#601 then moved Tier 1 enteric CH4 and EF3 onto the 2019 Refinement.
   # Area 10 is Australia (Oceania, high productivity): its other cattle go
   # 60 -> 63 and its sheep 8 -> 9 kg CH4/head/yr, and area 100 is India,
   # whose dairy cattle go 68 -> 73. The EF3 flip lowers all three, chiefly
   # through pasture 0.010 -> 0.004 (cattle) and 0.003 (sheep).
+  # whep#601 then derived Tier 1 N excretion from the 2019 Table 10.19 rate
+  # and Table 10A.5 mass (`nex_source`): Australian other cattle 40 -> 60.28
+  # and sheep 12 -> 6.28 kg N/head/yr, Indian dairy cattle 50 -> 67.62. That
+  # moves the three sector totals by +3.97, -6.60 and +2.83 percent from
+  # 1875040608, 1439877600 and 960042780.
   gleam_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
-    10L, 961L, 1875040608,
-    10L, 976L, 1439877600,
-    100L, 960L, 960042780
+    10L, 961L, 1949575859.7967,
+    10L, 976L, 1344879239.4,
+    100L, 960L, 987222109.9635
   )
   shipped_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
@@ -447,7 +453,8 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   )
   as_shipped <- list(
     enteric_ef_source = "as_shipped",
-    ef3_source = "as_shipped"
+    ef3_source = "as_shipped",
+    nex_source = "as_shipped"
   )
 
   placeholder <- c(
