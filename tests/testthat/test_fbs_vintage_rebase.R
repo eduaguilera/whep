@@ -1,4 +1,4 @@
-# -- FBS 2551 trade rebase (whep#1495) ----------------------------------------
+# -- FBS trade rebase (whep#1495, whep#1550) -----------------------------------
 
 # Two areas trading nuts. The old vintage closes the world: the exporter's
 # export is the importer's import. The new vintage books the importer's side of
@@ -46,18 +46,10 @@
   )
 }
 
-# The new vintage rebased, back in the source frame `.select_best_source()`
-# reads, as `.cbs_combine_sources()` assembles it.
+# Both vintages through `.select_best_source()`, which scales the old vintage
+# to the published new one and then rebases the selected FBS rows.
 .nut_select <- function(rows = .nut_fbs_rows(), factors = .nut_factors(rows)) {
-  new <- whep:::.rebase_fbs_trade(
-    .nut_vintage(rows, "FAOSTAT_FBS_New"),
-    factors
-  )
-  dplyr::bind_rows(
-    tibble::as_tibble(new) |> dplyr::mutate(source = "FAOSTAT_FBS_New"),
-    rows |> dplyr::filter(source == "FAOSTAT_FBS_Old")
-  ) |>
-    whep:::.select_best_source(rebased = attr(new, "rebased_keys"))
+  whep:::.select_best_source(rows, rebase = factors)
 }
 
 .nut_wide <- function(selected, yr) {
@@ -102,6 +94,13 @@ test_that("rebased rows are labelled and keep FBS_New's flag", {
   expect_setequal(unique(moved$element), c("import", "food", "domestic_supply"))
   expect_true(all(moved$area_code == 2L))
   expect_true(all(moved$fao_flag == "I"))
+  # The importer's scaled old-vintage years are rebased too, and keep
+  # FBS_Old's flag.
+  old_moved <- selected |>
+    dplyr::filter(source == "FAOSTAT_FBS_Old_rebased")
+  expect_setequal(unique(old_moved$year), 2005:2009)
+  expect_true(all(old_moved$area_code == 2L))
+  expect_true(all(old_moved$fao_flag == "S"))
   # The exporter's trade did not move, so it keeps the plain label.
   exporter <- selected |>
     dplyr::filter(area_code == 1L, year >= 2010L)
@@ -122,13 +121,11 @@ test_that("the old vintage follows the rebased level, not the published one", {
 })
 
 test_that("rebasing does not modify the frame it was given", {
-  fbs_new <- data.table::as.data.table(
-    .nut_vintage(.nut_fbs_rows(), "FAOSTAT_FBS_New")
-  )
-  before <- data.table::copy(fbs_new)
-  rebased <- whep:::.rebase_fbs_trade(fbs_new, .nut_factors())
-  expect_gt(nrow(attr(rebased, "rebased_keys")), 0L)
-  expect_identical(fbs_new, before)
+  rows <- data.table::as.data.table(.nut_fbs_rows())
+  before <- data.table::copy(rows)
+  selected <- whep:::.select_best_source(rows, rebase = .nut_factors())
+  expect_true(any(selected$source == "FAOSTAT_FBS_New_rebased"))
+  expect_identical(rows, before)
 })
 
 test_that("as_published leaves the new vintage as FAOSTAT published it", {
@@ -189,7 +186,7 @@ test_that("a correction larger than the row's food leaves it as published", {
   expect_equal(after$food, published$food)
 })
 
-test_that(".fbs_rebase_factors needs two overlap years and only covers 2551", {
+test_that(".fbs_rebase_factors needs two overlap years and skips other items", {
   thin <- .nut_fbs_rows() |>
     dplyr::filter(!(source == "FAOSTAT_FBS_Old" & year > 2010L))
   testthat::local_mocked_bindings(
@@ -280,9 +277,274 @@ test_that("an absent old vintage is reported, not passed off as rebased", {
   )
 })
 
-test_that("build_commodity_balances validates nut_basis", {
+test_that("build_commodity_balances validates fbs_trade_basis", {
   expect_error(
-    whep::build_commodity_balances(nut_basis = "bogus", example = TRUE),
+    whep::build_commodity_balances(fbs_trade_basis = "bogus", example = TRUE),
     class = "rlang_error"
   )
+})
+
+# -- Milk and the other processed-heavy items (whep#1550) ----------------------
+
+# The same two areas trading Milk - Excluding Butter. The new vintage books the
+# importer's side at 3x, and the importer uses 60% of its supply as food and
+# 40% as feed: FAOSTAT's import side converts cheese, which goes on into food,
+# and whey powder, which goes on into feed, to milk equivalent at far more
+# than its export side does.
+.milk_fbs_rows <- function() {
+  .nut_fbs_rows() |>
+    tidyr::pivot_wider(names_from = element, values_from = value) |>
+    dplyr::mutate(
+      feed = dplyr::if_else(area_code == 2L, 0.4 * domestic_supply, 0),
+      food = domestic_supply - feed
+    ) |>
+    tidyr::pivot_longer(
+      c(production, export, import, food, feed, domestic_supply),
+      names_to = "element"
+    ) |>
+    dplyr::mutate(item_cbs = "Milk - Excluding Butter", item_cbs_code = 2848)
+}
+
+.factors_for <- function(rows, basis = "rebased") {
+  whep:::.fbs_rebase_factors(
+    .nut_vintage(rows, "FAOSTAT_FBS_New"),
+    .nut_vintage(rows, "FAOSTAT_FBS_Old"),
+    basis
+  )
+}
+
+test_that("milk opted in closes the world, out of feed first, then food", {
+  rows <- .milk_fbs_rows()
+  before <- .nut_wide(whep:::.select_best_source(rows), 2016L)
+  after <- .nut_wide(
+    .nut_select(rows, .factors_for(rows, "rebased_with_milk")),
+    2016L
+  )
+
+  expect_equal(sum(before$import) / sum(before$export), 3)
+  expect_equal(sum(after$import) / sum(after$export), 1)
+  # 2016: the importer's 630 t import falls to 210 t. Its feed is 3x the old
+  # vintage's, so feed falls to the old level first (252 t to 84 t) and the
+  # rest of the 420 t cut, 252 t, comes out of food (378 t to 126 t).
+  expect_equal(after$food, c(50, 126))
+  expect_equal(after$feed, c(0, 84))
+  expect_equal(after$production, before$production)
+  expect_equal(
+    after$production + after$import - after$export,
+    after$domestic_supply
+  )
+  expect_equal(after$food + after$feed, after$domestic_supply)
+})
+
+test_that("a milk cut beyond food but within food and feed is applied", {
+  # The importer feeds most of its milk: the 420 t cut is larger than its
+  # 63 t of food, as for the Netherlands at 2010. Feed falls to a third (the
+  # old vintage's 2010-2013 level), 378 t, and food gives the other 42 t.
+  rows <- .milk_fbs_rows() |>
+    dplyr::mutate(
+      value = dplyr::case_when(
+        source != "FAOSTAT_FBS_New" | area_code != 2L | year != 2016L ~ value,
+        element == "food" ~ 63,
+        element == "feed" ~ 567,
+        .default = value
+      )
+    )
+  after <- .nut_wide(
+    .nut_select(rows, .factors_for(rows, "rebased_with_milk")),
+    2016L
+  )
+  expect_equal(after$import[2], 210)
+  expect_equal(after$food[2], 21)
+  expect_equal(after$feed[2], 189)
+})
+
+test_that("a milk cut beyond food and feed leaves the row as published", {
+  rows <- .milk_fbs_rows() |>
+    dplyr::mutate(
+      value = dplyr::case_when(
+        source != "FAOSTAT_FBS_New" | area_code != 2L | year != 2016L ~ value,
+        element %in% c("food", "feed") ~ 5,
+        element == "domestic_supply" ~ 10,
+        element == "export" ~ 620,
+        .default = value
+      )
+    )
+  after <- .nut_wide(
+    .nut_select(rows, .factors_for(rows, "rebased_with_milk")),
+    2016L
+  )
+  published <- .nut_wide(whep:::.select_best_source(rows), 2016L)
+  expect_equal(after, published)
+})
+
+test_that("milk feed on the old vintage's level is not cut", {
+  # The old vintage feeds as much as the new one, so feed carries no excess:
+  # the whole 420 t cut of 2016 comes out of food, and feed does not move.
+  rows <- .milk_fbs_rows() |>
+    tidyr::pivot_wider(names_from = element, values_from = value) |>
+    dplyr::mutate(
+      feed = dplyr::if_else(area_code == 2L, 60, 0),
+      food = domestic_supply - feed
+    ) |>
+    tidyr::pivot_longer(
+      c(production, export, import, food, feed, domestic_supply),
+      names_to = "element"
+    )
+  after <- .nut_wide(
+    .nut_select(rows, .factors_for(rows, "rebased_with_milk")),
+    2016L
+  )
+  expect_equal(after$feed[2], 60)
+  expect_equal(after$food[2], 570 - 420)
+  expect_equal(after$import[2], 210)
+})
+
+test_that("milk stays as published unless it is opted in", {
+  # whep#1583: only the whey part of milk's import excess has a measured
+  # destiny, so the default leaves milk as FAOSTAT published it.
+  rows <- .milk_fbs_rows()
+  for (basis in c("rebased", "nuts_only", "as_published")) {
+    expect_identical(
+      .nut_select(rows, .factors_for(rows, basis)),
+      whep:::.select_best_source(rows)
+    )
+  }
+  expect_false(identical(
+    .nut_select(rows, .factors_for(rows, "rebased_with_milk")),
+    whep:::.select_best_source(rows)
+  ))
+})
+
+test_that("nut feed is not a destiny the rebase takes from", {
+  # Only food absorbed the nut excess. The same rows under 2551: the 420 t
+  # cut exceeds the importer's 378 t of food, and feed is no destiny it may
+  # take from, so the row stays as published.
+  rows <- .milk_fbs_rows() |>
+    dplyr::mutate(item_cbs = "Nuts and products", item_cbs_code = 2551)
+  after <- .nut_wide(.nut_select(rows, .factors_for(rows)), 2016L)
+  expect_equal(after$import[2], 630)
+  expect_equal(after$food[2], 378)
+  expect_equal(after$feed[2], 252)
+  expect_false("feed" %in% .factors_for(rows)$element)
+})
+
+test_that("fbs_trade_basis selects which items are rebased", {
+  expect_setequal(
+    whep:::.fbs_rebase_items("rebased"),
+    c(2551L, 2563L, 2601L, 2612L, 2618L)
+  )
+  expect_setequal(
+    whep:::.fbs_rebase_items("rebased_with_milk"),
+    c(2551L, 2563L, 2601L, 2612L, 2618L, 2848L)
+  )
+  expect_identical(whep:::.fbs_rebase_items("nuts_only"), 2551L)
+  expect_length(whep:::.fbs_rebase_items("as_published"), 0L)
+
+  milk <- .milk_fbs_rows()
+  expect_gt(nrow(.factors_for(milk, "rebased_with_milk")), 0L)
+  expect_true("feed" %in% .factors_for(milk, "rebased_with_milk")$element)
+  expect_equal(nrow(.factors_for(milk, "rebased")), 0L)
+  expect_equal(nrow(.factors_for(milk, "nuts_only")), 0L)
+  # The processed fruit items are rebased by default.
+  olives <- .nut_fbs_rows() |>
+    dplyr::mutate(
+      item_cbs = "Olives (including preserved)",
+      item_cbs_code = 2563
+    )
+  expect_gt(nrow(.factors_for(olives, "rebased")), 0L)
+  # Under "nuts_only" the nut rebase is exactly the whep#1495 one.
+  nuts <- .nut_fbs_rows()
+  expect_identical(.factors_for(nuts, "nuts_only"), .nut_factors(nuts))
+})
+
+test_that("every rebased item names at least one absorbing destiny", {
+  destinies <- whep:::.fbs_rebase_destinies()
+  expect_setequal(
+    unique(destinies$item_cbs_code),
+    whep:::.fbs_rebase_items("rebased_with_milk")
+  )
+  expect_true(all(destinies$element %in% c("food", "feed")))
+  expect_setequal(
+    destinies$element[destinies$item_cbs_code == 2848L],
+    c("food", "feed")
+  )
+})
+
+# A row's supply gap, production + import - export - domestic supply: what
+# `.fix_cbs()` books as imputed production or stock change downstream.
+.supply_gap <- function(selected, years) {
+  selected |>
+    dplyr::filter(year %in% years) |>
+    dplyr::select(year, area_code, element, value) |>
+    tidyr::pivot_wider(names_from = element, values_from = value) |>
+    dplyr::arrange(year, area_code) |>
+    dplyr::mutate(gap = production + import - export - domestic_supply) |>
+    dplyr::pull(gap)
+}
+
+test_that("the rebase leaves every pre-2010 row's supply gap as published", {
+  # The importer's 2010-2011 food is too small to absorb the cut, so those
+  # rows stay as published while 2012-2013 are rebased. Scaling the old
+  # vintage to a new one rebased in some overlap years and not in others
+  # took import, export and food by inconsistent ratios, and the gap that
+  # opened was booked downstream as production the importer never grew
+  # (whep#1623: Netherlands pineapples, 0 to 112 kt at 2009).
+  # The importer also re-exports, as the Netherlands does, at a factor the
+  # new vintage inflates less than its imports.
+  rows <- .nut_fbs_rows() |>
+    tidyr::pivot_wider(names_from = element, values_from = value) |>
+    dplyr::mutate(
+      export = dplyr::case_when(
+        area_code == 1L ~ export,
+        source == "FAOSTAT_FBS_New" ~ 0.6 * import,
+        .default = 0.3 * import
+      ),
+      food = production + import - export,
+      food = dplyr::if_else(
+        source == "FAOSTAT_FBS_New" & area_code == 2L & year %in% 2010:2011,
+        0.05 * food,
+        food
+      ),
+      domestic_supply = food
+    ) |>
+    tidyr::pivot_longer(
+      c(production, export, import, food, domestic_supply),
+      names_to = "element"
+    )
+  published <- whep:::.select_best_source(rows)
+  rebased <- .nut_select(rows)
+  expect_equal(
+    .supply_gap(rebased, 2005:2009),
+    .supply_gap(published, 2005:2009)
+  )
+  # And every year keeps its published gap, rebased or not.
+  expect_equal(
+    .supply_gap(rebased, 2005:2016),
+    .supply_gap(published, 2005:2016)
+  )
+})
+
+test_that("a correction equal to the row's food leaves it as published", {
+  # The 2016 cut is 420 t and the importer eats exactly 420 t. Taking all of
+  # it would leave food at zero, which `.fix_cbs()` reads as missing and
+  # refills from net trade, moving the row's stock change (Hungary's olives,
+  # 2009: 1.5 kt). A rebase never empties food.
+  ratio <- .nut_factors() |>
+    dplyr::filter(area_code == 2L, element == "import") |>
+    dplyr::pull(rebase_old_new)
+  cut <- 630 * (1 - ratio)
+  rows <- .nut_fbs_rows() |>
+    dplyr::mutate(
+      value = dplyr::case_when(
+        source != "FAOSTAT_FBS_New" | area_code != 2L | year != 2016L ~ value,
+        element %in% c("food", "domestic_supply") ~ cut,
+        element == "export" ~ 630 - cut,
+        .default = value
+      )
+    )
+  after <- .nut_wide(.nut_select(rows), 2016L)
+  published <- .nut_wide(whep:::.select_best_source(rows), 2016L)
+  expect_equal(after$import, published$import)
+  expect_equal(after$food, published$food)
+  expect_gt(after$food[2], 0)
 })
