@@ -647,6 +647,12 @@ Rows sourced from `"FAOSTAT_prod"` are `NA` today because
 [`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
 does not carry the flag out of the production pin.
 
+Both formats retain a `residue_feed_kgdm` attribute with the crop-mix
+dry-matter content behind their residue feed, including the selected
+historical back-cast. The feed allocator uses this provenance; formats
+such as CSV that discard attributes cannot preserve it. Custom balances
+without it retain the residue reader and warn on uncovered feed rows.
+
 ## Examples
 
 ``` r
