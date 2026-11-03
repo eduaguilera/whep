@@ -416,7 +416,7 @@ testthat::test_that("every split column sums back over water_regime", {
   .regime_crops() |>
     dplyr::select(-"irrigated_share", -"ratio") |>
     .regime_with_regions() |>
-    whep::calculate_crop_npp() |>
+    whep:::.sci_crop_npp() |>
     whep::calculate_npp_carbon_nitrogen()
 }
 
@@ -500,7 +500,7 @@ testthat::test_that("every split column sums back over water_regime", {
     ) |>
     dplyr::select(-"irrigated_share", -"ratio") |>
     .regime_with_regions() |>
-    whep::calculate_crop_npp() |>
+    whep:::.sci_crop_npp() |>
     whep::calculate_residue_destinies(
       bedding = if (is.null(bedding_fraction)) "wirsenius" else "fraction",
       bedding_fraction = bedding_fraction %||% 0

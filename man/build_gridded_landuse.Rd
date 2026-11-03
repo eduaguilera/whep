@@ -217,6 +217,13 @@ Numeric \code{area_code} columns, if also present, are source metadata and are
 excluded from allocation. The output retains \code{polity_code} and does not
 reconstruct identity from a numeric aggregation bucket.
 
+Native outputs record \code{method_weight_rainfed} and \code{method_weight_irrigated}
+for the initial weighting before capacity redistribution: \code{"crop_pattern"},
+\code{"cropland_proportional"} when pattern potential is zero, or \code{"no_land"}
+when that regime has no allocatable land. A supplied \code{method_irrigation}
+is retained. CFT aggregation lists distinct constituent method labels,
+sorted and separated by semicolons; it does not select a new method.
+
 Polity targets must be unique per polity, year and crop. Missing identity,
 mixed native/legacy inputs, duplicate polity cells in a year and targets
 with no support in their year abort explicitly. Harvested-area targets
