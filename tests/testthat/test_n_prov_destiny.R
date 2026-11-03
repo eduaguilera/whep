@@ -2228,18 +2228,15 @@ test_that(".book_import_fed_crush exports what Spain does not import", {
   expect_equal(.livestock_n(out), .livestock_n(flows))
 })
 
-test_that(".book_import_fed_crush warns when no province imports the outputs", {
+test_that("unsited outputs fail with explicit unbooked inputs", {
   flows <- .test_import_fed_flows() |> dplyr::filter(origin != "Outside")
-
   expect_warning(
-    out <- .book_import_fed_crush(flows, .test_import_fed_crush()),
+    expect_error(
+      .book_import_fed_crush(flows, .test_import_fed_crush()),
+      class = "whep_import_fed_incomplete"
+    ),
     class = "whep_import_fed_unsited"
   )
-
-  # Nothing to site the crush in: it is left out, not booked half-way.
-  expect_false(any(out$destiny %in% c("processing", "export")))
-  expect_false(any(out$origin == "Agro-industry"))
-  expect_equal(sum(out$mg_n), sum(flows$mg_n))
 })
 
 test_that(".book_import_fed_crush is a no-op with nothing to book", {
@@ -2432,4 +2429,43 @@ test_that(".as_product_booking leaves flows with no crush untouched", {
   flows <- .test_import_fed_flows()
 
   expect_identical(.as_product_booking(flows), flows)
+})
+
+testthat::test_that("loss-only imported processing reaches final flows", {
+  crush <- .test_soy_crush()
+  crush$outputs <- crush$outputs[0, ]
+  crush$inputs$loss_n <- crush$inputs$feedstock_n
+  sites <- tibble::tribble(
+    ~primary_item, ~province_name, ~weight,
+    "Soyabeans", "Barcelona", 1
+  )
+  out <- .book_import_fed_crush(.test_soy_flows(), crush, sites)
+  testthat::expect_equal(sum(out$mg_n[out$destiny == "processing"]), 122)
+  testthat::expect_equal(sum(out$mg_n[out$destiny == "processing_losses"]), 122)
+  testthat::expect_equal(.livestock_n(out), .livestock_n(.test_soy_flows()))
+})
+
+testthat::test_that("unsited loss-only inputs remain in a structured failure", {
+  crush <- .test_soy_crush()
+  crush$outputs <- crush$outputs[0, ]
+  crush$inputs$loss_n <- crush$inputs$feedstock_n
+  sites <- .crush_plant_sites()[0, ]
+  error <- tryCatch(
+    .book_import_fed_crush(.test_soy_flows(), crush, sites),
+    whep_import_fed_incomplete = identity
+  )
+  testthat::expect_s3_class(error, "whep_import_fed_incomplete")
+  testthat::expect_equal(error$unresolved$feedstock_n, 122)
+  testthat::expect_equal(error$unresolved$loss_n, 122)
+})
+
+testthat::test_that("final booking detects partial site weights", {
+  sites <- tibble::tribble(
+    ~primary_item, ~province_name, ~weight,
+    "Soyabeans", "Barcelona", 0.5
+  )
+  testthat::expect_error(
+    .book_import_fed_crush(.test_soy_flows(), .test_soy_crush(), sites),
+    class = "whep_import_fed_incomplete"
+  )
 })

@@ -100,6 +100,12 @@ includes N soil inputs, imports and production. The destiny column shows
 where N goes to, which includes export, population food, population other
 uses and feed or cropland (in case of N soil inputs).
 Processed items, residues, woody crops, grazed weeds are taken into account.
+
+Imported processing must retain both its feedstock nitrogen and its
+processing losses, including when its products contain no nitrogen.
+If siting cannot account for these flows, the build aborts with class
+\code{whep_import_fed_incomplete}. Its \code{unresolved} table records required and
+booked nitrogen by year and item; no unsupported site is substituted.
 }
 \examples{
 create_n_prov_destiny(example = TRUE)

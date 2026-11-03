@@ -14,6 +14,12 @@
 #' uses and feed or cropland (in case of N soil inputs).
 #' Processed items, residues, woody crops, grazed weeds are taken into account.
 #'
+#' Imported processing must retain both its feedstock nitrogen and its
+#' processing losses, including when its products contain no nitrogen.
+#' If siting cannot account for these flows, the build aborts with class
+#' `whep_import_fed_incomplete`. Its `unresolved` table records required and
+#' booked nitrogen by year and item; no unsupported site is substituted.
+#'
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #' @param wood_n_method How the nitrogen concentration of the two wood items
@@ -1424,18 +1430,79 @@ create_n_nat_destiny <- function(
 #' @return `flows` with the crush booked.
 #' @keywords internal
 #' @noRd
+# Booking is complete only when the input and its losses reach final rows.
+# Missing siting is an unresolved contract, not zero imported processing.
 .book_import_fed_crush <- function(
   flows,
   crush,
   plant_sites = .crush_plant_sites()
 ) {
-  if (nrow(crush$outputs) == 0) {
+  if (nrow(crush$inputs) == 0 && nrow(crush$outputs) == 0) {
     return(flows)
   }
   at_plants <- unique(plant_sites$primary_item)
-  flows |>
+  booked <- flows |>
     .book_crush_at_plants(.crush_part(crush, at_plants, TRUE), plant_sites) |>
     .book_crush_where_eaten(.crush_part(crush, at_plants, FALSE))
+  .check_crush_booking(booked, flows, crush$inputs)
+}
+
+.crush_input_totals <- function(flows) {
+  flows |>
+    dplyr::filter(
+      (.data$origin == "Outside" & .data$destiny == "processing") |
+        (.data$origin == "Agro-industry" &
+          .data$destiny == "processing_losses")
+    ) |>
+    dplyr::summarise(
+      feedstock_n = sum(.data$mg_n[.data$destiny == "processing"]),
+      loss_n = sum(.data$mg_n[.data$destiny == "processing_losses"]),
+      .by = c("year", "item")
+    )
+}
+
+.check_crush_booking <- function(booked, before, inputs) {
+  delta <- dplyr::bind_rows(
+    .crush_input_totals(booked),
+    .crush_input_totals(before) |>
+      dplyr::mutate(dplyr::across(c("feedstock_n", "loss_n"), ~ -.x))
+  ) |>
+    dplyr::summarise(
+      dplyr::across(c("feedstock_n", "loss_n"), sum),
+      .by = c("year", "item")
+    )
+  unresolved <- inputs |>
+    dplyr::left_join(
+      delta,
+      by = c("year", "item"),
+      suffix = c("", "_booked")
+    ) |>
+    dplyr::mutate(
+      # Absent booked rows represent zero booking, not zero required input.
+      feedstock_n_booked = dplyr::coalesce(.data$feedstock_n_booked, 0),
+      loss_n_booked = dplyr::coalesce(.data$loss_n_booked, 0)
+    ) |>
+    dplyr::filter(
+      # Relative floating-point comparison; this is not an allocation cap.
+      abs(.data$feedstock_n - .data$feedstock_n_booked) >
+        sqrt(.Machine$double.eps) * pmax(1, abs(.data$feedstock_n)) |
+        abs(.data$loss_n - .data$loss_n_booked) >
+          sqrt(.Machine$double.eps) * pmax(1, abs(.data$loss_n))
+    )
+  if (nrow(unresolved) > 0) {
+    cli::cli_abort(
+      c(
+        "Imported processing could not be booked completely.",
+        i = "Resolve siting for the input and processing losses; \
+             zero product nitrogen does not remove either flow.",
+        i = "The condition's {.field unresolved} table retains required \
+             and booked nitrogen by year and item."
+      ),
+      class = "whep_import_fed_incomplete",
+      unresolved = unresolved
+    )
+  }
+  booked
 }
 
 #' @title Where Spain's crushing plants are ------------------------------------
@@ -1503,7 +1570,7 @@ create_n_nat_destiny <- function(
 #' @keywords internal
 #' @noRd
 .book_crush_at_plants <- function(flows, crush, plant_sites) {
-  if (nrow(crush$outputs) == 0) {
+  if (nrow(crush$inputs) == 0 && nrow(crush$outputs) == 0) {
     return(flows)
   }
   produced <- crush$outputs |>
@@ -1729,8 +1796,8 @@ create_n_nat_destiny <- function(
         "Spain imports none of the outputs of the import-fed crush of
          {cli::qty(length(unsited))} {.val {unsited}} in some year{?s}, so it
          has no province to be sited in (#1014).",
-        i = "That crush is left out, as with
-             {.code import_processing = \"product\"}."
+        i = "That crush has no supported site; final booking reports \
+             the unbooked input."
       ),
       class = "whep_import_fed_unsited"
     )
