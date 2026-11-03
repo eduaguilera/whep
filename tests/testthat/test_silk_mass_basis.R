@@ -395,13 +395,16 @@ test_that("the default duplicate-use rule reads FAO's residual", {
   expect_equal(whep:::.silk_duplicate_use_choices()[[1]], "residual")
 })
 
-test_that("no Residuals row survives any basis", {
+test_that("silk residuals stay in the source ledger before basis conversion", {
   extracted <- .local_duplicate_extract(1000, 1000, -1000)
-  expect_true("Residuals" %in% extracted$element)
+  expect_true("residuals" %in% extracted$element)
 
   purrr::walk(whep:::.silk_basis_choices(), \(method) {
     out <- .quiet_silk_basis(extracted, method)
-    expect_false("Residuals" %in% out$element, label = method)
+    expect_false(
+      any(c("Residuals", "residuals") %in% out$element),
+      label = method
+    )
   })
 })
 

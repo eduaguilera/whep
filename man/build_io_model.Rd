@@ -12,7 +12,8 @@ build_io_model(
   endogenize_losses = FALSE,
   method = c("mass", "value"),
   prices = NULL,
-  trade_recovery = .cbs_trade_recovery_choices()
+  trade_recovery = .cbs_trade_recovery_choices(),
+  stock_coverage = c("known_flows", "abort")
 )
 }
 \arguments{
@@ -41,13 +42,14 @@ If NULL, computes all years in the intersection of
 available data across inputs. If specified, must be
 a subset of available years.}
 
-\item{endogenize_losses}{Logical. If \code{TRUE} and \code{cbs}
-contains a \code{losses} column, losses are moved from final
-demand to the diagonal of \code{Z} (self-use), following the
-FABIO convention. The \code{losses} column is removed from Y
-and \code{fd_labels}. \code{\link[=get_wide_cbs]{get_wide_cbs()}} emits no \code{losses} column, so \code{TRUE}
-with such a \code{cbs} warns and builds the same model as \code{FALSE}. Defaults
-to \code{FALSE}.}
+\item{endogenize_losses}{Logical. Losses and tourist consumption are
+final demand categories whenever \code{cbs} carries them, as in FABIO's
+final demand labels; the statistical \code{residuals} and
+\code{balance_discrepancy} never are. If \code{TRUE},
+losses are moved from final demand to the diagonal of \code{Z} (self-use),
+following the FABIO convention, and the \code{losses} column is removed from
+Y and \code{fd_labels}. A \code{cbs} with no \code{losses} column warns and builds the
+same model as \code{FALSE}. Defaults to \code{FALSE}.}
 
 \item{method}{Co-product allocation method. \code{"mass"} (default) splits a
 multi-output process's inputs across its products by physical mass;
@@ -68,6 +70,13 @@ matrices and the prices. See \code{\link[=build_commodity_balances]{build_commod
 method does. It has no effect on an input supplied directly, so a \code{cbs}
 built with one method and the rest left to build under another is the
 caller's to avoid; pass the same value everywhere.}
+
+\item{stock_coverage}{What to do with CBS rows whose stock change is
+unobserved (\code{NA} \code{stock_addition}/\code{stock_withdrawal}), which is every
+key FAOSTAT does not report one for. \code{"known_flows"} (default) books no
+inventory for them and warns, as FABIO does; \code{"abort"} refuses. The
+choice is returned in the \code{method_stock_coverage} column and the rows in
+the \code{unknown_stock_accounts} attribute.}
 }
 \value{
 A tibble with one row per year and list-columns:
@@ -75,6 +84,7 @@ A tibble with one row per year and list-columns:
 \item \code{Z}: Inter-industry flow matrix (product-by-product).
 \item \code{Y}: Final demand matrix.
 \item \code{X}: Total output vector.
+\item \code{method_stock_coverage}: the \code{stock_coverage} choice.
 \item \code{labels}: Tibble mapping row/column indices to
 \code{area_code}, \code{item_cbs_code}, and reporting polity metadata.
 \item \code{fd_labels}: Tibble mapping each Y column to its

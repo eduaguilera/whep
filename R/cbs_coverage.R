@@ -231,6 +231,8 @@
   !is.null(extracts) &&
     all(rlang::has_name(extracts, sources)) &&
     purrr::every(extracts[sources], \(data) {
-      !is.null(attr(data, "bucket_members"))
+      !is.null(attr(data, "bucket_members")) &&
+        !is.null(attr(data, "source_accounts")) &&
+        identical(attr(data, "stock_convention"), "addition_positive")
     })
 }
