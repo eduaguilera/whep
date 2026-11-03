@@ -307,7 +307,9 @@ print(
   width = Inf
 )
 
-# Sugar cane trash per tonne of cane stalk (Hassuani et al. 2005).
+# Sugar cane trash per tonne of cane stalk (Hassuani et al. 2005). Since
+# #1551 the default anchors cane trash on that same figure, so the ratio reads
+# 1.00 by construction; it still catches a cane row that misses the anchor.
 cane <- crop_base |>
   dplyr::filter(.data$item_cbs_code_crop == 2536) |>
   dplyr::inner_join(crop_residue, by = c("year", "item_cbs_code_crop")) |>

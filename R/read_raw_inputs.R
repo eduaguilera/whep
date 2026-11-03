@@ -159,23 +159,7 @@
 
 # Get local file paths for a pin alias (download if needed, don't read).
 .download_pin_paths <- function(file_alias) {
-  file_info <- .fetch_file_info(file_alias, whep::whep_inputs)
-  version <- .choose_version(file_info$version, NULL)
-
-  tryCatch(
-    .get_local_board() |>
-      pins::pin_download(file_alias, version = version),
-    error = function(e) {
-      tryCatch(
-        file_info |>
-          .get_remote_board() |>
-          pins::pin_download(file_alias, version = version),
-        error = function(e) {
-          .get_cache_paths(file_info, file_alias, version, e)
-        }
-      )
-    }
-  )
+  .download_input(file_alias)
 }
 
 # Read a parquet file, optionally filtering by year range.
@@ -210,7 +194,7 @@
     data.table::setDT(dt)
   }
 
-  dt
+  .mark_access(dt, attr(paths, "data_access"))
 }
 
 # -- FAOSTAT extraction --------------------------------------------------------
@@ -559,9 +543,9 @@
 # would otherwise be named as covered.
 .bucket_members <- function(dt) {
   reported <- !is.na(dt$value) & dt$value != 0
-  unique(
-    dt[reported, .(polity_area_code, year, area_code)]
-  )
+  out <- unique(dt[reported, .(polity_area_code, year, area_code)])
+  data.table::setorderv(out, c("polity_area_code", "year", "area_code"))
+  out
 }
 
 # A bucket that folds several reporting areas (whep#414) is a *sum*, and the

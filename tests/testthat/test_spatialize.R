@@ -271,13 +271,10 @@ testthat::test_that("build_gridded_landuse still constrains cells missing a mult
   # Country total must still be conserved.
   testthat::expect_equal(cell1 + cell2, 1000, tolerance = 1e-4)
 
-  # The cell missing a multicropping row (lon = 0.75) must still be
-  # capacity constrained (mc = 1 default), giving the exact same result
-  # as supplying no multicropping layer at all for this fixture — not
-  # left unconstrained with infinite capacity, which would push its
-  # allocation well above the proportional share of 143 ha.
-  testthat::expect_equal(cell1, 773.2421083791, tolerance = 1e-6)
-  testthat::expect_equal(cell2, 226.7578916209, tolerance = 1e-6)
+  # Both cells must respect their supplied single-crop capacities. Their
+  # capacities sum to the target, so 600/400 is the unique feasible result.
+  testthat::expect_equal(cell1, 600, tolerance = 1e-4)
+  testthat::expect_equal(cell2, 400, tolerance = 1e-4)
 })
 
 testthat::test_that("build_gridded_landuse distributes proportionally when within capacity", {
@@ -960,8 +957,8 @@ testthat::test_that("splitting a polycell in two changes no cell's allocation", 
   # under polycell-keyed redistribution. Grouping `.cell_group` on
   # (lon, lat) instead pools the two and then takes `first(rf_capacity)` --
   # one compartment's ceiling applied to both -- and the identity breaks.
-  # Capacity must bind, or the redistribution never runs and the test is
-  # vacuous; the warning below is the evidence that it did.
+  # The initial pattern overloads the first cell; the final allocation must
+  # move land into the second cell while respecting the feasible ceiling.
   base_fix <- list(
     country_areas = tibble::tribble(
       ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
@@ -1000,11 +997,12 @@ testthat::test_that("splitting a polycell in two changes no cell's allocation", 
     )
   )
 
-  testthat::expect_warning(
-    whole_out <- do.call(whep::build_gridded_landuse, whole),
-    "more harvested area than their capacity"
+  testthat::expect_no_warning(
+    whole_out <- do.call(whep::build_gridded_landuse, whole)
   )
-  split_out <- suppressWarnings(do.call(whep::build_gridded_landuse, split))
+  testthat::expect_no_warning(
+    split_out <- do.call(whep::build_gridded_landuse, split)
+  )
 
   per_cell <- function(x) {
     x |>
@@ -1021,9 +1019,9 @@ testthat::test_that("splitting a polycell in two changes no cell's allocation", 
     tolerance = 1e-9
   )
   # Not vacuous: the two cells really do hold different amounts, and the
-  # concentrated cell really was pushed past its ceiling.
+  # concentrated cell was brought back to its feasible ceiling.
   testthat::expect_gt(per_cell(whole_out)[[1L]], per_cell(whole_out)[[2L]])
-  testthat::expect_gt(per_cell(whole_out)[[1L]], 1000)
+  testthat::expect_lte(per_cell(whole_out)[[1L]], 1000 + 1e-4)
   # The split cell's two compartments keep their own shares of it.
   split_shared <- split_out |>
     dplyr::filter(lon == 0.25) |>
@@ -1877,12 +1875,10 @@ testthat::test_that("the breached-capacity worst is one cell's one regime", {
 }
 
 
-testthat::test_that("the T13 grouping moves no level-0 value", {
-  # The two-level allocation reaches level 0 through the SAME code: the
-  # allocation key, the type-potential fallback, the redistribution's crop
-  # group and the capacity ceiling all read the national table's own grain,
-  # which at level 0 is what it always was. Compared bit-for-bit on the keys
-  # and, at 1e-9 ha, on the values.
+testthat::test_that("level-0 redistribution preserves targets and feasible water capacity", {
+  # Retain the historical row-key contract, but do not pin the old
+  # premature-convergence values. Rainfed demand is infeasible here, while
+  # irrigation can fit; each crop/year target must still be preserved.
   fix <- .t13_level0_fixture()
   got <- suppressWarnings(do.call(whep::build_gridded_landuse, fix)) |>
     dplyr::arrange(year, lon, item_prod_code)
@@ -1893,20 +1889,34 @@ testthat::test_that("the T13 grouping moves no level-0 value", {
     got[c("year", "area_code", "lon", "lat", "item_prod_code")],
     want[c("year", "area_code", "lon", "lat", "item_prod_code")]
   )
-  testthat::expect_identical(
-    round(got$rainfed_ha, 9),
-    round(want$rainfed_ha, 9)
-  )
-  testthat::expect_identical(
-    round(got$irrigated_ha, 9),
-    round(want$irrigated_ha, 9)
-  )
-  testthat::expect_equal(got$rainfed_ha, want$rainfed_ha, tolerance = 1e-12)
-  testthat::expect_equal(
-    got$irrigated_ha,
-    want$irrigated_ha,
-    tolerance = 1e-12
-  )
+  totals <- got |>
+    dplyr::summarise(
+      harvested = sum(rainfed_ha + irrigated_ha),
+      irrigated = sum(irrigated_ha),
+      .by = c(year, area_code, item_prod_code)
+    ) |>
+    dplyr::left_join(
+      fix$country_areas,
+      by = c("year", "area_code", "item_prod_code")
+    )
+  testthat::expect_equal(totals$harvested, totals$harvested_area_ha)
+  testthat::expect_equal(totals$irrigated, totals$irrigated_area_ha)
+  cells <- got |>
+    dplyr::summarise(
+      rainfed = sum(rainfed_ha),
+      irrigated = sum(irrigated_ha),
+      .by = c(year, lon, lat)
+    ) |>
+    dplyr::left_join(fix$gridded_cropland, by = c("year", "lon", "lat"))
+  testthat::expect_lte(max(cells$irrigated - cells$irrigated_ha), 1e-4)
+  # Rainfed targets total 1200 ha against 1000 ha in each year; the
+  # unavoidable 200 ha excess remains visible instead of losing targets.
+  excess <- cells |>
+    dplyr::summarise(
+      excess = sum(pmax(rainfed - (cropland_ha - irrigated_ha), 0)),
+      .by = year
+    )
+  testthat::expect_equal(excess$excess, c(200, 200), tolerance = 1e-4)
   # Not vacuous: the ceiling really did bind, so the redistribution ran.
   # One year, because the warning fires once per year and
   # `expect_warning()` consumes only the first.
@@ -2212,4 +2222,25 @@ testthat::test_that("the missing-reporter guard is year-aware (whep#1319)", {
   testthat::expect_match(warnings, "1.5e\\+09|1500000000", all = FALSE)
   testthat::expect_no_match(warnings, "228 in 1990")
   testthat::expect_no_warning(fn(national[1, ], grid, "heads", "head"))
+})
+
+testthat::test_that("redistribution respects feasible capacity after restoring targets", {
+  # Both cells already carry this crop: no pattern expansion is required.
+  # A 50/50 allocation meets the 100 ha target and both physical ceilings.
+  work <- tibble::tribble(
+    ~area_code, ~lon, ~lat, ~item_prod_code, ~rainfed_ha,
+    ~irrigated_ha, ~rf_capacity, ~ir_capacity,
+    1L, 0.25, 50.25, 15L, 99, 99, 50, 50,
+    1L, 0.75, 50.25, 15L, 1, 1, 50, 50
+  ) |>
+    data.table::as.data.table()
+  result <- whep:::.redistribute_country_dt(
+    work,
+    list(alloc_cols = c("area_code", "item_prod_code"), max_iterations = 1000L)
+  )
+  testthat::expect_equal(sum(result$rainfed_ha), 100)
+  testthat::expect_equal(sum(result$irrigated_ha), 100)
+  # Use the existing engine's 1e-4 ha convergence tolerance.
+  testthat::expect_lte(max(result$rainfed_ha - result$rf_capacity), 1e-4)
+  testthat::expect_lte(max(result$irrigated_ha - result$ir_capacity), 1e-4)
 })

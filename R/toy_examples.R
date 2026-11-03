@@ -230,7 +230,8 @@
     1929, "Tarragona", "Olives (including preserved)", "Irrigated", "Cropland", "Cropland", "export", 6.92e+1,
     1955, "Albacete", "Wheat and products", "Rainfed", NA, "Synthetic", "Cropland", 6.16e+2,
     1957, "Gipuzkoa", "Wheat and products", NA, "Cropland", "Outside", "population_food", 8.17e-1,
-    1862, "Huesca", "Grapes and products (excl wine)", "Irrigated", "Cropland", "Cropland", "population_food", 9.39e-2,
+    1862, "Huesca", "Grapes and products (excl wine)", "Irrigated", "Cropland", "Cropland", "population_food", 8.451e-2,
+    1862, "Huesca", "Grapes and products (excl wine)", "Irrigated", "Cropland", "Cropland", "population_food_inedible", 9.39e-3,
     1980, "Lleida", "Wheat and products", "Irrigated", NA, "Fixation", "Cropland", 1.71e+2,
     1863, "A_Coruna", "Millet and products", "Rainfed", NA, "Fixation", "Cropland", 9.95e-3,
     1987, "Lugo", "Tomatoes and products", "Irrigated", "Cropland", "Cropland", "livestock_mono", 1.29e-3,
@@ -331,7 +332,13 @@
     1993, "Oats", "Irrigated", NA, "People", "Cropland", 5.65, "Spain",
     1874, "Fodder mix", "Rainfed", "Cropland", "Cropland", "livestock_rum", 605., "Spain",
     1983, "Oranges, Mandarines", "Irrigated", NA, "Livestock", "Cropland", 5290., "Spain",
-    1997, "Barley and products", "Rainfed", "Cropland", "Cropland", "livestock_rum", 17549., "Spain"
+    1997, "Barley and products", "Rainfed", "Cropland", "Cropland", "livestock_rum", 17549., "Spain",
+    # Every other row's destiny/origin is Cropland-only; these two add the
+    # semi_natural_agroecosystems box on both sides (input and output), so
+    # plot_input_output(system = "semi_natural_agroecosystems", example =
+    # TRUE) has data to plot instead of an empty series.
+    1958, "Grasses, Other", NA, NA, "Fixation", "semi_natural_agroecosystems", 812., "Spain",
+    1958, "Grasses, Other", NA, "semi_natural_agroecosystems", "semi_natural_agroecosystems", "livestock_rum", 1340., "Spain"
   )
 }
 
@@ -2465,58 +2472,34 @@
 # Ten rows of `build_cell_moisture_regime(years = 2009:2010)` run on the
 # offline fixture of its tests: one cell shared by two polities, a second
 # cell, maize and a vegetables item pooling green corn with cabbages. The
-# columns the fixture holds constant (latitude, temperature, frost days, PET,
-# the rule and window) are set once below.
+# default water term is precipitation alone, so the irrigation and LPJmL
+# columns are empty and irrigated rows take their cell's class. The columns
+# the fixture holds constant (latitude, temperature, frost days, PET, the
+# rule and window) are set once below.
 .example_cell_moisture_regime <- function() {
   tibble::tribble(
     ~lon, ~area_code, ~item_cbs_code, ~water_regime, ~year, ~prec_mm,
-    ~irrig_mm, ~moisture_regime, ~method_irrig_depth, ~lpjml_crop,
-    9.25, 79L, 2514L, "irrigated", 2009L, 600,
-    120, "dry", "lpjml_airrig_stand", "maize",
-    9.25, 79L, 2514L, "rainfed", 2009L, 600,
-    0, "dry", "rainfed_regime", NA,
-    9.25, 79L, 2605L, "irrigated", 2009L, 600,
-    336, "dry", "lpjml_others_proxy", "maize+others",
-    9.25, 79L, 2605L, "rainfed", 2009L, 600,
-    0, "dry", "rainfed_regime", NA,
-    9.25, 211L, 2514L, "rainfed", 2009L, 600,
-    0, "dry", "rainfed_regime", NA,
-    9.75, 79L, 2514L, "rainfed", 2009L, 1200,
-    0, "wet", "rainfed_regime", NA,
-    9.25, 79L, 2514L, "irrigated", 2010L, 600,
-    120, "dry", "lpjml_airrig_stand", "maize",
-    9.25, 79L, 2514L, "rainfed", 2010L, 600,
-    0, "dry", "rainfed_regime", NA,
-    9.25, 79L, 2605L, "irrigated", 2010L, 600,
-    336, "dry", "lpjml_others_proxy", "maize+others",
-    9.25, 211L, 2514L, "rainfed", 2010L, 600,
-    0, "dry", "rainfed_regime", NA
+    ~moisture_regime,
+    9.25, 79L,  2514L, "irrigated", 2009L, 600,  "dry",
+    9.25, 79L,  2514L, "rainfed",   2009L, 600,  "dry",
+    9.25, 79L,  2605L, "irrigated", 2009L, 600,  "dry",
+    9.25, 79L,  2605L, "rainfed",   2009L, 600,  "dry",
+    9.25, 211L, 2514L, "rainfed",   2009L, 600,  "dry",
+    9.75, 79L,  2514L, "rainfed",   2009L, 1200, "wet",
+    9.25, 79L,  2514L, "irrigated", 2010L, 600,  "dry",
+    9.25, 79L,  2514L, "rainfed",   2010L, 600,  "dry",
+    9.25, 79L,  2605L, "irrigated", 2010L, 600,  "dry",
+    9.25, 211L, 2514L, "rainfed",   2010L, 600,  "dry"
   ) |>
     dplyr::mutate(
       lat = 47.75,
       mat_c = 12,
       frost_days = 40,
       pet_mm = 1000,
-      water_mm = .data$prec_mm + .data$irrig_mm,
+      water_mm = .data$prec_mm,
       moisture_ratio = .data$water_mm / .data$pet_mm,
       tropical = FALSE,
-      method_moisture_regime = "ipcc2019_wet_dry;trailing_30;precip_irrig",
-      irrigated = .data$water_regime == "irrigated",
-      lpjml_version = dplyr::if_else(
-        .data$irrigated,
-        "LPJmL C Version 6.1.1",
-        NA_character_
-      ),
-      lpjml_git_hash = dplyr::if_else(
-        .data$irrigated,
-        "e6e6c42b88354f4a0df945e55f2ccf3c4a3cb605",
-        NA_character_
-      ),
-      lpjml_run = dplyr::if_else(
-        .data$irrigated,
-        "fixture/scenario_1",
-        NA_character_
-      )
+      method_moisture_regime = "ipcc2019_wet_dry;trailing_30;precip"
     ) |>
     ensure_columns(.cmr_prototype(), extra = "drop") |>
     .add_reporting_polity_columns() |>
@@ -2533,7 +2516,7 @@
     ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~water_regime,
     ~moisture_regime, ~method_moisture_regime, ~climate_fill_km,
     9.25, 47.75, 79L, 2514L, 2010L, "irrigated", "dry",
-    "ipcc2019_wet_dry;annual;precip_irrig", NA,
+    "ipcc2019_wet_dry;annual;precip", NA,
     9.25, 47.75, 79L, NA, 2010L, "rainfed", "dry",
     "ipcc2019_wet_dry;annual;precip;cell_rainfed_class=no_crop_item", NA,
     9.75, 47.75, 79L, 3000L, 2010L, "rainfed", "wet",
@@ -2542,7 +2525,7 @@
     "ipcc2019_wet_dry;annual;precip;cell_rainfed_class=no_regime_area", NA,
     10.25, 47.75, 79L, 2514L, 2010L, "rainfed", "wet",
     paste0(
-      "ipcc2019_wet_dry;annual;precip_irrig;",
+      "ipcc2019_wet_dry;annual;precip;",
       "nearest_cru_cell=mat_c+frost_days+prec_mm+pet_mm"
     ), 37.38188
   ) |>

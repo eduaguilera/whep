@@ -48,27 +48,44 @@
   )
 }
 
-# Harvest fractions summing to 1.2 in the first cell: a multicropping pattern
-# that must apportion, never inflate, the physical hectares.
-.alsf_crop_patterns <- function() {
-  tibble::tribble(
-    ~lon,
-    ~lat,
-    ~item_prod_code,
-    ~harvest_fraction,
-    0.25,
-    50.25,
-    15L,
-    0.9,
-    0.25,
-    50.25,
-    44L,
-    0.3,
-    0.75,
-    50.25,
-    15L,
-    0.5
+# The crop allocation the composition comes from (R/crop_allocation.R): in
+# polity 10, wheat (15) on both cells 3:1 and barley (44) on the first only;
+# in polity 20, wheat on the border cell. With the national harvested areas
+# below the first cell holds 900 ha of wheat and 300 of barley -- 1200 ha of
+# harvested area on 1000 physical ha, a multicropping cell that must
+# apportion, never inflate, the physical hectares. 277 is the out-of-span
+# fixture's polity.
+.alsf_allocation <- function(years = c(2010L, 2011L)) {
+  weights <- tibble::tribble(
+    ~lon, ~lat,  ~area_code, ~item_prod_code, ~crop_area_ha, ~area_weight,
+    0.25, 50.25, 10L,        15L,             900,           0.75,
+    0.75, 50.25, 10L,        15L,             300,           0.25,
+    0.25, 50.25, 10L,        44L,             300,           1,
+    0.75, 50.25, 20L,        15L,             100,           1,
+    0.25, 50.25, 277L,       15L,             900,           1
   )
+  fallback <- tibble::tribble(
+    ~lon, ~lat,  ~area_code, ~cropland_weight,
+    0.25, 50.25, 10L,        0.8,
+    0.75, 50.25, 10L,        0.2,
+    0.75, 50.25, 20L,        1,
+    0.25, 50.25, 277L,       1
+  )
+  list(
+    weights = tidyr::expand_grid(weights, year = years),
+    fallback = tidyr::expand_grid(fallback, year = years)
+  )
+}
+
+.alsf_harvested_area <- function(years = c(2010L, 2011L)) {
+  tibble::tribble(
+    ~area_code, ~item_prod_code, ~faostat_area_ha,
+    10L,        15L,             1200,
+    10L,        44L,             300,
+    20L,        15L,             100,
+    277L,       15L,             900
+  ) |>
+    tidyr::expand_grid(year = years)
 }
 
 .alsf_gridded_pasture <- function() {
@@ -125,7 +142,8 @@
   list(
     cell_polity = .alsf_cell_polity(),
     type_cropland = .alsf_type_cropland(),
-    crop_patterns = .alsf_crop_patterns(),
+    crop_allocation = .alsf_allocation(),
+    harvested_area = .alsf_harvested_area(),
     gridded_pasture = .alsf_gridded_pasture(),
     states = .alsf_states()
   )
@@ -160,18 +178,19 @@ testthat::test_that("physical cropland area is apportioned, never inflated", {
   out <- whep::build_ag_land_support(data = .alsf_data())
   cropland <- dplyr::filter(out, .data$land_use == "cropland")
   # 1000 ha (whole) + 500 ha (split 0.6/0.4 across two polities) = 1500 ha,
-  # NOT the 1200 + 250 the raw harvest fractions would give.
+  # NOT the 1200 + 400 harvested hectares the allocation places there.
   testthat::expect_equal(sum(cropland$area_ha), 1500)
   cell_one <- dplyr::filter(cropland, .data$lon == 0.25)
   testthat::expect_equal(sum(cell_one$area_ha), 1000)
 })
 
-testthat::test_that("the crop pattern sets the composition of the cell", {
+testthat::test_that("the crop allocation sets the composition of the cell", {
   out <- whep::build_ag_land_support(data = .alsf_data())
   cell_one <- out |>
     dplyr::filter(.data$lon == 0.25, .data$land_use == "cropland") |>
     dplyr::arrange(.data$item_cbs_code)
-  # 0.9 wheat / 0.3 barley normalise to 0.75 / 0.25 of the 1000 physical ha.
+  # 900 ha wheat / 300 ha barley normalise to 0.75 / 0.25 of the 1000
+  # physical ha.
   testthat::expect_equal(cell_one$item_cbs_code, c(2511L, 2513L))
   testthat::expect_equal(cell_one$area_ha, c(750, 250))
 })
@@ -264,20 +283,30 @@ testthat::test_that("years without grassland coverage warn and keep cropland", {
   testthat::expect_setequal(out$land_use, "cropland")
 })
 
-testthat::test_that("cropland cells with no pattern warn instead of vanishing", {
+testthat::test_that("cropland cells with no allocated crop warn, not vanish", {
   data <- .alsf_data()
+  # Cropland in the first cell, where the allocation places no crop of
+  # polity 10 and its cropland support holds no cell either.
   data$type_cropland <- tibble::tibble(
-    lon = 10.25,
+    lon = 0.25,
     lat = 50.25,
     year = 2010L,
     luh2_type = "c3ann",
     type_ha = 900
   )
+  data$cell_polity <- dplyr::filter(.alsf_cell_polity(), .data$lon == 0.25)
+  data$crop_allocation <- list(
+    weights = dplyr::filter(.alsf_allocation()$weights, .data$area_code == 20L),
+    fallback = dplyr::filter(
+      .alsf_allocation()$fallback,
+      .data$area_code == 20L
+    )
+  )
   data$states <- NULL
   data$grassland_ha <- .alsf_empty_grassland()
   testthat::expect_warning(
     out <- whep::build_ag_land_support(data = data),
-    "crop-pattern composition"
+    "no crop in the crop allocation"
   )
   testthat::expect_equal(nrow(out), 0L)
 })

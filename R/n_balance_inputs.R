@@ -12,8 +12,8 @@
 #
 # Non-item inputs are allocated only over an agricultural land-support table,
 # supplied by the caller or derived natively by build_ag_land_support()
-# (R/ag_land_support.R) from the cell_polity/type_cropland/crop_patterns inputs
-# the gridded pipeline already carries. Deposition is multiplied by agricultural
+# (R/ag_land_support.R) from the cell_polity/type_cropland inputs and the
+# crop allocation the gridded pipeline already carries. Deposition is multiplied by agricultural
 # hectares rather than whole-cell area, so forest/natural deposition never
 # enters the agricultural balance.
 # Human N, SOM mineralization, and manure already assigned upstream to Cropland
@@ -196,8 +196,9 @@
 #'     `lat`, `area_code`, `year`, `item_cbs_code`, with `land_use`
 #'     (`"cropland"` or `"grassland"`) and positive `area_ha`. Optional: when
 #'     absent it is derived natively by [build_ag_land_support()] from
-#'     `cell_polity`, `type_cropland` and `crop_patterns` (plus `states` or
-#'     `grassland_ha` for the grassland side). Supply it to override that
+#'     `cell_polity`, `type_cropland`, the crop allocation and
+#'     `harvested_area` (plus `states` or `grassland_ha` for the grassland
+#'     side). Supply it to override that
 #'     derivation with a better land surface. Cropland rows identify crop CBS
 #'     items; all pasture/rangeland rows use CBS 3000.
 #'   * `grassland_source`, `gridded_pasture`, `grassland_ha`, `states`:
@@ -230,11 +231,17 @@
 #'     is never computed here. The `"som_mineralization"` term keeps the
 #'     cropland rows with `son_change_kgn_ha > 0` and takes
 #'     `son_change_kgn_ha` times `area_ha`, divided by 1000, as `n_input_t`.
-#'   * `primary_prod`, `fertilizer`, `crop_patterns`, `type_cropland`,
-#'     `cell_polity`: the synthetic-fertiliser assembly (country total from
-#'     `fertilizer`, the `faostat-fertilizer-nutrients` pin, split to crops
-#'     by the chosen crop-share method, then to cells by
-#'     `crop_patterns`/`type_cropland`). From `fertilizer` it reads the
+#'   * `crop_allocation`: the crop allocation every gridded crop term is
+#'     placed by, the one [build_soil_carbon_inputs()] places the same crops
+#'     by (a list of `weights` and `fallback`; see
+#'     [spatialize_country_n_to_crops()]). Built once from the pinned
+#'     spatialization inputs on `cell_polity` when absent and `years` is
+#'     given; `gridded_crops`, `engine_inputs` and `fodder_patterns` replace
+#'     its pinned inputs.
+#'   * `primary_prod`, `fertilizer`, `cell_polity`: the synthetic-fertiliser
+#'     assembly (country total from `fertilizer`, the
+#'     `faostat-fertilizer-nutrients` pin, split to crops by the chosen
+#'     crop-share method, then to cells by the crop allocation). From `fertilizer` it reads the
 #'     raw FAOSTAT columns `Element` (`"Agricultural Use"`), `Item`
 #'     (`"Nutrient nitrogen N (total)"`), `Year`, `Area Code` and `Value`;
 #'     `Value` becomes the country total `synthetic_n_t`, passed on as the
@@ -243,6 +250,11 @@
 #'   * `synthetic_method`: how the synthetic-N country total is split across
 #'     crops, `"coello"` (default; Coello 2025 rate-weighted, FAOSTAT-
 #'     conserving) or `"area_share"` (harvested-area shares only).
+#'   * `component_policy`: `"error"` (default) or explicitly `"legacy_pool"`,
+#'     passed with `primary_prod` to [spatialize_country_n_to_crops()] for
+#'     synthetic and FAOSTAT-manure component-coverage checks. The latter
+#'     warns and retains the former mixture when a CBS group has an absent
+#'     production component; it does not establish that mixture as correct.
 #'   * `coello_rates`: crop-specific synthetic-N rate table shaped like
 #'     [coello_synthetic_n] (`year`, `area_code`, `item_cbs_code`,
 #'     `kg_n_ha`); defaults to `whep::coello_synthetic_n`. Used only when
@@ -302,6 +314,8 @@
 #'   (`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
 #'   manure booked as solid for want of an engine split) and is `NA` for every
 #'   other `fert_type`.
+#'   `method_crop_components` records the gridded synthetic/FAOSTAT-manure
+#'   component-coverage treatment; other input streams carry `NA`.
 #'   `excreta_cpp_share` is the share of an `"excreta"` row's N deposited by
 #'   cattle, poultry and pigs, the animals of the IPCC 2019 EF3PRP,CPP factor
 #'   (Vol 4, Ch 11, Table 11.1 (Updated), p. 11.13); sheep and other animals
@@ -382,9 +396,13 @@ build_n_inputs <- function(
       .ni_manure_methods()
     )
   }
+  .crop_alloc_check_years(years)
+  .crop_alloc_table_years(data$primary_prod)
+  .crop_alloc_refuse_patterns(data, "build_n_inputs")
   data$.n_input_resolution <- resolution
   data$.polity_validity <- polity_validity
   data$resolution <- .ni_manure_resolution(data, resolution)
+  data$crop_allocation <- .ni_resolve_allocation(data, years, resolution)
   data$ag_land_support <- .ni_resolve_land_support(data, years)
   assembled <- dplyr::bind_rows(
     .n_inputs_bnf(data),
@@ -539,6 +557,7 @@ build_n_inputs <- function(
     "n_input_t",
     "method_recycling_n",
     "method_synthetic",
+    "method_crop_components",
     "method_deposition",
     "method_deposition_scope",
     "method_human_population",
@@ -638,7 +657,7 @@ build_n_inputs <- function(
 # deposition term and the unattributed-input allocation share one table instead
 # of each rebuilding it. A caller-supplied table always wins; otherwise it is
 # derived natively by build_ag_land_support() from the cell_polity /
-# type_cropland / crop_patterns inputs the gridded pipeline already carries.
+# type_cropland inputs and the crop allocation the gridded pipeline carries.
 # Without cell_polity there are no gridded cells to place support on, so NULL is
 # returned and .ni_land_support() reports the missing input if a term needs it.
 .ni_resolve_land_support <- function(data, years) {
@@ -649,14 +668,52 @@ build_n_inputs <- function(
     years = years,
     grassland = data$grassland_source %||% "gridded_pasture",
     polity_validity = .ni_polity_validity(data),
-    data = list(
-      cell_polity = data$cell_polity,
-      type_cropland = data$type_cropland,
-      crop_patterns = data$crop_patterns,
-      gridded_pasture = data$gridded_pasture,
-      states = data$states,
-      grassland_ha = data$grassland_ha
+    data = c(
+      list(
+        cell_polity = data$cell_polity,
+        type_cropland = data$type_cropland,
+        harvested_area = data$harvested_area,
+        primary_prod = data$primary_prod,
+        gridded_pasture = data$gridded_pasture,
+        states = data$states,
+        grassland_ha = data$grassland_ha
+      ),
+      .ni_allocation_data(data)
     )
+  )
+}
+
+# Build the crop allocation once for a gridded run with known years, so the
+# synthetic, FAOSTAT-manure and land-support terms read one table rather than
+# each running the spatialization engine (R/crop_allocation.R). It is built on
+# the cell support's polity share, the share the land support splits cells by.
+.ni_resolve_allocation <- function(data, years, resolution) {
+  if (
+    !is.null(data$crop_allocation) ||
+      resolution != "grid" ||
+      is.null(data$cell_polity) ||
+      is.null(years)
+  ) {
+    return(data$crop_allocation)
+  }
+  .crop_allocation(
+    years,
+    .normalize_carbon_support(data$cell_polity, "cell_polity"),
+    data
+  )
+}
+
+# The inputs of the crop allocation every gridded crop term is placed by
+# (R/crop_allocation.R, whep#1002): the allocation itself when the caller
+# built it once, else what it is built from.
+.ni_allocation_data <- function(data) {
+  list(
+    crop_allocation = data$crop_allocation,
+    gridded_crops = data$gridded_crops,
+    engine_inputs = data$engine_inputs,
+    fodder_patterns = data$fodder_patterns,
+    primary_prod = data$primary_prod,
+    component_policy = data$component_policy
   )
 }
 
@@ -689,6 +746,7 @@ build_n_inputs <- function(
         "fert_type",
         "method_recycling_n",
         "method_synthetic",
+        "method_crop_components",
         "method_deposition",
         "method_deposition_scope",
         "method_human_population",
@@ -1416,8 +1474,8 @@ build_n_inputs <- function(
       "Non-item nitrogen inputs require agricultural land support.",
       i = "Supply {.field data$ag_land_support}, or the
            {.field data$cell_polity} / {.field data$type_cropland} /
-           {.field data$crop_patterns} inputs [build_ag_land_support()] needs
-           to derive it."
+           {.field data$crop_allocation} inputs [build_ag_land_support()]
+           needs to derive it."
     ))
   }
   .check_columns(
@@ -1683,6 +1741,7 @@ build_n_inputs <- function(
     "fert_type",
     "method_recycling_n",
     "method_synthetic",
+    "method_crop_components",
     "method_deposition_scope",
     "method_human_population",
     "method_human_kgn_cap",
@@ -1884,10 +1943,7 @@ build_n_inputs <- function(
     cell_polity = data$cell_polity,
     resolution = "grid",
     polity_validity = .ni_polity_validity(data),
-    data = list(
-      crop_patterns = data$crop_patterns,
-      type_cropland = data$type_cropland
-    )
+    data = .ni_allocation_data(data)
   ) |>
     dplyr::transmute(
       lon = .data$lon,
@@ -1896,7 +1952,8 @@ build_n_inputs <- function(
       item_cbs_code = .data$item_cbs_code,
       year = .data$year,
       fert_type = "synthetic",
-      n_input_t = .data$n_t
+      n_input_t = .data$n_t,
+      method_crop_components = .data$method_crop_components
     )
 }
 
@@ -1913,6 +1970,7 @@ build_n_inputs <- function(
     n_input_t = double(),
     method_recycling_n = character(),
     method_synthetic = character(),
+    method_crop_components = character(),
     method_deposition = character(),
     method_deposition_scope = character(),
     method_human_population = character(),

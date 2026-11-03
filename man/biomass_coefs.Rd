@@ -144,11 +144,37 @@ matter; protein and carbohydrate from \code{Miel} sum to exactly that dry
 matter. At 5 g/kg honey is 1.69x FBS, where it was zero. Only the
 protein moves a computed number: nothing in the package reads the
 carbohydrate or calcium columns.
-\item \code{Oats} and \code{Maize} are \strong{unchanged}, on the agronomic value. Their rows,
-5 \verb{Avena grano} 117 g/kg and 7 \verb{Harina de Maiz} 87 g/kg, move \emph{away} from
-the FBS density (72.6 and 62.2 g/kg, country sum) where the agronomic
-83.8 and 78.0 are closer, so following the row would be consistency at
-the cost of accuracy. Open for an expert.
+\item \code{Maize} now carries \strong{0.009888} (61.8 g/kg) and \code{Oats} \strong{0.011584}
+(72.4 g/kg), replacing the agronomic 0.01248 and 0.013415 (78.0 and
+83.8 g/kg, a feed-table whole grain). Their own rows, 7 \verb{Harina de Maiz}
+87 g/kg and 5 \verb{Avena grano} 117 g/kg, are not followed: they are the
+composition of what is eaten, and the flour or groats is only a
+fraction of the grain that \code{food_t} counts. The new values are FAOSTAT
+FBS's own World density for 2010, element 671 over element 5142
+(maize 7,311,361.1 t over 118,366 kt; oats 279,096.3 t over 3,853 kt),
+the construct wheat already follows (93.0). Over 2010-2023 it runs
+61.6-64.3 for maize and 70.6-72.8 for oats. Decision
+\code{whep-maize-oats-food-protein-density}, settled by agents on two
+independent composition tables put through FAO's extraction rates:
+\itemize{
+\item USDA FoodData Central, SR Legacy (April 2018): cornmeal, degermed
+7.11 and whole-grain 8.12 g protein per 100 g (fdc_id 168929, 169697);
+rolled oats, dry, 13.15 (173904).
+\item ANSES, Ciqual 2020: maize flour 6.23 and polenta 7.88 (alim_code 9545,
+9614); oatmeal flakes 13.3 (9311).
+\item FAO, \emph{Technical conversion factors for agricultural commodities},
+\url{https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf}:
+\verb{Flour of Maize} 90\% (Kenya; 59-97\% across countries), \verb{Oats, Rolled}
+58\% (United States; 45-73\%).
+}
+
+That gives 56-73 g per kg of maize and 76-77 per kg of oats, which the
+FBS density fits. FAO's old-method FBS (71.9 and 83.4, food-weighted
+country sum) is not adopted: it was built on FAO, \emph{Food balance sheets:
+a handbook} (2001), Annex I, \url{https://www.fao.org/4/x9892e/x9892e00.pdf},
+PDF page 64 (printed 60), whose rolled oats at 16.0 g per 100 g sit more
+than 20\% above both modern tables. The agronomic value stays selectable
+as \code{build_food_supply(protein_basis = "product_nitrogen")}.
 \item \code{Rice} is \strong{unchanged}: its basis was settled in #751/#755.
 \item \verb{Vegetables, other} is \strong{unchanged} and moves no food number: no
 \code{item_cbs_code} bridges to it (\verb{Vegetables, Other} 2605 reaches
@@ -156,11 +182,72 @@ the cost of accuracy. Open for an expert.
 against the literal's 14.0, and neither is checked.
 }
 
-All three new values are the workbook's own composition figures, which,
-like the rest of this block, have no \code{Sources} entry: they are corroborated
-by the FBS oracle, not cited upstream. The workbook copy read was
-\code{afsetools/inst/extdata/Biomass_coefs.xlsx}; upstream still carries the old
-values in \code{Coefs} and should follow.
+The olive, rye and honey values are the workbook's own composition
+figures, which, like the rest of this block, have no \code{Sources} entry: they
+are corroborated by the FBS oracle, not cited upstream. The workbook copy
+read was \code{afsetools/inst/extdata/Biomass_coefs.xlsx}; upstream still
+carries the old values in \code{Coefs} and should follow.
+
+The \code{Figs} food-composition cells use \strong{raw-fig} reference values,
+per edible portion, replacing a high-energy \code{Higo} row (2810 kcal/kg)
+consistent with dried fruit, despite the WHEP row's fresh-fruit dry
+matter (0.197).
+ANSES, \emph{Ciqual 2020}, code 13012 \verb{Fig, raw}, gives protein and crude
+protein (\verb{N x 6.25}) both 1.19 g/100 g, available carbohydrate 13.5 g/100 g,
+and calcium 57 mg/100 g. Therefore \code{N_kgN_kgFM} is \strong{0.001904}
+(11.9 g protein/kg divided by 6250), carbohydrate \strong{135 g/kg} and calcium
+\strong{570 mg/kg}. The N cell is a conversion of the source's explicitly
+defined crude-protein quantity, not a separate elemental-N observation.
+Ciqual reports fat only as \verb{< 0.5 g/100 g}, so that bound is not substituted
+as an exact value. USDA FoodData Central SR Legacy, FDC 173021 \verb{Figs, raw},
+nutrient 1004 gives 0.3 g fat/100 g: the lipid cell is \strong{3 g/kg}.
+That legacy entry has zero recorded data points and no derivation code;
+it is a reference value, not a demonstrated direct lipid measurement.
+The calcium choice is provisional: USDA's raw-fig reference is 350 mg/kg,
+versus Ciqual's 570 mg/kg. These populations do not establish a universal
+composition; the alternative is 220 mg/kg lower (38.6\%). Ciqual supplies
+the selected raw-food reference, not a cross-source consensus.
+
+The fig vitamin A cell stays at \strong{70 micrograms/kg}, interpreted for this
+row as retinol activity equivalents (RAE): USDA nutrient 1106 is
+7 micrograms RAE/100 g. Its retinol-only entry (nutrient 1105) is an
+assumed zero (USDA derivation Z) and is not interchangeable with vitamin
+A activity. This interpretation does
+not standardize the activity basis of other rows in the inherited column.
+Sources: \url{https://ciqual.anses.fr/} (2020 English workbook, sheet \code{compo})
+and \url{https://fdc.nal.usda.gov/food-details/173021/nutrients}
+(SR Legacy April 2018 archive). These are nutrient-specific reference
+values per edible portion, not a paired drying experiment or a claim that
+every fig cultivar has the same composition. No common energy or moisture
+multiplier
+is applied across nutrients. Agronomic nitrogen, dry matter, and the other
+inherited fig cells are unchanged and are not validated by this repair.
+No \link{items_full} row reaches \code{Figs}, so this food-nitrogen edit changes no
+current food-nutrition lookup. This is a science decision, scoped to the
+cited fresh-food observations (issue #752).
+
+The sugar defects remain explicit. \verb{White sugar} still contains 1025.9 g
+carbohydrate/kg after the workbook's dry-matter rescale; \verb{Brown sugar}
+contains 995 g/kg against 965 g/kg dry matter. A source label is not proof
+that the dry-matter cell is correct. The workbook labels \verb{Total azucar}
+as \verb{Brown sugar}; a reversed assignment is an inference, not an established
+transcription error. \link{items_full} uses these rows for \verb{Sugar (Raw Equivalent)}/\verb{Sweeteners, Other} and \verb{Sugar non-centrifugal}, respectively.
+Retail white/brown sugar observations do not establish those aggregate
+compositions, and transferring white sugar per kg dry matter to
+non-centrifugal sugar ignores its protein, minerals and other solids.
+Repair requires a coherent commodity/quantity basis and dry-matter,
+protein and carbohydrate treatment; the earlier 995/965 g/kg replacements
+are not retained merely because they pass a mass bound.
+
+\verb{Butter, Ghee} also remains unresolved: 830 g fat/kg exceeds its 821.4 g/kg
+dry matter. FAO, \emph{Food balance sheets: a handbook} (2001), Annex I,
+printed p. 65 gives cow butter 81.1 g fat/100 g and cow ghee 99.1.
+FAO's \emph{Statistical Yearbook 2014: Latin America and the Caribbean Food
+and Agriculture}, p. 159 lists butter and ghee separately within the
+aggregate (\url{https://www.fao.org/4/i3592e/i3592e.pdf}), so a butter-only
+observation cannot establish its composition. \verb{Vegetables, other} and
+\code{Tigernuts} retain their known composition/basis inconsistencies too.
+This scoped fig repair does not close issue #752 or validate those rows.
 
 The tree-nut rows \code{Almonds}, \code{Walnut} and \code{Hazelnut} pair a \strong{kernel}
 nitrogen density with an \code{Edible_portion} that now refers to the nut \strong{in

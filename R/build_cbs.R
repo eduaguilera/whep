@@ -508,6 +508,28 @@
 #'   their residue keeps the population and land fill, like their crops.
 #'   World `stock_variation` over all items moves from -3,057 / -3,222 Mt to
 #'   -751 / -723 Mt. No 1961-or-later value and no other item moves.
+#' @param bucket_coverage How to handle a balance source reporting only some
+#'   active members of a bucket: `"complete_sources"` (default) excludes that
+#'   source's bucket-year before selection. The existing interpolation of the
+#'   bucket's complete-territory destiny shares, then world-share estimation,
+#'   supplies the balance. `"world_shares"` also excludes partial sources but
+#'   explicitly uses the same-year/item world destiny shares for the affected
+#'   bucket-years instead of their temporal anchors. Affected bucket-years
+#'   are excluded from the donors; this method aborts when no positive
+#'   same-year/item donor profile exists. Both methods retain the structural
+#'   feed allocation for processing residues. The default is provisional:
+#'   FAO (2017), *Guidelines for the Compilation of Food Balance Sheets*
+#'   (140-page UNSIAP edition), sections 3.4.2.1-2, pp. 53-54,
+#'   supports imputation and source flags but does not prescribe this bucket
+#'   policy. Both methods retain production and the published geography.
+#'   `method_cbs_coverage` records the policy on affected bucket-years;
+#'   `"reported_members"` means no partial source was detected. The
+#'   `cbs_coverage_log` attribute records each partial source and member sets.
+#'   `"not_checked"` marks inputs without member metadata, including
+#'   `.fixed_data`. This is a bucket-year coverage check, not an item-level
+#'   completeness guarantee. The world-share estimate clears non-production
+#'   FAOSTAT flags on affected bucket-years: a source status is not an
+#'   observation status for the estimated bucket.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -534,6 +556,12 @@
 #'   Rows sourced from `"FAOSTAT_prod"` are `NA` today because
 #'   [build_primary_production()] does not carry the flag out of the
 #'   production pin.
+#'
+#'   Both formats retain a `residue_feed_kgdm` attribute with the crop-mix
+#'   dry-matter content behind their residue feed, including the selected
+#'   historical back-cast. The feed allocator uses this provenance; formats
+#'   such as CSV that discard attributes cannot preserve it. Custom balances
+#'   without it retain the residue reader and warn on uncovered feed rows.
 #'
 #' @export
 #'
@@ -562,9 +590,11 @@ build_commodity_balances <- function(
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
+  bucket_coverage = .cbs_coverage_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
+  bucket_coverage <- rlang::arg_match(bucket_coverage)
   trade_recovery <- rlang::arg_match(trade_recovery)
   trade_zero <- rlang::arg_match(trade_zero)
   share_overflow <- rlang::arg_match(share_overflow)
@@ -596,6 +626,8 @@ build_commodity_balances <- function(
     ))
   }
   scale_log <- NULL
+  coverage_log <- NULL
+  residue_kgdm <- attr(.fixed_data, "residue_feed_kgdm")
   if (is.null(.fixed_data)) {
     raw <- .read_cbs(
       primary_all,
@@ -611,9 +643,12 @@ build_commodity_balances <- function(
       silk_duplicate_use = silk_duplicate_use,
       tobacco_leaf_use = tobacco_leaf_use,
       fbs_trade_basis = fbs_trade_basis,
-      residue_backcast = residue_backcast
+      residue_backcast = residue_backcast,
+      bucket_coverage = bucket_coverage
     )
+    coverage_log <- attr(raw, ".cbs_coverage_log")
     scale_log <- attr(raw, ".hist_trade_scale_log")
+    residue_kgdm <- attr(raw, "residue_feed_kgdm")
     fixed <- raw |>
       .fix_cbs(
         trade_recovery = trade_recovery,
@@ -627,6 +662,11 @@ build_commodity_balances <- function(
     if (!is.null(historical_data)) {
       cli::cli_warn(
         "{.arg historical_data} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (bucket_coverage != "complete_sources") {
+      cli::cli_warn(
+        "{.arg bucket_coverage} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     if (trade_recovery != .cbs_trade_recovery_choices()[[1]]) {
@@ -724,7 +764,11 @@ build_commodity_balances <- function(
     .report_negative_cbs_values(
       negative_supply = if (is.null(.fixed_data)) negative_supply
     )
+  long <- .cbs_stamp_coverage(long, coverage_log)
   attr(long, "hist_trade_scale_log") <- scale_log
+  # Keep the exact crop mix behind the feed rows, including the backcast
+  # method selected above, for the downstream feed allocator (whep#1556).
+  attr(long, "residue_feed_kgdm") <- residue_kgdm
 
   if (format == "long") {
     return(long)
@@ -748,12 +792,14 @@ build_commodity_balances <- function(
   # The long CBS is mass-only by construction (the whep#865 guards drop every
   # non-mass row), while the livestock rows are head counts. The label says
   # which is which, and each item must carry one of them (whep#1055).
-  cbs_long |>
+  wide <- cbs_long |>
     .pivot_cbs_wide() |>
     .ensure_wide_cbs_destinies() |>
     dplyr::mutate(unit = "tonnes", .after = "item_cbs_code") |>
     dplyr::bind_rows(livestock_cbs) |>
     .abort_if_units_mixed("wide CBS", key_cols = "item_cbs_code")
+  attr(wide, "residue_feed_kgdm") <- attr(cbs_long, "residue_feed_kgdm")
+  wide
 }
 
 # `.pivot_cbs_wide()` fills a missing *observation* with 0, but an element
@@ -802,7 +848,7 @@ build_commodity_balances <- function(
     .add_reporting_polity_columns()
 
   .qc_supply_use_balance(wide)
-  wide
+  .cbs_stamp_coverage(wide, attr(cbs_long, "cbs_coverage_log"))
 }
 
 .format_cbs_output <- function(df) {
@@ -962,7 +1008,8 @@ build_commodity_balances <- function(
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   fbs_trade_basis = .fbs_trade_basis_choices(),
-  residue_backcast = .cbs_residue_backcast_choices()
+  residue_backcast = .cbs_residue_backcast_choices(),
+  bucket_coverage = .cbs_coverage_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -992,7 +1039,8 @@ build_commodity_balances <- function(
 
   # 2. Build first raw CBS (combine sources, select best)
   cli::cli_progress_step("Combining CBS sources")
-  cbs_raw0 <- .cbs_combine_sources(inputs)
+  cbs_raw0 <- .cbs_combine_sources(inputs, bucket_coverage)
+  coverage_log <- attr(cbs_raw0, "coverage_log")
   historical_rows <- .prepare_historical_cbs(
     historical_data,
     years = output_years
@@ -1019,7 +1067,9 @@ build_commodity_balances <- function(
 
   # Trim to requested years and attach context for downstream
   cbs_raw <- .filter_years(cbs_raw, output_years)
+  attr(cbs_raw, ".cbs_coverage_log") <- coverage_log
   attr(cbs_raw, ".years") <- output_years
+  attr(cbs_raw, "residue_feed_kgdm") <- inputs$residue_feed_kgdm
   attr(cbs_raw, ".hist_trade_scale_log") <- attr(
     inputs$trade_hist,
     "hist_trade_scale_log"
@@ -1121,6 +1171,7 @@ build_commodity_balances <- function(
 ) {
   years <- attr(df, ".years") %||% 1850:2023
   fao_trade_cbs <- attr(df, ".fao_trade")
+  coverage_log <- attr(df, ".cbs_coverage_log")
   cbs_raw <- df
 
   # Strip attributes to avoid carrying large objects downstream
@@ -1179,7 +1230,7 @@ build_commodity_balances <- function(
 
   # 8. Fill destiny gaps
   cli::cli_progress_step("Filling destiny gaps")
-  cbs_raw5 <- .cbs_fill_destinies(cbs_raw4)
+  cbs_raw5 <- .cbs_fill_destinies(cbs_raw4, coverage_log)
 
   # 9. Second round of processed products
   cli::cli_progress_step("Second round of processed products")
@@ -1444,16 +1495,32 @@ build_processing_coefs <- function(
   )
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
-  if (!is.null(cb)) {
+  if (.cbs_reuse_extracts(cb)) {
     fbs_new <- cb$fbs_new
     fbs_old <- cb$fbs_old
     cbs_crops <- cb$cbs_crops
     cbs_animals <- cb$cbs_animals
   } else {
-    fbs_new <- .extract_cb("faostat-fbs-new", years = years)
-    fbs_old <- .extract_cb("faostat-fbs-old", years = years)
-    cbs_crops <- .extract_cb("faostat-cbs-old-crops", years = years)
-    cbs_animals <- .extract_cb("faostat-cbs-old-animal", years = years)
+    fbs_new <- .extract_cb(
+      "faostat-fbs-new",
+      years = years,
+      keep_members = TRUE
+    )
+    fbs_old <- .extract_cb(
+      "faostat-fbs-old",
+      years = years,
+      keep_members = TRUE
+    )
+    cbs_crops <- .extract_cb(
+      "faostat-cbs-old-crops",
+      years = years,
+      keep_members = TRUE
+    )
+    cbs_animals <- .extract_cb(
+      "faostat-cbs-old-animal",
+      years = years,
+      keep_members = TRUE
+    )
   }
   # Which vintage sets the trade level of the items FBS_New books on two
   # bases (whep#1495, whep#1550).
@@ -1465,6 +1532,7 @@ build_processing_coefs <- function(
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
     years = years,
+    keep_members = TRUE,
     keep_elements = c("Processed", "Residuals")
   ) |>
     .cbs_silk_mass_basis(silk_basis, duplicate_use = silk_duplicate_use) |>
@@ -1520,6 +1588,10 @@ build_processing_coefs <- function(
     primary_cbs = primary_cbs,
     primary_cbs_area = primary_cbs_area,
     crop_residues = crop_residues,
+    residue_feed_kgdm = dplyr::bind_rows(
+      .residue_feed_kgdm(residues),
+      attr(residue_backcast, "residue_feed_kgdm")
+    ),
     residue_backcast = residue_backcast,
     land_areas_wide = land_areas_wide,
     fbs_rebase = fbs_rebase
@@ -3051,7 +3123,7 @@ build_processing_coefs <- function(
   if (nrow(rows) == 0L) {
     return(.empty_historical_cbs())
   }
-  .read_crop_residues(residues = rows) |>
+  out <- .read_crop_residues(residues = rows) |>
     tibble::as_tibble() |>
     dplyr::transmute(
       year = as.integer(.data$year),
@@ -3063,6 +3135,8 @@ build_processing_coefs <- function(
       source = .residue_backcast_source(method),
       value = .data$value
     )
+  attr(out, "residue_feed_kgdm") <- .residue_feed_kgdm(rows)
+  out
 }
 
 # Pre-1962 back-cast values outrank every other source in
@@ -3369,7 +3443,11 @@ build_processing_coefs <- function(
 
 # -- Source combination --------------------------------------------------------
 
-.cbs_combine_sources <- function(inputs) {
+.cbs_combine_sources <- function(
+  inputs,
+  bucket_coverage = .cbs_coverage_choices()
+) {
+  inputs <- .cbs_coverage_inputs(inputs, bucket_coverage)
   items <- whep::items_full
   cbs_trade <- whep::cbs_trade_codes
 
@@ -3403,10 +3481,12 @@ build_processing_coefs <- function(
   )
 
   # Select best value among sources
-  .select_best_source(
+  out <- .select_best_source(
     cbs_raw_all,
     rebased = attr(inputs$fbs_new, "rebased_keys")
   )
+  attr(out, "coverage_log") <- attr(inputs, "coverage_log")
+  out
 }
 
 .fix_palm_kernels <- function(inputs) {
@@ -6543,7 +6623,7 @@ build_processing_coefs <- function(
 
 # -- Fill destiny gaps ---------------------------------------------------------
 
-.cbs_fill_destinies <- function(cbs_raw4) {
+.cbs_fill_destinies <- function(cbs_raw4, coverage_log = NULL) {
   destiny_list <- c(
     "food",
     "feed",
@@ -6562,7 +6642,8 @@ build_processing_coefs <- function(
     .compute_destiny_shares()
 
   cli::cli_progress_step("Interpolating destiny shares")
-  destiny_filled <- .interpolate_destiny_shares(balance, destiny)
+  destiny_filled <- .interpolate_destiny_shares(balance, destiny) |>
+    .cbs_world_coverage(balance, coverage_log)
 
   cli::cli_progress_step("Assembling destiny output")
   .assemble_cbs_destinies(balance, destiny_filled)

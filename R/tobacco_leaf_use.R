@@ -80,8 +80,11 @@
     leaf[manufactured > 0, fao_flag := NA_character_]
   }
   leaf[, manufactured := NULL]
-  data.table::rbindlist(
+  out <- data.table::rbindlist(
     list(dt[!is_leaf_use], leaf[, names(dt), with = FALSE]),
     use.names = TRUE
   )
+  # Source membership describes the original reporting population (#1481).
+  data.table::setattr(out, "bucket_members", attr(cbs_new, "bucket_members"))
+  out
 }

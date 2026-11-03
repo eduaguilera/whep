@@ -47,6 +47,22 @@
   )
 }
 
+# A crop allocation (R/crop_allocation.R) whose weights are each cell's
+# pattern area times the polity's share of the cell, for the year given: the
+# allocation the crop layer is handed, so these tests check how it is
+# applied, not how it is built (test_crop_allocation.R does that).
+.gm_allocation <- function(support, patterns = .gm_crop_patterns(), year) {
+  weights <- whep:::.sci_grid_weights(support, patterns)
+  list(
+    weights = dplyr::mutate(
+      weights,
+      item_prod_code = as.integer(.data$item_prod_code),
+      year = year
+    ),
+    fallback = dplyr::mutate(whep:::.sci_cropland_weights(weights), year = year)
+  )
+}
+
 .gm_cells <- function() {
   c(whep:::.cell_id(10.25, 50.25), whep:::.cell_id(10.75, 50.25))
 }
@@ -162,7 +178,7 @@ test_that("grid crop layer spreads harvested area onto the support's cells", {
     "grid",
     .gm_production(area),
     .gm_support(area),
-    crop_patterns = .gm_crop_patterns()
+    .gm_allocation(.gm_support(area), year = 2010L)
   )
 
   expect_setequal(crops$sub_territory, .gm_cells())
@@ -194,7 +210,7 @@ test_that("grid crop layer reports harvested area with no cell", {
       "grid",
       production,
       .gm_support(area),
-      crop_patterns = .gm_crop_patterns()
+      .gm_allocation(.gm_support(area), year = 2010L)
     ),
     class = "whep_manure_crop_area_unplaced"
   )
@@ -230,7 +246,7 @@ test_that("grid n_inputs carries every manure term on cells", {
     "grid",
     .gm_production(area),
     support,
-    crop_patterns = .gm_crop_patterns()
+    .gm_allocation(support, year = 2010L)
   )
 
   out <- suppressMessages(.gm_n_inputs(intake, crops, area))
@@ -267,6 +283,7 @@ test_that("grid n_inputs carries every manure term on cells", {
 })
 
 test_that("national intake still aborts at grid, which is why grid is local", {
+  testthat::local_mocked_bindings(get_primary_residues = .gm_residues)
   area <- .gm_area()
   intake <- whep:::.n_livestock_intake(
     "polity",
@@ -283,6 +300,7 @@ test_that("national intake still aborts at grid, which is why grid is local", {
 })
 
 test_that("polity resolution keeps the national grain unchanged", {
+  testthat::local_mocked_bindings(get_primary_residues = .gm_residues)
   area <- .gm_area()
   production <- .gm_production(area)
   cbs <- .gm_cbs(area)
@@ -399,12 +417,139 @@ test_that("a dissolved union's crop area is placed on the year-aware support", {
     "grid",
     production,
     .gm_year_aware(),
-    crop_patterns = patterns
+    .gm_allocation(.gm_year_aware(), patterns, year = 1970L)
   )
 
   expect_equal(sum(crops$crop_area_ha), 2e4)
   expect_equal(
     crops$crop_area_ha[crops$sub_territory == whep:::.cell_id(30.75, 50.25)],
     2e4 * 6000 / (30000 + 6000)
+  )
+})
+
+# A mixed residue whose dry matter differs from the generic 2106 coefficient.
+.gm_mixed_residues <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue,
+    ~value, ~value_dm,
+    2010L, 203L, 2601L, 2106L, 1000, 132,
+    2010L, 203L, 2547L, 2106L, 1000, 900
+  )
+}
+
+.gm_residue_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed,
+    2010L, 203L, 2106L, 1000
+  )
+}
+
+test_that("polity manure intake uses the same residue mix as public intake", {
+  residues <- .gm_mixed_residues()
+  production <- .gm_production(203L)
+  cbs <- .gm_residue_cbs()
+  testthat::local_mocked_bindings(
+    get_primary_residues = function(...) residues
+  )
+  data <- whep:::.with_residue_kgdm(whep:::.feed_demand_data(), residues)
+  expected <- whep:::.run_redistribute_national(
+    production,
+    cbs,
+    "ipcc",
+    data = data,
+    options = list(distribute_surplus = FALSE)
+  )
+  actual <- whep:::.n_livestock_intake("polity", production, cbs)
+  avail <- whep:::.build_feed_avail_national(
+    cbs,
+    residue_kgdm = data$residue_kgdm
+  )
+  residue_dm <- sum(actual$intake_dm_t[actual$item_cbs_code %in% 2106L])
+  expect_gt(residue_dm, 0)
+  expect_equal(residue_dm, sum(avail$avail_dm_t))
+  expect_equal(actual, expected)
+
+  public <- whep:::.build_redistribute_intake(
+    "national",
+    "ipcc",
+    "historical",
+    production,
+    cbs,
+    years = 2010L
+  )
+  expect_equal(
+    public,
+    whep:::.reshape_redistribute_intake(
+      actual,
+      whep:::.national_redistribute(
+        production,
+        cbs,
+        "ipcc",
+        data = data,
+        options = list(distribute_surplus = FALSE)
+      )$code_shares,
+      data = whep:::.reshape_data(data$residue_kgdm)
+    )
+  )
+  local <- whep:::.local_run_context(
+    "ipcc",
+    "historical",
+    production = production,
+    cbs = cbs
+  )
+  expect_equal(local$data$residue_kgdm, data$residue_kgdm)
+})
+
+test_that("raw national intake keeps CBS provenance and explicit overrides", {
+  cbs <- .gm_residue_cbs()
+  production <- .gm_production(203L)
+  data <- whep:::.with_residue_kgdm(
+    whep:::.feed_demand_data(),
+    .gm_mixed_residues()
+  )
+  attr(cbs, "residue_feed_kgdm") <- data$residue_kgdm
+  testthat::local_mocked_bindings(
+    get_primary_residues = function(...) {
+      cli::cli_abort("Unexpected residue read")
+    }
+  )
+  expected <- whep:::.run_redistribute_national(
+    production,
+    cbs,
+    "ipcc",
+    data = data
+  )
+  expect_equal(
+    whep:::.run_redistribute_national(production, cbs, "ipcc"),
+    expected
+  )
+  # A supplied data list remains authoritative, including a deliberate NULL
+  # lookup for a fixture reproducing the old generic-coefficient calculation.
+  override <- whep:::.feed_demand_data()
+  before <- whep:::.run_redistribute_national(
+    production,
+    cbs,
+    "ipcc",
+    data = override
+  )
+  expect_gt(
+    sum(before$intake_dm_t[before$item_cbs_code %in% 2106L]),
+    sum(expected$intake_dm_t[expected$item_cbs_code %in% 2106L])
+  )
+})
+
+test_that("raw national intake reports missing crop-mix coverage", {
+  testthat::local_mocked_bindings(
+    get_primary_residues = function(...) {
+      dplyr::filter(.gm_mixed_residues(), .data$year == 1900L)
+    }
+  )
+  expect_warning(
+    whep:::.n_livestock_intake(
+      "polity",
+      .gm_production(203L),
+      .gm_residue_cbs()
+    ),
+    "1000 t fresh"
   )
 })

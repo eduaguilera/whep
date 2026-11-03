@@ -340,7 +340,13 @@ testthat::test_that("the union's fertiliser lands on its cells, conserved", {
       ),
       cell_polity = .cpy_build(yr),
       resolution = "grid",
-      data = list(crop_patterns = crop_patterns, type_cropland = cropland(yr))
+      data = list(
+        crop_allocation = .ca_static_allocation(
+          .cpy_build(yr),
+          crop_patterns,
+          cropland(yr)
+        )
+      )
     )
   }
   union <- spread(1970L, 228L)

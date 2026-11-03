@@ -275,7 +275,7 @@ testthat::test_that(".read_cbs() parks the identity its folded inputs carry", {
   )
   testthat::local_mocked_bindings(
     .cbs_read_inputs = function(...) inputs,
-    .cbs_combine_sources = function(inputs) cbs_rows,
+    .cbs_combine_sources = function(inputs, ...) cbs_rows,
     .prepare_historical_cbs = function(...) tibble::tibble(),
     .cbs_extend_historical = function(cbs_raw0, ...) cbs_raw0,
     .aggregate_fao_trade_to_cbs = function(fao_trade) fao_trade,

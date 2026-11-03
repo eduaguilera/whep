@@ -64,6 +64,24 @@
 #'     areas in that year, or in the nearest years that report them. A label
 #'     FAOSTAT never gives an item area for in that country is split evenly.
 #'   * `"equal"` gives every item sharing the label the same share.
+#' @param meat_nes_backcast Character. What the pre-1962 back-cast does with
+#'   item 1166, "Meat nes". FAO defines it as "including frog legs, marine
+#'   mammals, etc." (FAO 1994, *Definition and Classification of
+#'   Commodities*, chapter 17), so in whaling countries its 1961 anchor is
+#'   mostly whale meat: FAOSTAT has 193 kt for Japan in 1963, against 186,501
+#'   t of whale meat in Japan's own 1963 statistics (Shapiro, *The Fisheries
+#'   of Japan*, US Fish and Wildlife Service Circular 233, Table 8, p. 13;
+#'   whep#1538). WHEP has no whaling series to split the item on.
+#'   * `"agriland"` (default, current published behaviour) scales the first
+#'     reported value back on agricultural land like any herdless livestock
+#'     product, so its rows read `"LUH2_agriland"`. Whatever marine-mammal
+#'     meat the anchor holds is carried back in proportion to farmland, which
+#'     bears no relation to historical whaling: Japan's 1950-1960 back-cast is
+#'     1.89 Mt of the world's 6.46 Mt.
+#'   * `"none"` leaves the back-cast years of 1166 empty in every area. A
+#'     value supplied through `historical_data` is still kept. This also drops
+#'     the terrestrial "other meat" the item holds elsewhere (France, India,
+#'     Ethiopia), because the two cannot be told apart.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -133,6 +151,7 @@ build_primary_production <- function(
   federation_land = c("none", "successor_union"),
   land_method = c("present_day", "historical_polity"),
   fodder_split = c("fao_mix", "equal"),
+  meat_nes_backcast = c("agriland", "none"),
   .raw_data = NULL
 ) {
   if (example) {
@@ -141,6 +160,7 @@ build_primary_production <- function(
   federation_land <- rlang::arg_match(federation_land)
   land_method <- rlang::arg_match(land_method)
   fodder_split <- rlang::arg_match(fodder_split)
+  meat_nes_backcast <- rlang::arg_match(meat_nes_backcast)
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
     raw <- .read_production(
@@ -149,7 +169,8 @@ build_primary_production <- function(
       historical_data,
       federation_land = federation_land,
       land_method = land_method,
-      fodder_split = fodder_split
+      fodder_split = fodder_split,
+      meat_nes_backcast = meat_nes_backcast
     )
   } else {
     if (!is.null(historical_data)) {
@@ -355,7 +376,8 @@ build_primary_production <- function(
   historical_data = NULL,
   federation_land = "none",
   land_method = "present_day",
-  fodder_split = "fao_mix"
+  fodder_split = "fao_mix",
+  meat_nes_backcast = "agriland"
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -394,7 +416,8 @@ build_primary_production <- function(
   # The one place both member records meet before the sums travel on: say
   # where a balance-sheet source covers a bucket partially (whep#588).
   .warn_partial_source_coverage(fao_crop_liv, cb_extracts)
-  .strip_bucket_members(c(list(fao_crop_liv), cb_extracts))
+  # The CBS needs the extracts' member sets before choosing sources.
+  .strip_bucket_members(list(fao_crop_liv))
   # The reporting identity the folds emitted, parked before the reductions
   # below drop it and written back at the end (whep#707).
   polity_identity <- .park_polity_identity(c(list(fao_crop_liv), cb_extracts))
@@ -461,7 +484,8 @@ build_primary_production <- function(
     years_df,
     land_areas,
     federation_land = federation_land,
-    land_wide = .historical_land_wide(land_method, years)
+    land_wide = .historical_land_wide(land_method, years),
+    meat_nes_backcast = meat_nes_backcast
   )
 
   # 10. Add grassland + historical yields
@@ -1648,13 +1672,13 @@ build_primary_production <- function(
   fao_stocks <- .read_livestock_stocks(years = NULL)
 
   # The completion inside `.combine_livestock()` is what invents the rows the
-  # drop removes, so the drop sits right after it (whep#1404).
+  # drop removes, so the drop sits right after it (whep#1404, whep#1562).
   fao_liv_raw <- .combine_livestock(
     fao_combined,
     fao_stocks,
     animals
   ) |>
-    .drop_retired_buckets()
+    .drop_unreported_stock_tail()
 
   .finalise_livestock(fao_liv_raw, animals, liv_lu) |>
     .filter_years(years)
@@ -1785,22 +1809,75 @@ build_primary_production <- function(
     )
 }
 
-# Under `options(whep.unfold_predecessor_bucket = "all")` only: drop the stock
-# rows of a promoted predecessor bucket (206 "Sudan (former)") after its own
-# area last reported, see `.retired_predecessor_buckets()`. `.combine_livestock()`
-# completes every area over every year and `fill_linear()` carries a series
-# longer than 40 years forward, so 206's 2011 herd ran flat to 2023 beside the
-# 276/277 herds that report the same animals. Scoped to the stock chain on
-# purpose: under the un-fold LUH2 grassland still keys north Sudan's pasture on
-# 206 in every year, and those rows are land no other row carries. The list of
-# buckets is derived from the crosswalk and is empty under the fold.
-.drop_retired_buckets <- function(df) {
-  retired <- .retired_predecessor_buckets()
-  if (nrow(retired) == 0L) {
+# Drop the stock rows of an area after the last year any reporting area
+# reports it. `.combine_livestock()` completes every area over every year and
+# `fill_linear()` carries a series longer than 40 years forward, so an area
+# FAOSTAT stops reporting kept its last herd flat to the end of the build, and
+# its livestock products followed as "Last value carried forward".
+#
+# Two cases reach this. Under `options(whep.unfold_predecessor_bucket = "all")`
+# bucket 206 "Sudan (former)" ran its 2011 herd beside the 276/277 herds that
+# report the same animals (whep#1404). And in every mode FAOSTAT reports the
+# French overseas departments (69, 87, 135, 182) only until 2006, and their
+# 2006 herds ran flat 2007-2023, 89 kt of livestock tonnes a year (whep#1562).
+# From 2007 France's own figures include them: FAOSTAT France's 2019 cattle
+# stock, 18,172,970 head, is Agreste's "France entière" total (DOM included;
+# metropolitan France alone is 18,050,754; Agreste SAA 2020 definitive,
+# Chiffres et Données No 14, pp. 20 and 37), and Eurostat's national France
+# (apro_mt_ls_r, 2018: 18,563.23 thousand cattle) includes the 141.83 thousand
+# of its outermost regions (FRY). The carried herds were a second copy of
+# animals France already reports, so they go, the same rule
+# `.filter_dissolved_countries()` applies to a dissolved country and the one
+# the wiki decision whep-territories-fold-to-faostat-reporting-area records:
+# a territory sits under the area whose FAOSTAT statistics include it.
+#
+# "Reports" is `.reported_bucket_years()`, which follows folds: under the fold
+# bucket 206 is reported after 2011 by 276/277 and keeps every row. Only the
+# tail after an area's last reported year goes, and only when that year falls
+# before the vocabulary's own horizon. An area no reporting window
+# covers at all is left alone, and years before the first report are not
+# touched either, because the completion fills those with zeros (n <= 40).
+.drop_unreported_stock_tail <- function(df) {
+  years <- sort(unique(as.integer(df$year)))
+  if (length(years) == 0L) {
     return(df)
   }
-  last_year <- retired$last_year[match(df$area_code, retired$area_code)]
-  dplyr::filter(df, is.na(last_year) | .data$year <= last_year)
+  # Over the vocabulary's whole span, not the frame's, so an area whose last
+  # report predates the frame's first year is still recognised as retired.
+  windows <- .area_reporting_windows()
+  span <- min(c(windows$window_start, years)):max(c(windows$window_end, years))
+  reported <- .reported_bucket_years(span)
+  last_year <- reported[, .(last_year = max(year)), by = area_code]
+  last <- last_year$last_year[match(df$area_code, last_year$area_code)]
+  # The stock pin can run past the last year the area vocabulary knows. Nothing
+  # is reported then, and that horizon is not a retirement: only an area whose
+  # last report falls before it has a tail.
+  horizon <- max(reported$year, -Inf)
+  tail <- !is.na(last) & last < horizon & df$year > last
+  # Named only where a herd went: the completion fills the tail of an area
+  # reported for 40 years or less with zeros, and dropping those moves nothing.
+  named <- tail & !is.na(df$value) & df$value != 0
+  if (any(named)) {
+    .inform_stock_tail(df[named, ], last[named])
+  }
+  df[!tail, ]
+}
+
+.inform_stock_tail <- function(dropped, last) {
+  areas <- tibble::tibble(area_code = dropped$area_code, last_year = last) |>
+    dplyr::distinct() |>
+    add_area_name()
+  labels <- paste0(
+    dplyr::coalesce(areas$area_name, as.character(areas$area_code)),
+    " (after ",
+    areas$last_year,
+    ")"
+  )
+  cli::cli_inform(c(
+    "i" = "Dropped livestock stocks of {nrow(areas)} area{?s} after the \\
+      last year FAOSTAT reports them: {labels}.",
+    " " = "No later observation anchors a fill (whep#1562)."
+  ))
 }
 
 # Split the unsplit QCL stock (`value`) across sub-items (e.g. dairy vs
@@ -3483,7 +3560,8 @@ build_primary_production <- function(
   years_df,
   land_areas,
   federation_land = "none",
-  land_wide = NULL
+  land_wide = NULL,
+  meat_nes_backcast = "agriland"
 ) {
   cli::cli_progress_step("Extending historical series")
 
@@ -3533,6 +3611,26 @@ build_primary_production <- function(
       !is.na(area),
       area != "",
       !is.na(unit)
+    ) |>
+    .drop_meat_nes_backcast(meat_nes_backcast)
+}
+
+# Item 1166 "Meat nes" holds marine-mammal meat by FAO's definition ("including
+# frog legs, marine mammals, etc.", FAO 1994, Definition and Classification of
+# Commodities, ch. 17), and in whaling countries its 1961 anchor is mostly whale meat
+# (whep#1538), which agricultural land cannot drive. Under `"none"` the rows the
+# agriland proxy produced are removed; every label `.fill_pre_faostat()` gives
+# such a row ends in `_agriland`, while an observed row keeps its own source.
+.drop_meat_nes_backcast <- function(df, meat_nes_backcast = "agriland") {
+  if (meat_nes_backcast == "agriland") {
+    return(df)
+  }
+  df |>
+    dplyr::filter(
+      !(.data$item_prod_code %in%
+        1166L &
+        .data$year < 1962L &
+        stringr::str_ends(dplyr::coalesce(.data$source, ""), "_agriland"))
     )
 }
 

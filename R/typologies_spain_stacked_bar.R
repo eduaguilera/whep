@@ -1,6 +1,16 @@
-typology_stacked_bars <- function() {
-  indicators <- create_typo_ts_plot()
-  n_prov_destiny <- create_n_prov_destiny()
+typology_stacked_bars <- function(
+  out_dir = NULL,
+  n_prov_destiny = NULL,
+  benchmark_years = seq(1860, 2020, by = 20)
+) {
+  if (is.null(n_prov_destiny)) {
+    n_prov_destiny <- create_n_prov_destiny()
+  }
+  indicators <- create_typo_ts_plot(
+    n_prov_destiny = n_prov_destiny,
+    benchmark_years = benchmark_years,
+    out_dir = out_dir
+  )
 
   typologies_df <- indicators |>
     dplyr::group_by(year, province_name) |>
@@ -24,6 +34,10 @@ typology_stacked_bars <- function() {
           "livestock_mono",
           "livestock_rum",
           "population_food",
+          # population_food_inedible is the remainder
+          # .split_food_inedible_loss() (n_prov_destiny.R) split out of
+          # population_food -- it still entered the system as an import.
+          "population_food_inedible",
           "population_other_uses"
         )
     )
@@ -148,20 +162,34 @@ typology_stacked_bars <- function() {
     .stacked_bar_theme()
 
   print(p_total)
-  ggplot2::ggsave(
-    "C:/PhD/Typologies/Typologies_spain/new_typologies/stacked_typologies_total.png",
-    plot = p_total,
-    width = 10,
-    height = 6,
-    dpi = 300
-  )
+  if (!is.null(out_dir)) {
+    ggplot2::ggsave(
+      file.path(out_dir, "stacked_typologies_total_new.png"),
+      plot = p_total,
+      width = 12,
+      height = 6,
+      dpi = 300
+    )
+  }
   print(p_pct)
+  if (!is.null(out_dir)) {
+    ggplot2::ggsave(
+      file.path(out_dir, "stacked_typologies_pct_new.png"),
+      plot = p_pct,
+      width = 12,
+      height = 6,
+      dpi = 300
+    )
+  }
 
   list(total = df_total, pct = df_pct, p_total = p_total, p_pct = p_pct)
 }
 
-typology_area_stacked_bars <- function() {
-  indicators <- create_typo_ts_plot()
+typology_area_stacked_bars <- function(out_dir = NULL, n_prov_destiny = NULL) {
+  if (is.null(n_prov_destiny)) {
+    n_prov_destiny <- create_n_prov_destiny()
+  }
+  indicators <- create_typo_ts_plot(n_prov_destiny = n_prov_destiny)
   npp_ygpit <- whep_read_file("npp_ygpit")
 
   typologies_df <- indicators |>
@@ -207,7 +235,25 @@ typology_area_stacked_bars <- function() {
   )
 
   print(p_total)
+  if (!is.null(out_dir)) {
+    ggplot2::ggsave(
+      file.path(out_dir, "stacked_typologies_area_new.png"),
+      plot = p_total,
+      width = 12,
+      height = 6,
+      dpi = 300
+    )
+  }
   print(p_pct)
+  if (!is.null(out_dir)) {
+    ggplot2::ggsave(
+      file.path(out_dir, "stacked_typologies_area_pct_new.png"),
+      plot = p_pct,
+      width = 12,
+      height = 6,
+      dpi = 300
+    )
+  }
 
   list(df = df, p_total = p_total, p_pct = p_pct)
 }

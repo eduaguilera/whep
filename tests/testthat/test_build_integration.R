@@ -153,9 +153,21 @@ test_that("build_commodity_balances returns expected columns", {
     "element",
     "value",
     "source",
-    "fao_flag"
+    "fao_flag",
+    "method_cbs_coverage"
   )
   expect_equal(names(result), expected_cols)
+})
+
+test_that("fixed CBS data reports an unused coverage method", {
+  expect_warning(
+    out <- whep::build_commodity_balances(
+      bucket_coverage = "world_shares",
+      .fixed_data = cbs_fixed_fixture()
+    ),
+    "bucket_coverage.*ignored"
+  )
+  expect_equal(unique(out$method_cbs_coverage), "not_checked")
 })
 
 test_that("build_commodity_balances warns that fbs_trade_basis is unused", {
@@ -271,7 +283,8 @@ test_that("build_commodity_balances matches expected output", {
     .fixed_data = cbs_fixed_fixture()
   )
   expected <- cbs_expected_fixture() |>
-    whep:::.add_reporting_polity_columns()
+    whep:::.add_reporting_polity_columns() |>
+    dplyr::mutate(method_cbs_coverage = "not_checked")
   expect_equal(result, expected)
 })
 

@@ -311,7 +311,11 @@
     carbon_balance = .nb_carbon_balance(),
     primary_prod = .nb_primary_prod(),
     fertilizer = .nb_fertilizer(),
-    crop_patterns = .nb_crop_patterns(),
+    crop_allocation = .ca_static_allocation(
+      .nb_cell_polity(),
+      .nb_crop_patterns(),
+      .nb_type_cropland()
+    ),
     type_cropland = .nb_type_cropland(),
     residue_destiny_input = .nb_residue_destiny_input()
   )
