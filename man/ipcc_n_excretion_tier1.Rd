@@ -71,7 +71,9 @@ goats 1.28 to 1.42). FAOSTAT's 2020 Tier 1 figures for the same heads are
 from the 2006 table (FAOSTAT Livestock Manure methodological note, 2025).
 This historical comparison uses the explicitly selectable hybrid policy
 \code{nex_missing = "as_shipped"}. Every row resolved an IPCC region; missing
-coefficients were geese and 163 buffalo head in North America and Oceania.
+coefficients were geese and 163 buffalo head in Oceania. The table also
+lacks a North American buffalo coefficient, but this frozen population
+contains no affected North American buffalo row.
 The strict default now aborts on those rows, rather than returning a
 partial total or silently choosing that hybrid.
 }
