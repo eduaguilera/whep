@@ -187,6 +187,41 @@
 #' over the same cropland the ceiling itself multiplies, and a
 #' herbaceous-only denominator would leave the two inconsistent.
 #'
+#' @section Polity-native geographic matching:
+#' When both `country_areas` and `country_grid` supply `polity_code`, the
+#' engine matches exact polity strings, without requiring `area_code`.
+#' Numeric `area_code` columns, if also present, are source metadata and are
+#' excluded from allocation. The output retains `polity_code` and does not
+#' reconstruct identity from a numeric aggregation bucket.
+#'
+#' Native outputs record `method_weight_rainfed` and `method_weight_irrigated`
+#' for the initial weighting before capacity redistribution: `"crop_pattern"`,
+#' `"cropland_proportional"` when pattern potential is zero, or `"no_land"`
+#' when that regime has no allocatable land. A supplied `method_irrigation`
+#' is retained. CFT aggregation lists distinct constituent method labels,
+#' sorted and separated by semicolons; it does not select a new method.
+#'
+#' Polity targets must be unique per polity, year and crop. Missing identity,
+#' mixed native/legacy inputs, duplicate polity cells in a year and targets
+#' with no support in their year abort explicitly. Harvested-area targets
+#' must be finite and nonnegative. Native grids may be static or carry
+#' explicit years or one complete validity-interval pair; supplied dates must
+#' be finite whole years, and annual dates must fall inside any supplied
+#' half-open interval. Missing bounds cannot silently extend native support.
+#' A predecessor relationship
+#' alone never moves a target onto a different polity's cells. Resolve source
+#' geography to its faithful reporting territory before calling the engine.
+#'
+#' Numeric targets with a numeric grid retain the legacy path even when the
+#' grid also carries polity labels as metadata. Supplying `polity_code` on the
+#' targets opts into native identity and requires it on the grid too.
+#'
+#' This native path currently supports level-0 allocation and
+#' `config$area_key = "grid"` only. The numeric-key path remains available for
+#' legacy inputs; its vintage reconciliation is not applied to native inputs.
+#' Regional and subnational pipeline migration is tracked in WHEP issues
+#' 458 and 1483.
+#'
 #' @section Which area code the output is keyed on:
 #' The chain allocates *from* a national table keyed on `area_code` and
 #' *into* a `country_grid` keyed the same way, so both sides speak the raw
@@ -293,6 +328,12 @@ build_gridded_landuse <- function(
   country_grid,
   config = list()
 ) {
+  .check_crop_polity_keys(country_areas, country_grid)
+  native <- rlang::has_name(country_areas, "polity_code")
+  if (native) {
+    country_areas <- dplyr::select(country_areas, -dplyr::any_of("area_code"))
+    country_grid <- dplyr::select(country_grid, -dplyr::any_of("area_code"))
+  }
   .validate_landuse_inputs(
     country_areas,
     crop_patterns,
@@ -301,6 +342,12 @@ build_gridded_landuse <- function(
   )
   country_grid <- .normalize_country_grid(country_grid)
   config <- .resolve_landuse_config(config)
+  if (native && config$area_key != "grid") {
+    cli::cli_abort(
+      "Polity-native allocation cannot be folded to numeric area buckets.",
+      class = "whep_polity_key"
+    )
+  }
   years <- config$years
   cft_mapping <- config$cft_mapping
   type_cropland <- config$type_cropland
@@ -319,6 +366,13 @@ build_gridded_landuse <- function(
   # container-keyed table it is handed, before it splits it into units.
   if (rlang::has_name(country_areas, "level_polity_code")) {
     .check_irrigation_within_area(country_areas)
+  }
+  if (native && any(country_areas$irrigated_area_ha > 0, na.rm = TRUE)) {
+    .check_polity_prepared_water(list(
+      country_areas = country_areas,
+      gridded_cropland = gridded_cropland,
+      country_grid = country_grid
+    ))
   }
   gridded_cropland <- .ensure_gridded_irrigation(gridded_cropland)
 
@@ -345,20 +399,24 @@ build_gridded_landuse <- function(
   # from `country_grid`: `.level0_fold_epochs()` summarises `polity_code` away,
   # so a reconciler handed the grid alone silently does nothing. Absent, this
   # is a no-op and the snapshot default is unchanged.
-  reconciled <- .level0_reconcile_vintage(
-    country_areas,
-    country_grid,
-    config$polity_support
-  )
-  country_areas <- .sum_rekeyed_national(reconciled$national)
-  country_grid <- reconciled$grid
+  if (native) {
+    .check_crop_polity_support(country_areas, country_grid)
+  } else {
+    reconciled <- .level0_reconcile_vintage(
+      country_areas,
+      country_grid,
+      config$polity_support
+    )
+    country_areas <- .sum_rekeyed_national(reconciled$national)
+    country_grid <- reconciled$grid
 
-  .warn_grid_missing_reporters(
-    country_areas,
-    country_grid,
-    "harvested_area_ha",
-    "ha of harvested area"
-  )
+    .warn_grid_missing_reporters(
+      country_areas,
+      country_grid,
+      "harvested_area_ha",
+      "ha of harvested area"
+    )
+  }
 
   # Build type lookup: item_prod_code -> luh2_type
   type_lookup <- NULL
@@ -440,6 +498,12 @@ build_gridded_landuse <- function(
     result <- .aggregate_to_cft(result, cft_mapping)
   }
 
+  if (native) {
+    return(list(
+      allocation = tibble::as_tibble(result),
+      breach = tibble::as_tibble(breach)
+    ))
+  }
   out <- tibble::as_tibble(result) |>
     .spatialize_apply_area_key(
       config$area_key,
@@ -504,7 +568,9 @@ build_gridded_landuse <- function(
   unit_keyed <- "level_polity_code" %in% alloc_cols
 
   # Join country_areas (cartesian: each country-crop gets its cells)
-  dat <- if (unit_keyed) {
+  dat <- if (.spatial_geo_key(ca) == "polity_code") {
+    grid_cp[ca, on = .(polity_code, item_prod_code), nomatch = NA]
+  } else if (unit_keyed) {
     grid_cp[
       ca,
       on = .(area_code, level_polity_code, item_prod_code),
@@ -520,7 +586,17 @@ build_gridded_landuse <- function(
     rf_potential = harvest_fraction * rainfed_ha,
     ir_potential = harvest_fraction * irrigated_ha
   )]
-  if (unit_keyed) {
+  if (.spatial_geo_key(ca) == "polity_code") {
+    dat[,
+      `:=`(
+        rf_pot_sum = sum(rf_potential, na.rm = TRUE),
+        ir_pot_sum = sum(ir_potential, na.rm = TRUE),
+        rainfed_sum = sum(rainfed_ha, na.rm = TRUE),
+        irrigated_sum = sum(irrigated_ha, na.rm = TRUE)
+      ),
+      by = .(polity_code, item_prod_code)
+    ]
+  } else if (unit_keyed) {
     dat[,
       `:=`(
         rf_pot_sum = sum(rf_potential, na.rm = TRUE),
@@ -572,6 +648,11 @@ build_gridded_landuse <- function(
   # below silently drops them.
   .warn_unallocated_crops(dat, yr, alloc_cols)
 
+  method_cols <- character()
+  if (.spatial_geo_key(ca) == "polity_code") {
+    dat <- .stamp_native_weights(dat)
+    method_cols <- .spatial_method_cols(dat)
+  }
   result <- dat[
     allocated_rf > 0 | allocated_ir > 0,
     c(
@@ -580,7 +661,8 @@ build_gridded_landuse <- function(
       "lat",
       "item_prod_code",
       "allocated_rf",
-      "allocated_ir"
+      "allocated_ir",
+      method_cols
     ),
     with = FALSE
   ]
@@ -629,7 +711,7 @@ build_gridded_landuse <- function(
 #' give every unit the container's whole total.
 #' @noRd
 .alloc_target_cols <- function(country_areas, grid) {
-  base <- c("area_code", "item_prod_code")
+  base <- c(.spatial_geo_key(country_areas), "item_prod_code")
   if (!rlang::has_name(country_areas, "level_polity_code")) {
     return(base)
   }
@@ -729,7 +811,12 @@ build_gridded_landuse <- function(
   # Check which allocation group has type potential; fallback where zero.
   # Both grains written out, for the reason `.spatialize_year()` gives where
   # it forms the same key.
-  if ("level_polity_code" %in% group_cols) {
+  if (.spatial_geo_key(grid_cp_tc) == "polity_code") {
+    grid_cp_tc[,
+      type_pot := sum(harvest_fraction * cropland_ha, na.rm = TRUE),
+      by = .(polity_code, item_prod_code)
+    ]
+  } else if ("level_polity_code" %in% group_cols) {
     grid_cp_tc[,
       type_pot := sum(harvest_fraction * cropland_ha, na.rm = TRUE),
       by = .(area_code, level_polity_code, item_prod_code)
@@ -963,7 +1050,12 @@ build_gridded_landuse <- function(
 ) {
   .check_columns(
     country_areas,
-    c("year", "area_code", "item_prod_code", "harvested_area_ha"),
+    c(
+      "year",
+      .spatial_geo_key(country_areas),
+      "item_prod_code",
+      "harvested_area_ha"
+    ),
     "country_areas"
   )
   .check_columns(
@@ -978,7 +1070,7 @@ build_gridded_landuse <- function(
   )
   .check_columns(
     country_grid,
-    c("lon", "lat", "area_code"),
+    c("lon", "lat", .spatial_geo_key(country_grid)),
     "country_grid"
   )
 }
@@ -1117,7 +1209,8 @@ build_gridded_landuse <- function(
   }
 
   # Find which countries need redistribution
-  countries_to_fix <- unique(overloaded$area_code)
+  geo_key <- .spatial_geo_key(overloaded)
+  countries_to_fix <- unique(overloaded[[geo_key]])
 
   fixed <- .redistribute_countries_dt(
     allocated_dt,
@@ -1132,10 +1225,11 @@ build_gridded_landuse <- function(
     "lat",
     "item_prod_code",
     "rainfed_ha",
-    "irrigated_ha"
+    "irrigated_ha",
+    .spatial_method_cols(allocated_dt)
   ))
   stable <- allocated_dt[
-    !(area_code %in% countries_to_fix),
+    !(get(geo_key) %in% countries_to_fix),
     ..out_cols
   ]
 
@@ -1381,7 +1475,8 @@ build_gridded_landuse <- function(
   excess <- sum(breach$rf_over, na.rm = TRUE) +
     sum(breach$ir_over, na.rm = TRUE)
   worst <- max(c(breach$rf_over, breach$ir_over), na.rm = TRUE)
-  codes <- sort(unique(breach$area_code))
+  geo_key <- .spatial_geo_key(breach)
+  codes <- sort(unique(breach[[geo_key]]))
   grain <- if (
     rlang::has_name(breach, "level_polity_code") &&
       any(!is.na(breach$level_polity_code))
@@ -1393,7 +1488,7 @@ build_gridded_landuse <- function(
   cli::cli_warn(c(
     "{nrow(breach)} polycell{?s} hold more harvested area than their capacity;
      {round(excess)} ha over, worst {round(worst)} ha.",
-    "x" = "{length(codes)} area_code{?s}: {.val {codes}}.",
+    "x" = "{length(codes)} {.field {geo_key}}{cli::qty(length(codes))}{?s}: {.val {codes}}.",
     i = "The {grain} total was preserved and the per-cell ceiling gave way."
   ))
 }
@@ -1422,19 +1517,29 @@ build_gridded_landuse <- function(
     "lat",
     "item_prod_code",
     "rainfed_ha",
-    "irrigated_ha"
+    "irrigated_ha",
+    .spatial_method_cols(allocated)
   ))
 
-  data.table::setindexv(allocated, "area_code")
-  data.table::setindexv(capacity, "area_code")
+  geo_key <- .spatial_geo_key(allocated)
+  data.table::setindexv(allocated, geo_key)
+  data.table::setindexv(capacity, geo_key)
   data.table::setindexv(capacity, join_cols)
 
   fixed <- vector("list", length(countries))
   for (idx in seq_along(countries)) {
     country <- countries[[idx]]
-    work <- allocated[.(country), on = "area_code", nomatch = 0L]
+    work <- if (geo_key == "polity_code") {
+      allocated[.(country), on = "polity_code", nomatch = 0L]
+    } else {
+      allocated[.(country), on = "area_code", nomatch = 0L]
+    }
     work <- data.table::copy(work)
-    capacity_country <- capacity[.(country), on = "area_code", nomatch = 0L]
+    capacity_country <- if (geo_key == "polity_code") {
+      capacity[.(country), on = "polity_code", nomatch = 0L]
+    } else {
+      capacity[.(country), on = "area_code", nomatch = 0L]
+    }
     work[
       capacity_country,
       `:=`(
@@ -1465,7 +1570,7 @@ build_gridded_landuse <- function(
   tolerance <- 1e-4
   max_iterations <- opts$max_iterations
   cell_cols <- .compartment_cell_cols(work)
-  target_cols <- setdiff(opts$alloc_cols, "area_code")
+  target_cols <- setdiff(opts$alloc_cols, .spatial_geo_key(work))
 
   work[, .cell_group := .GRP, by = cell_cols]
   work[, .crop_group := .GRP, by = target_cols]
@@ -1499,6 +1604,11 @@ build_gridded_landuse <- function(
   n_crops <- length(target_rf)
 
   for (iter in seq_len(max_iterations)) {
+    # Judge convergence on the target-preserving allocation that is returned.
+    # Testing the temporarily clipped totals can stop at a feasible-looking
+    # deficit, then reintroduce a large breach in the final target restoration.
+    rainfed_vec <- .restore_crop_targets(rainfed_vec, crop_group, target_rf)
+    irrigated_vec <- .restore_crop_targets(irrigated_vec, crop_group, target_ir)
     total_rf <- .sum_by_group(cell_group, rainfed_vec, n_cells)
     total_ir <- .sum_by_group(cell_group, irrigated_vec, n_cells)
     rf_excess <- pmax(total_rf - rf_capacity, 0)
@@ -1541,8 +1651,10 @@ build_gridded_landuse <- function(
         is.finite(ir_capacity[cell_group])
     )
     if (length(ir_idx) > 0L) {
+      # logit(1) = Inf and logistic(Inf) = 1: a full cell is valid.
+      # Clipping below 1 imposes a deficit that target restoration amplifies.
       frac <- pmax(
-        pmin(irrigated_vec[ir_idx] / ir_capacity[cell_group[ir_idx]], 1 - 1e-6),
+        pmin(irrigated_vec[ir_idx] / ir_capacity[cell_group[ir_idx]], 1),
         1e-6
       )
       irrigated_vec[ir_idx] <- .logistic(
@@ -1576,7 +1688,7 @@ build_gridded_landuse <- function(
     )
     if (length(rf_idx) > 0L) {
       frac <- pmax(
-        pmin(rainfed_vec[rf_idx] / rf_capacity[cell_group[rf_idx]], 1 - 1e-6),
+        pmin(rainfed_vec[rf_idx] / rf_capacity[cell_group[rf_idx]], 1),
         1e-6
       )
       rainfed_vec[rf_idx] <- .logistic(
@@ -1586,23 +1698,22 @@ build_gridded_landuse <- function(
     }
   }
 
-  current_rf <- .sum_by_group(crop_group, rainfed_vec, n_crops)
-  current_ir <- .sum_by_group(crop_group, irrigated_vec, n_crops)
-  rf_scale <- rep(1, n_crops)
-  ir_scale <- rep(1, n_crops)
-  scale_rf <- current_rf > 0 & target_rf > 0
-  scale_ir <- current_ir > 0 & target_ir > 0
-  rf_scale[scale_rf] <- target_rf[scale_rf] / current_rf[scale_rf]
-  ir_scale[scale_ir] <- target_ir[scale_ir] / current_ir[scale_ir]
-
   work[, `:=`(
-    rainfed_ha = rainfed_vec * rf_scale[crop_group],
-    irrigated_ha = irrigated_vec * ir_scale[crop_group],
+    rainfed_ha = .restore_crop_targets(rainfed_vec, crop_group, target_rf),
+    irrigated_ha = .restore_crop_targets(irrigated_vec, crop_group, target_ir),
     .cell_group = NULL,
     .crop_group = NULL
   )]
 
   work
+}
+
+.restore_crop_targets <- function(values, group, target) {
+  current <- .sum_by_group(group, values, length(target))
+  scale <- rep(1, length(target))
+  positive <- current > 0 & target > 0
+  scale[positive] <- target[positive] / current[positive]
+  values * scale[group]
 }
 
 #' Sum numeric values by precomputed positive integer group.
@@ -1672,7 +1783,15 @@ build_gridded_landuse <- function(
 .warn_unallocated_crops <- function(dat, yr, alloc_cols) {
   # Both grains written out, for the reason `.spatialize_year()` gives where
   # it forms the same key.
-  leaked <- if ("level_polity_code" %in% alloc_cols) {
+  leaked <- if (.spatial_geo_key(dat) == "polity_code") {
+    dat[,
+      list(
+        national_area = harvested_area_ha[1L],
+        allocated = sum(allocated_rf + allocated_ir, na.rm = TRUE)
+      ),
+      by = .(polity_code, item_prod_code)
+    ]
+  } else if ("level_polity_code" %in% alloc_cols) {
     dat[,
       list(
         national_area = harvested_area_ha[1L],
@@ -1695,7 +1814,8 @@ build_gridded_landuse <- function(
   }
   # `codes` is integer, so the plural marker must follow an explicit scalar
   # count: cli's make_quantity() errors on a numeric vector of length > 1.
-  codes <- sort(unique(leaked$area_code))
+  geo_key <- .spatial_geo_key(leaked)
+  codes <- sort(unique(leaked[[geo_key]]))
   grain <- if ("level_polity_code" %in% alloc_cols) {
     "(country, unit, crop)"
   } else {
@@ -1710,8 +1830,39 @@ build_gridded_landuse <- function(
     "{nrow(leaked)} {grain} {cli::qty(nrow(leaked))}pair{?s} in year {yr} \\
      have national harvested area but no allocatable grid cell; \\
      {round(sum(leaked$national_area))} ha dropped:",
-    "x" = "{length(codes)} area_code{?s}: {.val {codes}}."
+    "x" = "{length(codes)} {.field {geo_key}}{cli::qty(length(codes))}{?s}: {.val {codes}}."
   ))
+}
+
+# Record the actual initial weighting rule, before capacity redistribution.
+# Water regimes can use different rules for the same polity/crop/year.
+.stamp_native_weights <- function(dat) {
+  data.table::set(
+    dat,
+    j = "method_weight_rainfed",
+    value = .spatial_weight_method(dat$rf_pot_sum, dat$rainfed_sum)
+  )
+  data.table::set(
+    dat,
+    j = "method_weight_irrigated",
+    value = .spatial_weight_method(dat$ir_pot_sum, dat$irrigated_sum)
+  )
+  dat
+}
+
+.spatial_weight_method <- function(potential, land) {
+  dplyr::case_when(
+    potential > 0 ~ "crop_pattern",
+    land > 0 ~ "cropland_proportional",
+    .default = "no_land"
+  )
+}
+
+.spatial_method_cols <- function(data) {
+  intersect(
+    c("method_weight_rainfed", "method_weight_irrigated", "method_irrigation"),
+    names(data)
+  )
 }
 
 #' Aggregate crop-level results to CFT level.
@@ -1733,6 +1884,10 @@ build_gridded_landuse <- function(
     dplyr::summarise(
       rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
       irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
+      dplyr::across(
+        dplyr::any_of(.spatial_method_cols(data)),
+        \(x) paste(sort(unique(x), method = "radix"), collapse = ";")
+      ),
       .by = dplyr::all_of(group_cols)
     )
 }

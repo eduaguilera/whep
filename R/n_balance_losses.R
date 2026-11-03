@@ -208,7 +208,7 @@ calculate_soil_n2o <- function(
 #' Estimate nitrate leaching, topsoil denitrification and indirect N2O.
 #'
 #' @description
-#' Three methods for partitioning a nitrogen surplus into leached nitrate,
+#' Four methods for partitioning a nitrogen surplus into leached nitrate,
 #' denitrified nitrogen and nitrate retained in the soil profile.
 #'
 #' `"meisinger_drainage"` (the default) is a transport-limited Meisinger
@@ -244,7 +244,14 @@ calculate_soil_n2o <- function(
 #' That retained term is a flux of the year, not carried into the next one.
 #' Each row is stamped `"ipcc_fracleach_wet"`,
 #' `"ipcc_fracleach_dry_irrigated"` or
-#' `"ipcc_fracleach_dry_rainfed_retained"`, and
+#' `"ipcc_fracleach_dry_rainfed_retained"`. Eq. 11.10 and Table 11.3 define
+#' `FracLEACH-(H)` per kg of N added (`F_SN + F_ON + F_PRP + F_CR + F_SOM`),
+#' so it multiplies `n_input_for_n2o_t`, the same input set that prices
+#' direct N2O in [build_nitrogen_balance()], not the surplus.
+#' `"fracleach_surplus"` applies the same fractions to `n_surplus_t`
+#' instead, the form before whep#1535: a surplus-based deviation from the
+#' IPCC definition, kept selectable for comparison, stamped
+#' `"fracleach_surplus_wet"` and so on. Under both,
 #' `no3_n_t + denitrification_n_t + retained_profile_n_t` equals
 #' `n_surplus_t`.
 #'
@@ -512,16 +519,26 @@ calculate_soil_n2o <- function(
 #' `whep_water_regime_value` for a missing or unknown value, naming the
 #' count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
 #' surplus, so a dry row of unknown regime has no defensible fraction. Wet
-#' rows need no `water_regime`. `transport`, `none_class` and
-#' `carry_over_by` do not apply to it.
+#' rows need no `water_regime`. `"fracleach_surplus"` checks the same.
+#' `transport`, `none_class` and `carry_over_by` do not apply to either.
+#'
+#' Under `"ipcc_fracleach"` leaching is capped at `n_surplus_t`, so it never
+#' exceeds the nitrogen left after crop uptake. IPCC Tier 1 has no such cap;
+#' rows where it binds carry the suffix `"_capped_surplus"` on their stamp
+#' (e.g. `"ipcc_fracleach_wet_capped_surplus"`). A missing
+#' `n_input_for_n2o_t` column, or a missing value in it, aborts
+#' (`whep_missing_n_added`, `whep_n_added_na`): read as zero it would leach
+#' nothing while the partition still closed.
 #'
 #' @param x A tibble with `n_surplus_t`. `method = "meisinger_drainage"`
 #'   requires `fert_type`, `climate`, `irrig_cat`, `land_use`, `cn_input`
 #'   (may be `NA`), `tillage` (checked only for synthetic rows), `som_share`
 #'   and the soil columns its `transport` reads (see Details), plus `year`
 #'   with `carry_over_by`; `method = "ipcc_fracleach"` requires
-#'   `moisture_regime` (`"wet"` or `"dry"`) and, on dry rows, `water_regime`
-#'   (`"rainfed"` or `"irrigated"`); `method = "image_gnm"` requires
+#'   `moisture_regime` (`"wet"` or `"dry"`), on dry rows `water_regime`
+#'   (`"rainfed"` or `"irrigated"`), and `n_input_for_n2o_t`, the N added in
+#'   IPCC Eq. 11.10; `"fracleach_surplus"` requires the first two;
+#'   `method = "image_gnm"` requires
 #'   `n_input_std_t`, `nh3_n_t`, `area_ha`, `runoff_mm` (the year's total
 #'   runoff, mm), `surface_runoff_fraction`,
 #'   `slope_m_per_km` (both from [read_image_gnm_runoff()]), `land_use`
@@ -534,8 +551,8 @@ calculate_soil_n2o <- function(
 #'   instead. Kept as a separate argument (rather than a static `x` column)
 #'   because in the full pipeline it flows in from Module A's gridded water
 #'   balance. Read by `"meisinger_drainage"` only.
-#' @param method `"meisinger_drainage"` (default), `"ipcc_fracleach"` or
-#'   `"image_gnm"`.
+#' @param method `"meisinger_drainage"` (default), `"ipcc_fracleach"`,
+#'   `"fracleach_surplus"` or `"image_gnm"`.
 #' @param transport The transport factor of `"meisinger_drainage"`:
 #'   `"swat_mixing"` (default) or `"burns"`.
 #' @param none_class How `"meisinger_drainage"` prices Meisinger's `None`
@@ -565,7 +582,12 @@ calculate_soil_n2o <- function(
 calculate_n_leaching <- function(
   x,
   drainage_mm = NULL,
-  method = c("meisinger_drainage", "ipcc_fracleach", "image_gnm"),
+  method = c(
+    "meisinger_drainage",
+    "ipcc_fracleach",
+    "fracleach_surplus",
+    "image_gnm"
+  ),
   transport = c("swat_mixing", "burns"),
   none_class = c("retention", "waterlogged"),
   carry_over_by = NULL,
@@ -578,7 +600,10 @@ calculate_n_leaching <- function(
     return(.example_n_leaching())
   }
   if (method == "ipcc_fracleach") {
-    return(.leaching_ipcc_fracleach(x))
+    return(.leaching_ipcc_fracleach(x, basis = "n_added"))
+  }
+  if (method == "fracleach_surplus") {
+    return(.leaching_ipcc_fracleach(x, basis = "surplus"))
   }
   if (method == "image_gnm") {
     return(.leaching_image_gnm(x))
@@ -1175,7 +1200,14 @@ calculate_indirect_n2o_nh3 <- function(
 # EF5 of Table 11.3 (p. 11.26), read from ipcc_2019_soil_n_ef. Dry land
 # leaches only where it is irrigated, and every irrigated row is taken as
 # non-drip, the upper bound, because no layer says which irrigation is drip.
-.leaching_ipcc_fracleach <- function(x) {
+# basis = "n_added" is IPCC 2019 Vol 4 Ch 11 Eq. 11.10 as defined: per kg of
+# N added, n_input_for_n2o_t (the Eq. 11.1 set: synthetic, organic, grazing
+# excreta, crop residue, SOM mineralisation; no BNF, no deposition), the
+# basis WHEP's other FracLEACH sites use too (crop_soil_n2o_extension.R,
+# livestock_manure.R). It is capped at the surplus to stay inside the mass
+# balance; IPCC has no cap, so the rows where it binds say so (whep#1535).
+# basis = "surplus" is the earlier form, kept as "fracleach_surplus".
+.leaching_ipcc_fracleach <- function(x, basis) {
   .n_check_moisture_regime(x)
   wet <- x$moisture_regime == "wet"
   dry_irrigated <- .leaching_dry_irrigated(x)
@@ -1185,9 +1217,9 @@ calculate_indirect_n2o_nh3 <- function(
     .default = .ipcc2019_soil_ef("FracLEACH_H", "dry")
   )
   method <- dplyr::case_when(
-    wet ~ "ipcc_fracleach_wet",
-    dry_irrigated ~ "ipcc_fracleach_dry_irrigated",
-    .default = "ipcc_fracleach_dry_rainfed_retained"
+    wet ~ "_wet",
+    dry_irrigated ~ "_dry_irrigated",
+    .default = "_dry_rainfed_retained"
   )
   dry_rainfed <- !wet & !dry_irrigated
   ef5 <- .ipcc2019_soil_ef("EF5", "aggregated")
@@ -1196,7 +1228,14 @@ calculate_indirect_n2o_nh3 <- function(
   # retained in the profile and its denitrification is 0, a term not
   # estimated rather than a measured zero. Elsewhere the non-leached surplus
   # is denitrification, as in the Meisinger cascade, and nothing is retained.
-  no3 <- x$n_surplus_t * frac_leach
+  base <- .leaching_basis_n(x, basis)
+  no3 <- pmin(base * frac_leach, x$n_surplus_t)
+  capped <- base * frac_leach > x$n_surplus_t
+  method <- paste0(
+    if (basis == "n_added") "ipcc_fracleach" else "fracleach_surplus",
+    method,
+    dplyr::if_else(capped, "_capped_surplus", "")
+  )
   retained <- dplyr::if_else(dry_rainfed, x$n_surplus_t - no3, 0)
   x |>
     dplyr::mutate(
@@ -1206,6 +1245,34 @@ calculate_indirect_n2o_nh3 <- function(
       n2o_indirect_no3_n_t = .data$no3_n_t * ef5,
       method_leaching = .env$method
     )
+}
+
+# The N that FracLEACH-(H) multiplies. The N added is an external quantity:
+# read as zero it would leach nothing while surplus = leached + denitrified
+# + retained still held, so it must be supplied.
+.leaching_basis_n <- function(x, basis) {
+  if (basis == "surplus") {
+    return(x$n_surplus_t)
+  }
+  if (!rlang::has_name(x, "n_input_for_n2o_t")) {
+    cli::cli_abort(
+      c(
+        "{.arg x} has no {.field n_input_for_n2o_t}.",
+        i = "{.code method = \"ipcc_fracleach\"} applies FracLEACH-(H) to
+             the N added (IPCC 2019 Eq. 11.10); supply it, or use
+             {.code method = \"fracleach_surplus\"}."
+      ),
+      class = c("whep_missing_n_added", "whep_absent_input")
+    )
+  }
+  n_na <- sum(is.na(x$n_input_for_n2o_t))
+  if (n_na > 0L) {
+    cli::cli_abort(
+      "{n_na} row{?s} of {.arg x} {?has/have} no {.field n_input_for_n2o_t}.",
+      class = c("whep_n_added_na", "whep_absent_input")
+    )
+  }
+  x$n_input_for_n2o_t
 }
 
 # TRUE on the dry irrigated rows. A dry row must say which water regime it
@@ -2376,15 +2443,17 @@ calculate_indirect_n2o_nh3 <- function(
   tibble::tribble(
     ~n_surplus_t,
     ~moisture_regime,
+    ~n_input_for_n2o_t,
     ~no3_n_t,
     ~denitrification_n_t,
     ~retained_profile_n_t,
     ~n2o_indirect_no3_n_t,
     ~method_leaching,
-    100,
+    60,
     "wet",
+    100,
     24,
-    76,
+    36,
     0,
     0.264,
     "ipcc_fracleach_wet"

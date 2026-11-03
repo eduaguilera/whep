@@ -89,7 +89,7 @@ test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
 })
 
 
-# -- drop_retired_predecessor_buckets (whep#1404) -----------------------------
+# -- drop_unreported_stock_tail (whep#1404, whep#1562) ------------------------
 
 .sudan_stock_rows <- function() {
   tibble::tribble(
@@ -103,15 +103,80 @@ test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
   )
 }
 
+# FAOSTAT reports the four French overseas departments until 2006; from 2007
+# France (68) reports their herds inside its own (whep#1562).
+.overseas_stock_rows <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~value,
+    2006L, "Guadeloupe", 87L, "Cattle", 80,
+    2007L, "Guadeloupe", 87L, "Cattle", 80,
+    2023L, "Guadeloupe", 87L, "Cattle", 80,
+    2006L, "Réunion", 182L, "Chickens", 15000,
+    2010L, "Réunion", 182L, "Chickens", 15000,
+    2010L, "French Guiana", 69L, "Pigs", 10,
+    2010L, "Martinique", 135L, "Pigs", 20,
+    2010L, "France", 68L, "Cattle", 19000
+  )
+}
+
+test_that("stock rows stop at the area's last reported year (whep#1562)", {
+  # The completion in `.combine_livestock()` carried the departments' 2006
+  # herds flat to 2023 beside the France herd that already includes them.
+  result <- suppressMessages(
+    whep:::.drop_unreported_stock_tail(.overseas_stock_rows())
+  )
+
+  overseas <- c(69L, 87L, 135L, 182L)
+  expect_false(any(result$area_code %in% overseas & result$year > 2006L))
+  expect_equal(
+    sort(result$area_code[result$year == 2006L]),
+    c(87L, 182L)
+  )
+  # France is reported throughout and keeps its row.
+  expect_true(any(result$area_code == 68L & result$year == 2010L))
+})
+
+test_that("the dropped stock tail is named, not silent", {
+  expect_message(
+    whep:::.drop_unreported_stock_tail(.overseas_stock_rows()),
+    "Guadeloupe"
+  )
+  df <- dplyr::filter(.overseas_stock_rows(), year <= 2006L | area_code == 68L)
+  expect_no_message(whep:::.drop_unreported_stock_tail(df))
+  expect_equal(whep:::.drop_unreported_stock_tail(df), df)
+  # A tail of completion zeros goes without a message: it carried no herd.
+  zeros <- tibble::tribble(
+    ~year, ~area_code, ~value,
+    1992L, 51L, 5,
+    1993L, 51L, 0
+  )
+  expect_no_message(result <- whep:::.drop_unreported_stock_tail(zeros))
+  expect_equal(result$year, 1992L)
+})
+
+test_that("years past the area vocabulary's horizon are not a dropped tail", {
+  # The stock pin runs past the last year the area vocabulary knows. No area
+  # is reported then, so that is the vocabulary's horizon, not a retirement.
+  df <- tibble::tribble(
+    ~year, ~area_code, ~value,
+    2023L, 68L, 1,
+    2030L, 68L, 1,
+    2030L, 87L, 1
+  )
+  result <- suppressMessages(whep:::.drop_unreported_stock_tail(df))
+  expect_equal(result$area_code, c(68L, 68L))
+  expect_true(any(result$year == 2030L))
+})
+
 test_that("the un-fold drops bucket 206's stock rows after it retires", {
   # Under the un-fold, 276/277 no longer sum into 206, so a 206 stock row after
   # 2011 (FAOSTAT's last year for the area) can only be the completion carrying
   # 206's last herd forward beside the successors reporting the same animals.
   skip_if_not_installed("withr")
   withr::local_options(whep.unfold_predecessor_bucket = "all")
-  result <- suppressWarnings(
-    whep:::.drop_retired_buckets(.sudan_stock_rows())
-  )
+  result <- suppressMessages(suppressWarnings(
+    whep:::.drop_unreported_stock_tail(.sudan_stock_rows())
+  ))
 
   expect_false(any(result$area_code == 206L & result$year > 2011L))
   expect_true(any(result$area_code == 206L & result$year == 2011L))
@@ -130,7 +195,7 @@ test_that("the fold keeps bucket 206 live after 2011", {
   skip_if_not_installed("withr")
   withr::local_options(whep.unfold_predecessor_bucket = "none")
   df <- .sudan_stock_rows()
-  expect_equal(whep:::.drop_retired_buckets(df), df)
+  expect_equal(whep:::.drop_unreported_stock_tail(df), df)
   expect_equal(nrow(whep:::.retired_predecessor_buckets()), 0L)
 })
 
@@ -144,15 +209,14 @@ test_that("the retired bucket and its last year come from the crosswalk", {
 })
 
 test_that(".build_livestock_stocks applies the drop after the completion", {
-  skip_if_not_installed("withr")
-  withr::local_options(whep.unfold_predecessor_bucket = "all")
   local_mocked_bindings(
     .read_livestock_stocks = function(years = NULL) NULL,
-    .combine_livestock = function(...) .sudan_stock_rows(),
+    .combine_livestock = function(...) .overseas_stock_rows(),
     .finalise_livestock = function(fao_liv_raw, ...) fao_liv_raw
   )
-  result <- suppressWarnings(whep:::.build_livestock_stocks(NULL))
-  expect_false(any(result$area_code == 206L & result$year > 2011L))
+  result <- suppressMessages(whep:::.build_livestock_stocks(NULL))
+  expect_false(any(result$area_code == 87L & result$year > 2006L))
+  expect_true(any(result$area_code == 68L))
 })
 
 # -- add_historical_yields (pre-1962 yield proxy) ------------------------------
@@ -1002,6 +1066,111 @@ test_that(".extend_historical takes a historical land table at the seam", {
   # The reported year is the anchor and cannot move under either land table.
   expect_equal(default$value[3], historic$value[3])
   expect_equal(default$source[3], historic$source[3])
+})
+
+test_that(".extend_historical can leave pre-1962 meat nes (1166) un-back-cast", {
+  # whep#1538: FAO's 1166 "Meat nes" includes marine mammals (FAO 1994, ch. 17), and in whaling countries its 1961 anchor is mostly whale meat. The
+  # default carries that anchor back on agricultural land; `"none"` leaves the
+  # back-cast years empty while every other item, and 1166's own reported
+  # years, are untouched.
+  item_row <- function(code, name, value) {
+    tibble::tibble(
+      year = c(1959L, 1960L, 1961L),
+      area = "Ruritania",
+      area_code = 99L,
+      item_prod = name,
+      item_prod_code = code,
+      item_cbs = "Meat, Other",
+      item_cbs_code = 2735L,
+      live_anim = "Animals live nes",
+      live_anim_code = 1171L,
+      unit = "tonnes",
+      value = value,
+      source = c(NA, NA, "FAOSTAT_prod")
+    )
+  }
+  primary <- dplyr::bind_rows(
+    item_row(1166L, "Meat nes", c(NA, NA, 100)),
+    item_row(1176L, "Snails", c(NA, NA, 10))
+  )
+  years <- tibble::tibble(year = c(1959L, 1960L, 1961L))
+  land <- tibble::tibble(
+    year = rep(c(1959L, 1960L, 1961L), 2),
+    area = "Ruritania",
+    area_code = 99L,
+    Land_Use = rep(c("c3ann", "pastr"), each = 3),
+    Area_Mha = c(4, 4.5, 5, 4, 4.5, 5)
+  )
+
+  default <- whep:::.extend_historical(primary, years, land) |>
+    dplyr::arrange(item_prod_code, year)
+  none <- whep:::.extend_historical(
+    primary,
+    years,
+    land,
+    meat_nes_backcast = "none"
+  ) |>
+    dplyr::arrange(item_prod_code, year)
+
+  meat_default <- dplyr::filter(default, item_prod_code == 1166L)
+  expect_equal(meat_default$value, c(80, 90, 100))
+  expect_equal(meat_default$source[1:2], rep("LUH2_agriland", 2))
+
+  meat_none <- dplyr::filter(none, item_prod_code == 1166L)
+  expect_equal(meat_none$year, 1961L)
+  expect_equal(meat_none$value, 100)
+  expect_equal(meat_none$source, "FAOSTAT_prod")
+
+  expect_equal(
+    dplyr::filter(none, item_prod_code == 1176L),
+    dplyr::filter(default, item_prod_code == 1176L)
+  )
+})
+
+test_that(".extend_historical keeps an observed pre-1962 meat nes row", {
+  # Only the land-driven years are dropped: a 1166 value supplied as harmonized
+  # historical data is an observation and survives `"none"`.
+  primary <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Ruritania",
+    area_code = 99L,
+    item_prod = "Meat nes",
+    item_prod_code = 1166L,
+    item_cbs = "Meat, Other",
+    item_cbs_code = 2735L,
+    live_anim = "Animals live nes",
+    live_anim_code = 1171L,
+    unit = "tonnes",
+    value = c(70, NA, 100),
+    source = c("historical_census", NA, "FAOSTAT_prod")
+  )
+  years <- tibble::tibble(year = c(1959L, 1960L, 1961L))
+  land <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Ruritania",
+    area_code = 99L,
+    Land_Use = "pastr",
+    Area_Mha = c(8, 9, 10)
+  )
+
+  result <- whep:::.extend_historical(
+    primary,
+    years,
+    land,
+    meat_nes_backcast = "none"
+  ) |>
+    dplyr::arrange(year)
+
+  expect_equal(result$year, c(1959L, 1961L))
+  expect_equal(result$value, c(70, 100))
+  expect_equal(result$source, c("historical_census", "FAOSTAT_prod"))
+})
+
+test_that("build_primary_production rejects an unknown meat_nes_backcast", {
+  expect_error(
+    build_primary_production(meat_nes_backcast = "whaling"),
+    class = "rlang_error"
+  )
 })
 
 test_that(".historical_land_wide is NULL unless the method asks for it", {

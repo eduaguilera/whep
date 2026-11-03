@@ -18,7 +18,7 @@ The transport sources are cited under Details.
 calculate_n_leaching(
   x,
   drainage_mm = NULL,
-  method = c("meisinger_drainage", "ipcc_fracleach", "image_gnm"),
+  method = c("meisinger_drainage", "ipcc_fracleach", "fracleach_surplus", "image_gnm"),
   transport = c("swat_mixing", "burns"),
   none_class = c("retention", "waterlogged"),
   carry_over_by = NULL,
@@ -31,8 +31,10 @@ requires \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use}, \c
 (may be \code{NA}), \code{tillage} (checked only for synthetic rows), \code{som_share}
 and the soil columns its \code{transport} reads (see Details), plus \code{year}
 with \code{carry_over_by}; \code{method = "ipcc_fracleach"} requires
-\code{moisture_regime} (\code{"wet"} or \code{"dry"}) and, on dry rows, \code{water_regime}
-(\code{"rainfed"} or \code{"irrigated"}); \code{method = "image_gnm"} requires
+\code{moisture_regime} (\code{"wet"} or \code{"dry"}), on dry rows \code{water_regime}
+(\code{"rainfed"} or \code{"irrigated"}), and \code{n_input_for_n2o_t}, the N added in
+IPCC Eq. 11.10; \code{"fracleach_surplus"} requires the first two;
+\code{method = "image_gnm"} requires
 \code{n_input_std_t}, \code{nh3_n_t}, \code{area_ha}, \code{runoff_mm} (the year's total
 runoff, mm), \code{surface_runoff_fraction},
 \code{slope_m_per_km} (both from \code{\link[=read_image_gnm_runoff]{read_image_gnm_runoff()}}), \code{land_use}
@@ -47,8 +49,8 @@ instead. Kept as a separate argument (rather than a static \code{x} column)
 because in the full pipeline it flows in from Module A's gridded water
 balance. Read by \code{"meisinger_drainage"} only.}
 
-\item{method}{\code{"meisinger_drainage"} (default), \code{"ipcc_fracleach"} or
-\code{"image_gnm"}.}
+\item{method}{\code{"meisinger_drainage"} (default), \code{"ipcc_fracleach"},
+\code{"fracleach_surplus"} or \code{"image_gnm"}.}
 
 \item{transport}{The transport factor of \code{"meisinger_drainage"}:
 \code{"swat_mixing"} (default) or \code{"burns"}.}
@@ -71,7 +73,7 @@ and \code{"image_gnm"}, and \code{surface_runoff_n_t} and \code{erosion_n_t} und
 \code{"image_gnm"}.
 }
 \description{
-Three methods for partitioning a nitrogen surplus into leached nitrate,
+Four methods for partitioning a nitrogen surplus into leached nitrate,
 denitrified nitrogen and nitrate retained in the soil profile.
 
 \code{"meisinger_drainage"} (the default) is a transport-limited Meisinger
@@ -106,7 +108,14 @@ not leach, not that it denitrifies, and no method here estimates its fate.
 That retained term is a flux of the year, not carried into the next one.
 Each row is stamped \code{"ipcc_fracleach_wet"},
 \code{"ipcc_fracleach_dry_irrigated"} or
-\code{"ipcc_fracleach_dry_rainfed_retained"}, and
+\code{"ipcc_fracleach_dry_rainfed_retained"}. Eq. 11.10 and Table 11.3 define
+\code{FracLEACH-(H)} per kg of N added (\code{F_SN + F_ON + F_PRP + F_CR + F_SOM}),
+so it multiplies \code{n_input_for_n2o_t}, the same input set that prices
+direct N2O in \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}}, not the surplus.
+\code{"fracleach_surplus"} applies the same fractions to \code{n_surplus_t}
+instead, the form before whep#1535: a surplus-based deviation from the
+IPCC definition, kept selectable for comparison, stamped
+\code{"fracleach_surplus_wet"} and so on. Under both,
 \code{no3_n_t + denitrification_n_t + retained_profile_n_t} equals
 \code{n_surplus_t}.
 
@@ -379,8 +388,16 @@ aborts as in \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, and a dry 
 \code{whep_water_regime_value} for a missing or unknown value, naming the
 count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
 surplus, so a dry row of unknown regime has no defensible fraction. Wet
-rows need no \code{water_regime}. \code{transport}, \code{none_class} and
-\code{carry_over_by} do not apply to it.
+rows need no \code{water_regime}. \code{"fracleach_surplus"} checks the same.
+\code{transport}, \code{none_class} and \code{carry_over_by} do not apply to either.
+
+Under \code{"ipcc_fracleach"} leaching is capped at \code{n_surplus_t}, so it never
+exceeds the nitrogen left after crop uptake. IPCC Tier 1 has no such cap;
+rows where it binds carry the suffix \code{"_capped_surplus"} on their stamp
+(e.g. \code{"ipcc_fracleach_wet_capped_surplus"}). A missing
+\code{n_input_for_n2o_t} column, or a missing value in it, aborts
+(\code{whep_missing_n_added}, \code{whep_n_added_na}): read as zero it would leach
+nothing while the partition still closed.
 }
 }
 \examples{

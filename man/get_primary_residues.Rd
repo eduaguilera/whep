@@ -7,7 +7,10 @@
 get_primary_residues(
   example = FALSE,
   cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius"),
-  oil_palm_residue = c("per_product", "per_hectare", "pin")
+  oil_palm_residue = c("per_product", "per_hectare", "pin"),
+  non_cereal_residue = c("ipcc", "ensemble", "ratio", "pin"),
+  sugar_cane_residue = c("per_product", "pin", "supplied"),
+  sugar_cane_data = NULL
 )
 }
 \arguments{
@@ -51,6 +54,38 @@ and the ratio re-keyed like every other non-cereal crop.
 }
 
 See the "Oil palm residue" section.}
+
+\item{non_cereal_residue}{How the residue of a non-cereal crop with its
+own line in IPCC (2006) Table 11.2 is estimated: soybean, groundnut, dry
+beans, peas, chickpeas, lentils and the other pulses, potato, and,
+through IPCC's "Tubers" line, cassava, sweet potato, yams and the other
+roots. One of \code{"ipcc"} (default), \code{"ensemble"} and \code{"ratio"}, the same
+estimators as for \code{cereal_residue}, or \code{"pin"}, the pin's ratio as for
+every other crop. See the "Non-cereal residue" section.}
+
+\item{sugar_cane_residue}{How sugar cane trash (tops and leaves) is
+obtained. One of:
+\itemize{
+\item \code{"per_product"} (default): a provisional 0.14 t of gross trash dry
+matter per tonne of fresh cane (Hassuani, da Silva & Neves, 2005).
+\item \code{"supplied"}: local gross trash dry matter from \code{sugar_cane_data},
+with complete polity-year coverage required; no fallback.
+\item \code{"pin"}: the pin's own sugar cane residue, with the recovery rate
+undone and the ratio re-keyed like every other non-cereal crop.
+}
+
+See the "Sugar cane residue" section.}
+
+\item{sugar_cane_data}{For \code{sugar_cane_residue = "supplied"}, a tibble
+with \code{reporting_polity_code}, \code{year}, \code{residue_dm_t} and \code{source}.
+Supply one nonnegative finite gross field-trash total (tonnes DM) per
+canonical polity and year, plus a nonempty source/method identifier.
+The quantity includes field tops and leaves before recovery, burning or
+use, excludes mill bagasse, and is not the removable or soil-returned
+fraction. The caller is responsible for source applicability. Missing
+coverage or duplicate keys abort; sources are retained in the method
+stamp. Extra supplied keys do not create new production rows. Data under
+another method abort rather than being ignored.}
 }
 \value{
 A tibble with the crop residue data.
@@ -81,9 +116,13 @@ fresh residue times its own residue dry-matter content,
 crop with residue mass carries no such coefficient, so the gap stays
 visible rather than reading as zero.
 \item \code{method_residue}: how the row's residue was estimated: the
-\code{cereal_residue} method for a cereal, \code{"malaysia_nbs_per_product"} or
-\code{"malaysia_nbs_per_hectare"} for oil palm unless \code{oil_palm_residue} is
-\code{"pin"}, and \code{"pin"} for every other crop.
+\code{cereal_residue} method for a cereal, the \code{non_cereal_residue} method
+for a non-cereal crop with its own IPCC line,
+\code{"malaysia_nbs_per_product"} or \code{"malaysia_nbs_per_hectare"} for oil
+palm unless \code{oil_palm_residue} is \code{"pin"}; sugar cane uses
+\code{"hassuani_2005_provisional"}, \code{"supplied_gross_dm:<source>"}, or
+\code{"pin"} for its selected method; \code{"pin"} is used for
+every other crop.
 }
 
 The pin's residue quantities are fresh matter. Across its crops the ratio of
@@ -104,8 +143,11 @@ used, and on the real pin the result equals the predecessor's gross residue
 on all 427,584 rows where both exist. Where that rate is 0 (fodder crops
 in seven of the eight regions; roots and tubers, cassava, sugar beet and
 dry beans in West Europe and in North America and Oceania) the
-pin holds 0 and the gross residue cannot be recovered from it, so those
-crops carry no residue here, as before.
+pin holds 0 and the gross residue cannot be recovered from it. Fodder
+crops and sugar beet carry no residue there, as before; roots and tubers,
+cassava and dry beans are estimated from yield (see "Non-cereal residue")
+and so carry the residue they produce, of which the recovery rate of 0
+downstream recovers nothing.
 
 The ratio behind the pin's gross residue is the fresh-matter
 residue:product ratio of \link{biomass_coefs}, scaled by the region's
@@ -175,6 +217,62 @@ directly: residue dry matter is grain dry matter times the ratio of the
 area's Wirsenius region.
 }
 
+\section{Non-cereal residue}{
+
+The West Europe anchor is not right for non-cereals either, and the error
+runs both ways (whep#1518). Against the line IPCC (2006) Table 11.2 gives
+each crop (Vol. 4, Ch. 11, pp. 11.17-11.18), the pin's ratio put world
+residue dry matter in 2010 at 1.42 times the line for soybean, 1.36 for
+potato, 1.95 for cassava and 1.88 for sweet potato, but 0.53 for dry
+beans, 0.41 for the other pulses and 0.34 for chickpeas. Applying Wirsenius
+(2000) Table 3.16 directly does not cure it: soybean would fall to 0.86 of
+the line.
+
+So the crops that Table 11.2 gives a line of their own are estimated from
+the pin's production and harvested area exactly as cereals are, with
+\code{\link[=calculate_crop_residues]{calculate_crop_residues()}} and its modern-variety correction:\tabular{llrr}{
+   crops \tab Table 11.2 row \tab slope \tab intercept, t DM/ha \cr
+   soybean \tab Soyabean \tab 0.93 \tab 1.35 \cr
+   groundnut (with shell) \tab Peanut (w/pod) \tab 1.07 \tab 1.54 \cr
+   dry beans, broad beans \tab Dry bean \tab 0.36 \tab 0.68 \cr
+   peas, chickpeas, lentils, other pulses \tab Beans & pulses \tab 1.13 \tab 0.85 \cr
+   potato \tab Potato \tab 0.10 \tab 1.06 \cr
+   cassava, sweet potato, yams, other roots \tab Tubers \tab 0.10 \tab 1.06 \cr
+}
+
+
+The 2019 Refinement's Table 11.2 (updated, p. 11.19) repeats these
+values. "Tubers" is IPCC's own crop class, "modelled after potatoes"; the
+crops reach it through \code{ipcc_crop_mapping.csv}, as in the soil carbon and
+nitrogen chain. The other non-cereal lines in \code{ipcc_residue_coefs.csv}
+(rapeseed, sunflower, sugar beet, sugar cane, cotton) are not in Table 11.2,
+so those crops, tree crops and vegetables keep the pin's ratio (sugar cane
+is anchored instead, see "Sugar cane residue"), as does
+every crop under \code{non_cereal_residue = "pin"}.
+
+World residue dry matter of the crops estimated from yield, Tg, the pin's
+ratio against \code{"ipcc"} (the default):\tabular{lrrr}{
+    \tab 1961 \tab 2010 \tab 2020 \cr
+   soybean \tab 51 -> 63 \tab 500 -> 385 \tab 673 -> 494 \cr
+   groundnut \tab 33 -> 48 \tab 90 -> 93 \tab 112 -> 110 \cr
+   dry beans \tab 7 -> 23 \tab 14 -> 34 \tab 15 -> 37 \cr
+   peas \tab 8 -> 17 \tab 14 -> 17 \tab 20 -> 22 \cr
+   other pulses \tab 18 -> 57 \tab 31 -> 79 \tab 40 -> 97 \cr
+   potato \tab 26 -> 35 \tab 36 -> 28 \tab 42 -> 27 \cr
+   cassava \tab 19 -> 16 \tab 65 -> 37 \tab 79 -> 46 \cr
+   sweet potato \tab 24 -> 20 \tab 20 -> 12 \tab 19 -> 11 \cr
+   all non-cereal residue \tab 533 -> 625 \tab 2159 -> 2070 \tab 2755 -> 2595 \cr
+   all residue \tab 2672 -> 2764 \tab 5492 -> 5402 \tab 6622 -> 6462 \cr
+}
+
+
+Soybean, groundnut and potato then sit at 1.05-1.11 of their IPCC line in
+2010 and 2020 (\code{validation/residue_base_dm.R}): the modern-variety
+correction and the product dry-matter content of \code{bio_coefs}. No published
+global non-cereal series exists to check them against independently
+(whep#1399).
+}
+
 \section{Oil palm residue}{
 
 Oil palm residue is replaced rather than taken from the pin (whep#1424).
@@ -195,7 +293,78 @@ The anchor is a gross residue, so it replaces the pin's figure after the
 recovery rate has been undone and the ratio re-keyed; neither touches it.
 The anchored dry matter is converted to fresh mass with the oil palm
 \code{Residue_kgDM_kgFM} of \link{biomass_coefs}, so \code{value_dm} is the anchor
-exactly.
+exactly. That coefficient is 0.396, the dry matter of fresh oil palm fronds
+(39.6\% as fed, n = 3) in Heuzé, Tran, Sauvant & Lebas (2015), \emph{Oil palm
+fronds and oil palm crop residues}, Feedipedia,
+\url{https://www.feedipedia.org/node/6916} (whep#1516). Fronds are 46 of the
+60 Mt; trunks, whose sap is 75-80\% of their weight, are wetter, so the
+fresh mass is if anything understated. It sets the fresh mass booked to
+\code{Firewood}, not the dry matter.
+}
+
+\section{Sugar cane residue}{
+
+The CBS needs an unburned-equivalent gross harvest-field pool of tops and
+leaves before recovery and use, excluding mill bagasse. Recoverable material and material returned to
+soil are separate quantities. This estimate does not determine a sustainable
+removal rate, the feed fraction, or actual commercial harvest losses.
+
+\code{"per_product"} uses 0.14 t DM/t fresh stalk from Hassuani, da Silva & Neves
+(2005), \emph{Sugarcane trash recovery alternatives for power generation},
+Proc. ISSCT 25:394-402, Introduction p. 394. Their Brazilian experiments
+considered variety, age and soil; the reported field-trash average includes
+tops and dry/green leaves, with collection efficiencies treated separately.
+This matches the required gross field quantity better than a coefficient
+for bagasse, collected fuel, or leaves alone. It remains a \strong{provisional
+transfer model}, not an empirically validated constant for every country
+and year. No new cultivar, harvest-age or irrigation assignments are assumed.
+
+The legacy pin has a fixed 0.3/0.7 biomass partition at its base; with the
+0.48 trash DM fraction this implies about 0.206 t DM/t cane. Further pin
+adjustments remain: its annual global ratio varies from about 0.206 to
+0.223 over 1961-2021. These values are not impossible in every field.
+Thompson (1966), \emph{The production of trash and its effects as a mulch on the
+soil and on sugarcane nutrition}, Proc. S. Afr. Sug. Technol. Ass. 40:333-342,
+p. 333, explicitly rejects one ratio across varieties, ages and treatments;
+one Table I treatment implies 8.7/40 = 0.2175. His approximately 1/6 ratio
+is conditional on NCo376, dryland conditions, spacing and crop age.
+Donaldson et al. (2008), \emph{Season effects on productivity of some commercial
+South African sugarcane cultivars, II: trash production}, Proc. S. Afr.
+Sug. Technol. Ass. 81:528-538, pp. 533-534, excludes tops and restricts its
+linear equation to N14; its printed intercepts also disagree. Neither
+validates a global coefficient or supplies a defensible conditional model
+when cultivar and harvest-age inputs are absent from this pin.
+
+SUCRE (2020), \emph{SUCRE Project Final Report}, p. 95, gives 0.12 for
+Center-South Brazil, citing Menandro et al. (2017), doi:10.1002/bbb.1760;
+those are one evidence lineage. Leite et al. (2016), doi:10.3389/fpls.2016.00466,
+Table 2, gives mean dry leaves 9 and tops 11 Mg/ha, and fresh stalk yield
+125 Mg/ha in 102 first-ratoon plots at three Southeast Brazil sites.
+(9 + 11)/125 = 0.16 is a ratio of rounded experimental means, not a
+reported mean field ratio or representative national estimate. These are
+sensitivity comparisons, not alternate universal constants or an uncertainty
+interval. The underlying Menandro full text was not read in this review.
+
+Select \code{"supplied"} for a site/region-specific model aggregated to canonical
+polity-years, with its gross-trash boundary and sources established. It
+requires complete coverage; there is no automatic global-proxy fallback.
+Select \code{"pin"} for the previous model. The default favors a traceable,
+quantity-matched field estimate over the undocumented fixed partition,
+not agreement between regional averages. Regional/historical transfer
+uncertainty remains explicit in \code{method_residue}.
+
+Gross DM is converted to fresh residue with the existing sugar cane
+\code{Residue_kgDM_kgFM} (0.48); recovery is not applied again to this anchor.
+The separate soil chain still uses its existing ensemble including an
+assumed sugarcane line. This estimate does not validate that line or claim the
+two chains now agree. On the same frozen pin, 2010 cane trash changes
+344.822 to 234.670 Tg DM; 2020 changes 383.588 to 261.053 Tg DM.
+
+Resolved anchor rows match on canonical reporting polity and year. Existing
+unresolved source labels use a flagged local pin-source-code adapter and
+keep NA polity identity; no modern or historical territory is invented.
+Caller-supplied estimates require canonical polity coverage and cannot use
+this adapter. No pin or territorial database is published by this function.
 }
 
 \section{The batch pin on the build path}{
@@ -250,13 +419,14 @@ WHEP ships the recovery rate and the regional ratio the predecessor used
 \code{\link[=get_primary_residues]{get_primary_residues()}} undoes the recovery exactly, dividing by the same
 rate, but cannot recompute the predecessor's residue from production. It
 then re-keys the regional ratio on Wirsenius's own region membership, and
-estimates cereal residue from the pin's production and harvested area
-instead of reading it (#1448).
+estimates cereal residue (#1448), and that of the non-cereal crops with
+their own IPCC Table 11.2 line (#1518), from the pin's production and
+harvested area instead of reading it.
 
 It is not a small input. The pin holds 7.63 Gt of recovered residue for
 2010 (Straw 3.60 Gt, Other crop residues 2.49 Gt, Firewood 1.54 Gt) and
-327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 8.73
-Gt (Straw 3.84 Gt, Other crop residues 3.14 Gt, Firewood 1.76 Gt) and 395
+327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 7.64
+Gt (Straw 3.92 Gt, Other crop residues 2.82 Gt, Firewood 0.90 Gt) and 366
 Gt of residue produced. 3,998 of its 249,095 output rows carry \code{NA} polity
 columns because the pin is name-keyed.
 
@@ -273,8 +443,9 @@ straw scales with the field crop. The second is fodder, where the current
 build is close to twice the pin on every forage and silage item, the pin
 predating that work. Replacing the pin therefore means choosing a residue
 model, which is a science decision and not a refresh. For cereals that
-model is chosen by \code{get_primary_residues(cereal_residue = )}; it still
-runs on the pin's production.
+model is chosen by \code{get_primary_residues(cereal_residue = )}, and for the
+non-cereals with an IPCC line by \verb{non_cereal_residue =}; both still run on
+the pin's production.
 }
 
 \subsection{\code{bilateral_trade} is built by \code{\link[=build_detailed_trade]{build_detailed_trade()}}}{

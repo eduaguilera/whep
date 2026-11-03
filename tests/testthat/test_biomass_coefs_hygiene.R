@@ -131,7 +131,7 @@ testthat::test_that("no food carries more than a kilogram per kilogram", {
 
 testthat::test_that("the proximate sum against dry matter can only improve", {
   # The tighter chemical bound: the constituents must fit inside the dry
-  # matter. 74 rows fail it, but only 31 fail once fibre is left out, so about
+  # matter. 71 rows fail it, but only 27 fail once fibre is left out, so about
   # forty of them are fibre being counted inside carbohydrate as well as beside
   # it rather than a coefficient error. Both counts are ratchets: lower them
   # when a row is fixed, never raise them to admit a new one. Honey left both
@@ -142,14 +142,14 @@ testthat::test_that("the proximate sum against dry matter can only improve", {
     prox$proximate_g_kgfm - dplyr::coalesce(prox$Fiber_g_kgFM, 0) >
       prox$dry_matter_g_kgfm
   )
-  testthat::expect_lte(with_fibre, 74L)
-  testthat::expect_lte(without_fibre, 31L)
+  testthat::expect_lte(with_fibre, 71L)
+  testthat::expect_lte(without_fibre, 27L)
 })
 
 testthat::test_that("no single constituent outweighs its own dry matter", {
   # The strictest reading of the bound, and the one no definitional argument
   # rescues: whatever basis the composition block is on, a single constituent
-  # cannot outweigh the dry matter it is part of. Five rows carry a
+  # cannot outweigh the dry matter it is part of. Four rows carry a
   # carbohydrate value above their own Product_kgDM_kgFM (#752), so at least
   # one of those two cells is wrong in each. Pinned by name: repairing one
   # means editing this list, and a new offender fails loudly. Honey left it
@@ -171,7 +171,6 @@ testthat::test_that("no single constituent outweighs its own dry matter", {
     c(
       "White sugar",
       "Brown sugar",
-      "Figs",
       "Tigernuts",
       "Vegetables, other"
     )
@@ -447,4 +446,41 @@ testthat::test_that("additive fresh-matter nitrogen is its dry-matter nitrogen",
     sources$N_kgN_kgFM,
     sources$shipped_kgN_kgDM * sources$Product_kgDM_kgFM
   )
+})
+
+testthat::test_that("oil palm residue carries fresh-frond dry matter", {
+  # whep#1516. The oil palm residue is fronds and trunks (46 and 14 Mt DM in
+  # Malaysia, 2010), and its Residue_kgDM_kgFM was the fruit's 0.65. Fresh
+  # fronds are 39.6% dry matter as fed (Feedipedia, "Oil palm (Elaeis
+  # guineensis), fronds, fresh"; Heuze, Tran, Sauvant & Lebas 2015,
+  # https://www.feedipedia.org/node/6916), and trunks, at 75-80% sap by
+  # weight, are wetter still. The anchored dry matter is booked to Firewood
+  # as fresh mass through this coefficient.
+  palm <- whep::biomass_coefs |>
+    dplyr::filter(.data$Name_biomass == "Oil palm")
+  testthat::expect_equal(nrow(palm), 1L)
+  testthat::expect_equal(palm$Residue_kgDM_kgFM, 0.396)
+  testthat::expect_lt(palm$Residue_kgDM_kgFM, palm$Product_kgDM_kgFM)
+})
+
+
+testthat::test_that("fig nutrition uses edible raw-fruit reference values", {
+  # ANSES Ciqual 2020, alim_code 13012 Fig, raw: protein and crude
+  # protein (N x 6.25) both 1.19 g/100 g; available carbohydrate 13.5
+  # g/100 g; calcium 57 mg/100 g. USDA SR Legacy FDC 173021 gives
+  # lipid 0.3 g/100 g and vitamin A 7 micrograms RAE/100 g, not retinol.
+  fig <- whep::biomass_coefs |>
+    dplyr::filter(.data$Name_biomass == "Figs")
+  testthat::expect_equal(nrow(fig), 1L)
+  testthat::expect_equal(fig$N_kgN_kgFM * 6250, 11.9)
+  testthat::expect_equal(fig$Lipids_g_kgFM, 3)
+  testthat::expect_equal(fig$Carbohydrates_g_kgFM, 135)
+  testthat::expect_equal(fig$Calcium_mg_kgFM, 570)
+  testthat::expect_equal(fig$VitaminA_microg_kgFM, 70)
+  # A common energy/drying ratio cannot produce these nutrient-specific
+  # observations. The vitamin A cell stays unchanged; retinol alone is 0.
+  testthat::expect_equal(fig$Product_kgDM_kgFM, 0.197)
+  prox <- .bch_proximate() |>
+    dplyr::filter(.data$Name_biomass == "Figs")
+  testthat::expect_lte(prox$proximate_g_kgfm, prox$dry_matter_g_kgfm)
 })

@@ -7,7 +7,8 @@
 calculate_crop_roots(
   x,
   method = c("ensemble", "root_shoot", "reference"),
-  weights = list(w_ref = 0.5)
+  weights = list(w_ref = 0.5),
+  irrigation = c("except_paddy", "all_crops", "none")
 )
 }
 \arguments{
@@ -21,9 +22,21 @@ reference), \code{"root_shoot"} (root:shoot ratio only) or \code{"reference"}
 
 \item{weights}{Named list; \code{w_ref} is the reference weight in the ensemble
 (0-1, default 0.5), used only when \code{method = "ensemble"}.}
+
+\item{irrigation}{Which irrigated crops take the root:shoot factor of
+\code{irrigation_adj} (0.85 irrigated), used only when \code{x} has
+\code{water_regime}: \code{"except_paddy"} (default) applies it to every crop but
+paddy rice, which is flooded whether irrigated or not; \code{"all_crops"}
+applies it to every crop, as afsetools does; \code{"none"} applies no
+irrigation factor. Water stress raises root:shoot across crops (Eziz et
+al. 2017, doi:10.1002/ece3.3630; Kou et al. 2022,
+doi:10.3389/fpls.2022.1085409; Seidel et al. 2024,
+doi:10.1016/j.scitotenv.2024.176738), implying an irrigated factor of
+about 0.70 to 0.88 (whep#1536).}
 }
 \value{
-The input tibble with \code{root_dm_t} and \code{method_root}.
+The input tibble with \code{root_dm_t} and \code{method_root}, plus
+\code{method_root_irrigation} when \code{x} has \code{water_regime}.
 }
 \description{
 Estimates root dry matter from above-ground biomass using an ensemble of an

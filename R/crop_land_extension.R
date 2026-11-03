@@ -755,7 +755,8 @@ gridded_fallow_weights <- function(
       item_cbs_code = as.integer(.data$item_cbs_code)
     ) |>
     dplyr::left_join(aez, by = c("lon", "lat")) |>
-    dplyr::mutate(zone = tidyr::replace_na(.data$zone, "subhumid")) |>
+    .check_aez_joined() |>
+    .assume_aez_zone() |>
     dplyr::left_join(prop, by = c("item_cbs_code", "zone")) |>
     dplyr::mutate(p = tidyr::replace_na(.data$p, 0)) |>
     dplyr::summarise(
@@ -765,12 +766,66 @@ gridded_fallow_weights <- function(
     dplyr::filter(.data$weight > 0)
 }
 
+# An AEZ grid on another lattice from the crops -- offset centres, rounded
+# coordinates -- classifies no crop cell. Every cell then took the assumed zone
+# below, every crop still got a positive weight and the fallow it distributes
+# still summed to the national total, so nothing could see that no climate had
+# been read (whep#1034). Judged on rainfed area, the only area that is weighted.
+.check_aez_joined <- function(joined) {
+  rainfed <- dplyr::filter(joined, .ext_na0(.data$rainfed_ha) > 0)
+  if (nrow(rainfed) == 0L) {
+    return(joined)
+  }
+  check_inputs_supplied(
+    dplyr::mutate(rainfed, zone_classified = as.numeric(!is.na(.data$zone))),
+    c(grid_aez = "zone_classified"),
+    details = c(
+      i = "No rainfed {.arg gridded_crops} cell has an agro-climatic zone in
+           {.arg grid_aez}.",
+      i = "Key {.arg grid_aez} on the same 0.5-degree cell centres as the
+           crops (the {.val grid-aez} pin is built on the spatializer grid)."
+    )
+  )
+  joined
+}
+
+# A rainfed cell the AEZ grid does not classify -- absent from it, or present
+# with no growing period -- is booked to the subhumid zone. Assumed,
+# unverified: the default arrived with this function (commit 7098e2bb) with no
+# source or rationale recorded; subhumid is an intermediate moisture zone
+# between semiarid and humid. It stays a fill rather than a
+# refusal because the cell does have a climate and its rainfed area must still
+# carry fallow; dropping it would hand its share to the classified cells. On
+# the `grid-aez` pin no cell lacks a growing period, and the 33 spatializer
+# cells it does not cover (Great Lakes and Azores water cells) carry no
+# cropland, so this changes nothing today; it says so when it does.
+.assume_aez_zone <- function(joined) {
+  unclassified <- is.na(joined$zone) & .ext_na0(joined$rainfed_ha) > 0
+  if (any(unclassified)) {
+    assumed_ha <- sum(joined$rainfed_ha[unclassified])
+    share <- assumed_ha / sum(.ext_na0(joined$rainfed_ha))
+    cli::cli_warn(
+      c(
+        "{.fn gridded_fallow_weights} booked {signif(assumed_ha, 4)} ha of
+         rainfed crop area ({signif(100 * share, 3)}%) to the assumed
+         {.val subhumid} zone.",
+        i = "Those cells have no agro-climatic class in {.arg grid_aez}
+             (absent from it, or no growing period)."
+      ),
+      class = "whep_assumed_aez_zone"
+    )
+  }
+  dplyr::mutate(joined, zone = tidyr::replace_na(.data$zone, "subhumid"))
+}
+
 # Agro-climatic zone from GAEZ length of growing period (days) and thermal class
 # (classes 1-5 = tropics/subtropics). The humid tropics is the rice-fallow zone.
+# A cell with no growing period has no zone: an unknown LGP used to be read as
+# 200 days, which put a tropical cell in the rice-fallow zone on no evidence.
 .aez_zone <- function(lgp, thermal) {
   tropical <- !is.na(thermal) & thermal %in% 1:5
-  lgp <- ifelse(is.na(lgp), 200, lgp)
   dplyr::case_when(
+    is.na(lgp) ~ NA_character_,
     tropical & lgp >= 180 ~ "tropical_humid",
     lgp < 90 ~ "arid",
     lgp < 180 ~ "semiarid",

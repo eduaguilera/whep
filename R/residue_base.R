@@ -24,42 +24,116 @@
 # area with `calculate_crop_residues()`, the estimator that already gives the
 # soil carbon and nitrogen chain its residue (`.sci_npp_from_primary_prod()`),
 # so both sides of WHEP read the same straw (whep#1003). `"wirsenius"` keeps the
-# predecessor's model with 1. and 2. corrected. Other crops keep the pin's
-# ratio with 1. corrected: no published global series exists to check a
-# replacement against (whep#1399).
+# predecessor's model with 1. and 2. corrected.
+#
+# The anchor error of 2. is not a cereal one. For the non-cereal crops that
+# IPCC Table 11.2 gives a line of their own, the pin sat 1.4 times above that
+# line for soybean and potato and 1.9 times for cassava, but at a third to a
+# half of it for the pulses (2010, dry matter, whep#1518), and applying Table
+# 3.16 directly does not cure it (soybean would fall to 0.86 of IPCC). Those
+# crops are therefore estimated from yield in the same way as cereals,
+# selected by `non_cereal`. Every other crop keeps the pin's ratio with 1.
+# corrected: IPCC gives it no line, and no published global series exists to
+# check a replacement against (whep#1399).
 
 # Correct the pin's gross residue and stamp each row with how it was priced.
-# Cereal rows with an area are recomputed by `method`; every other row keeps
-# the pin's ratio, re-keyed on Wirsenius's own region membership.
-.residue_ratio_corrected <- function(residues, products, method) {
-  cereal <- .residue_is_cereal(residues$item_prod) &
-    !is.na(residues$area_code)
-  others <- residues[!cereal, ] |>
+# Cereal rows with an area are recomputed by `method`, and the rows of a
+# non-cereal crop with its own IPCC line by `non_cereal` unless that is
+# `"pin"`; every other row keeps the pin's ratio, re-keyed on Wirsenius's own
+# region membership.
+.residue_ratio_corrected <- function(
+  residues,
+  products,
+  method,
+  non_cereal = "pin"
+) {
+  has_area <- !is.na(residues$area_code)
+  cereal <- .residue_is_cereal(residues$item_prod) & has_area
+  lined <- !cereal &
+    has_area &
+    non_cereal != "pin" &
+    .residue_has_ipcc_line(residues$item_prod)
+  others <- residues[!cereal & !lined, ] |>
     .residue_ratio_membership() |>
     dplyr::mutate(method_residue = "pin")
   cereals <- residues[cereal, ]
-  if (nrow(cereals) == 0L) {
-    return(others)
+  if (nrow(cereals) > 0L) {
+    cereals <- if (method == "wirsenius") {
+      .residue_cereal_wirsenius(cereals)
+    } else {
+      .residue_from_yield(cereals, products, method)
+    }
   }
-  cereals <- if (method == "wirsenius") {
-    .residue_cereal_wirsenius(cereals)
-  } else {
-    .residue_cereal_from_products(cereals, products, method)
+  non_cereals <- residues[lined, ]
+  if (nrow(non_cereals) > 0L) {
+    non_cereals <- .residue_from_yield(non_cereals, products, non_cereal)
   }
-  dplyr::bind_rows(others, cereals)
+  dplyr::bind_rows(others, cereals, non_cereals)
+}
+
+# The non-cereal crops IPCC (2006) Table 11.2 (pp. 11.17-11.18) gives a
+# yield-dependent above-ground residue line of their own, keyed by the
+# `ipcc_crop` of `ipcc_crop_mapping.csv`, with the Table 11.2 row each one
+# reads. The 2019 Refinement's Table 11.2 (updated, p. 11.19) repeats the
+# same slopes and intercepts. "Tubers" is IPCC's own crop class, "modelled
+# after potatoes" (2006, note c); cassava, sweet potato, yams and the other
+# roots read it through the mapping the soil chain already uses. The other
+# non-cereal rows of `ipcc_residue_coefs.csv` (rapeseed, sunflower, sugar
+# beet, sugar cane, cotton, fibres, tree crops, vegetables, forages) are not
+# Table 11.2 lines, or are not a harvested-product residue, so those crops
+# keep the pin's ratio. `test_residue_base.R` checks that the shipped
+# coefficients still equal the printed ones.
+.residue_ipcc_lines <- function() {
+  tibble::tribble(
+    ~ipcc_crop       , ~table_11_2_row  , ~slope_ag , ~intercept_ag_dm_t_ha ,
+    "Soybeans"       , "Soyabean"       ,      0.93 ,                  1.35 ,
+    "Groundnuts"     , "Peanut (w/pod)" ,      1.07 ,                  1.54 ,
+    "Dry_beans"      , "Dry bean"       ,      0.36 ,                  0.68 ,
+    "Peas"           , "Beans & pulses" ,      1.13 ,                  0.85 ,
+    "Chickpeas"      , "Beans & pulses" ,      1.13 ,                  0.85 ,
+    "Lentils"        , "Beans & pulses" ,      1.13 ,                  0.85 ,
+    "Pulses_other"   , "Beans & pulses" ,      1.13 ,                  0.85 ,
+    "Potatoes"       , "Potato"         ,      0.10 ,                  1.06 ,
+    "Cassava"        , "Tubers"         ,      0.10 ,                  1.06 ,
+    "Sweet_potatoes" , "Tubers"         ,      0.10 ,                  1.06 ,
+    "Other_roots"    , "Tubers"         ,      0.10 ,                  1.06
+  )
+}
+
+# Whether each pin crop name maps, through its production item code, to a
+# non-cereal crop with its own IPCC Table 11.2 line.
+.residue_has_ipcc_line <- function(item_prod) {
+  lined <- whep::whep_coef_table("ipcc_crop_mapping") |>
+    dplyr::filter(.data$ipcc_crop %in% .residue_ipcc_lines()$ipcc_crop) |>
+    dplyr::pull("item_prod_code") |>
+    as.character()
+  codes <- tibble::tibble(item_prod = as.character(item_prod)) |>
+    add_item_prod_code(name_column = "item_prod") |>
+    dplyr::pull("item_prod_code") |>
+    as.character()
+  !.residue_is_cereal(item_prod) & codes %in% lined
 }
 
 # Whether each pin crop name is a cereal: its CBS item belongs to the
 # `Cereals` commodity group of `items_full`, the scope of the Smerald et al.
 # (2023) series these rows are checked against (`validation/residue_base_dm.R`).
 .residue_is_cereal <- function(item_prod) {
+  cereal_names <- whep::items_prod_full |>
+    dplyr::filter(.data$item_prod_code %in% .residue_cereal_codes()) |>
+    dplyr::pull("item_prod")
+  as.character(item_prod) %in% cereal_names
+}
+
+# The production item codes of those cereals, the key the soil carbon and
+# nitrogen chain selects the same rows by (`.sci_crop_npp()`).
+.residue_cereal_codes <- function() {
   cereal_cbs <- whep::items_full |>
     dplyr::filter(.data$comm_group == "Cereals") |>
     dplyr::pull("item_cbs_code")
-  cereal_names <- whep::items_prod_full |>
+  whep::items_prod_full |>
     dplyr::filter(.data$item_cbs_code %in% cereal_cbs) |>
-    dplyr::pull("item_prod")
-  as.character(item_prod) %in% cereal_names
+    dplyr::pull("item_prod_code") |>
+    as.character()
 }
 
 # Re-key the pin's regional residue:product ratio on Wirsenius's membership.
@@ -273,22 +347,26 @@
     dplyr::pull("region_wirsenius")
 }
 
-# Cereal residue from the pin's own production and harvested area, through
+# Residue from the pin's own production and harvested area, through
 # `calculate_crop_residues()` with its modern-variety harvest-index correction
 # (keyed on the HANPP region, the membership that table is written in). The
 # pin's `Product` rows equal the `primary_prod` pin's tonnes, so the crop base
 # is the one the residue rows were built on. The result is stored as fresh
 # matter through the crop's own `Residue_kgDM_kgFM`, the coefficient
 # `get_primary_residues()` converts it back with, so `value_dm` is the
-# estimator's dry matter.
+# estimator's dry matter. Used for cereals and for the non-cereal crops with
+# their own IPCC line.
 #
-# Each cereal books its residue to one CBS residue item in the pin (Straw, or
-# Other crop residues for fonio), which the residue rows give; the production
-# rows drive the estimate.
-.residue_cereal_from_products <- function(rows, products, method) {
-  items <- .residue_cereal_items(rows)
-  crops <- .residue_cereal_production(products, items$item_prod)
-  .check_cereal_products(rows, crops)
+# Each crop books its residue to one CBS residue item in the pin (Straw, or
+# Other crop residues for fonio, soybean or potato), which the residue rows
+# give; the production rows drive the estimate. A production row whose pin
+# residue is 0 because the predecessor's recovery rate was 0 (potato or dry
+# beans in West Europe) gets its residue here: the residue exists, and the
+# recovery rate downstream decides how much of it leaves the field.
+.residue_from_yield <- function(rows, products, method) {
+  items <- .residue_yield_items(rows)
+  crops <- .residue_yield_production(products, items$item_prod)
+  .check_yield_products(rows, crops)
   crops |>
     dplyr::left_join(.residue_area_regions(), by = "area_code") |>
     add_item_prod_code(name_column = "item_prod") |>
@@ -303,7 +381,7 @@
       region_hanpp = .data$region_hanpp
     ) |>
     calculate_crop_residues(method = method) |>
-    .check_cereal_priced() |>
+    .check_yield_priced() |>
     dplyr::left_join(items, by = "item_prod", relationship = "many-to-one") |>
     dplyr::mutate(
       prod_ygpit_mg = .data$residue_dm_t / .data$residue_kgdm_kgfm,
@@ -324,11 +402,11 @@
     )
 }
 
-# The residue item, CBS crop and biomass name each cereal books its residue
+# The residue item, CBS crop and biomass name each crop books its residue
 # under, and that biomass name's residue dry-matter content. One per crop: a
-# cereal whose residue the pin split over two items could not be recomputed
+# crop whose residue the pin split over two items could not be recomputed
 # from one production row without choosing a split.
-.residue_cereal_items <- function(rows) {
+.residue_yield_items <- function(rows) {
   items <- rows |>
     dplyr::distinct(
       .data$item_prod,
@@ -340,12 +418,12 @@
   if (length(split) > 0L) {
     cli::cli_abort(
       c(
-        "The crop-residue pin books one cereal's residue under more than one
+        "The crop-residue pin books one crop's residue under more than one
          item: {.val {split}}.",
-        "i" = "Cereal residue is recomputed from production, one residue row
-          per crop, so the split cannot be kept."
+        "i" = "Its residue is recomputed from production, one residue row per
+          crop, so the split cannot be kept."
       ),
-      class = "whep_residue_cereal_items"
+      class = "whep_residue_split_items"
     )
   }
   kgdm <- whep::biomass_coefs |>
@@ -358,20 +436,20 @@
     dplyr::left_join(kgdm, by = "name_biomass", relationship = "many-to-one")
 }
 
-# Cereal production (t fresh) and harvested area (ha) per area, crop and year,
-# from the pin's `Product` rows.
-.residue_cereal_production <- function(products, cereals) {
+# Production (t fresh) and harvested area (ha) per area, crop and year, from
+# the pin's `Product` rows.
+.residue_yield_production <- function(products, crops) {
   if (!all(c("prod_ygpit_mg", "area_ygpit_ha") %in% names(products))) {
     cli::cli_abort(
-      "The crop-residue pin has no {.field area_ygpit_ha} column, so cereal
+      "The crop-residue pin has no {.field area_ygpit_ha} column, so crop
        residue cannot be estimated from yield.",
-      class = "whep_residue_cereal_no_product"
+      class = "whep_residue_no_product"
     )
   }
   products |>
     dplyr::filter(
       !is.na(.data$area_code),
-      .data$item_prod %in% cereals
+      .data$item_prod %in% crops
     ) |>
     dplyr::summarise(
       production_t = sum(.data$prod_ygpit_mg, na.rm = TRUE),
@@ -381,11 +459,11 @@
     dplyr::filter(.data$production_t > 0)
 }
 
-# Every cereal residue row must have the production it is recomputed from,
+# Every residue row must have the production it is recomputed from,
 # and every production row the harvested area the yield-dependent estimate
 # needs. Without either, the residue would come out as zero and be dropped: an
 # absent input read as no residue. Neither happens on the real pin.
-.check_cereal_products <- function(rows, crops) {
+.check_yield_products <- function(rows, crops) {
   keys <- c("year", "area_code", "item_prod")
   has_mass <- !is.na(rows$prod_ygpit_mg) & rows$prod_ygpit_mg > 0
   orphan <- dplyr::anti_join(
@@ -402,18 +480,18 @@
   n_no_area <- nrow(no_area)
   cli::cli_abort(
     c(
-      "Cereal residue cannot be recomputed from the pin's production.",
+      "Crop residue cannot be recomputed from the pin's production.",
       "i" = "{n_orphan} residue rows have no production row and {n_no_area}
         production rows have no harvested area.",
       "i" = "Crops: {.val {bad}}."
     ),
-    class = "whep_residue_cereal_no_product"
+    class = "whep_residue_no_product"
   )
 }
 
 # `calculate_crop_residues()` fills a crop it has no coefficient for with zero.
-# For a cereal with production that would be residue silently lost.
-.check_cereal_priced <- function(x) {
+# For a crop with production that would be residue silently lost.
+.check_yield_priced <- function(x) {
   bad <- x$production_t > 0 &
     (is.na(x$residue_dm_t) | x$residue_dm_t <= 0)
   if (!any(bad)) {
@@ -422,96 +500,176 @@
   crops <- sort(unique(as.character(x$item_prod[bad])))
   cli::cli_abort(
     c(
-      "No residue estimate for cereals with production: {.val {crops}}.",
+      "No residue estimate for crops with production: {.val {crops}}.",
       "i" = "{.fn calculate_crop_residues} has no coefficient for them."
     ),
-    class = "whep_residue_cereal_unpriced"
+    class = "whep_residue_unpriced"
   )
 }
 
-# Oil palm residue (whep#1424) ------------------------------------------------
+# Residue anchored on a field measurement (whep#1424, whep#1551) ---------------
 #
-# The pin's oil palm residue is not a plausible field residue: read as gross
-# residue it is more than an oil palm plantation's whole above-ground net
-# primary production, fruit included (see `get_primary_residues()`). Its rows
-# are therefore REPLACED, not corrected: the anchor is a gross field residue
-# in its own right, Malaysia's fronds and trunks, so it runs after
+# For oil palm and sugar cane the pin's ratio is not corrected but REPLACED:
+# the anchor is a gross field residue in its own right, so it runs after
 # `.residue_gross_from_recovered()` and `.residue_ratio_corrected()` and owes
 # nothing to the pin's residue figure. Running it before them would divide an
 # anchored gross residue by the pin's recovery rate a second time. The pin's
 # residue rows are still read, and still checked by both steps, because they
-# say which (area, year) pairs carry oil palm residue.
+# say which (area, year) pairs carry the crop's residue.
 #
 # The anchored dry matter is stored as fresh mass through the same
 # `Residue_kgDM_kgFM` that `.add_residue_dm_content()` applies afterwards, so
 # `value_dm` comes out equal to the anchor.
-.residue_oil_palm_anchored <- function(residues, products, method) {
-  if (method == "pin" || !rlang::has_name(residues, "name_biomass")) {
-    return(residues)
-  }
-  is_palm <- residues$name_biomass %in% "Oil palm"
-  if (!any(is_palm)) {
-    return(residues)
-  }
-  palm <- .oil_palm_anchored_rows(
-    residues[is_palm, ],
-    dplyr::filter(products, .data$name_biomass %in% "Oil palm"),
-    method
-  )
-  dplyr::bind_rows(residues[!is_palm, ], palm)
-}
 
-.oil_palm_anchored_rows <- function(residue, products, method) {
+# Oil palm (whep#1424). The pin's oil palm residue is not a plausible field
+# residue: read as gross residue it is more than an oil palm plantation's whole
+# above-ground net primary production, fruit included (see
+# `get_primary_residues()`).
+.residue_oil_palm_anchored <- function(residues, products, method) {
+  if (method == "pin") {
+    return(residues)
+  }
   # Malaysia, 2010: fronds 46 + trunks 14 Mt DM (Agensi Inovasi Malaysia 2013,
   # National Biomass Strategy 2020, Exhibit 1) on 4.85 Mha planted (p. 10), or
   # over FAOSTAT's 83,090,935 t of fresh fruit bunches.
-  rate <- switch(
-    method,
-    per_product = 60e6 / 83090935,
-    per_hectare = 60e6 / 4.85e6
+  anchor <- list(
+    name_biomass = "Oil palm",
+    label = "oil palm",
+    product = "fruit",
+    rate = switch(
+      method,
+      per_product = 60e6 / 83090935,
+      per_hectare = 60e6 / 4.85e6
+    ),
+    basis = if (method == "per_hectare") "area_ygpit_ha" else "prod_ygpit_mg",
+    method_residue = paste0("malaysia_nbs_", method),
+    arg = "oil_palm_residue",
+    class = "whep_oil_palm_no_product"
   )
-  basis <- if (method == "per_hectare") "area_ygpit_ha" else "prod_ygpit_mg"
-  kgdm <- .oil_palm_residue_kgdm()
-  fruit <- .oil_palm_fruit_basis(products, basis)
-  .check_oil_palm_fruit(residue, fruit)
+  .residue_anchored(residues, products, anchor)
+}
+
+# Gross field tops and leaves, before recovery/burning/use; excludes bagasse.
+# Hassuani, da Silva & Neves (2005), Proc. ISSCT 25, p. 394, reports a
+# Brazilian field-experiment average of 140 kg DM/t fresh stalk across cane
+# variety, age and soil conditions. This is a PROVISIONAL transfer model,
+# not a universal crop constant. Its boundary matches the gross field pool
+# needed here; cleaning/recovery efficiencies are separate in the source.
+# Thompson (1966), p. 333, explicitly rejects one ratio for all conditions;
+# Donaldson et al. (2008), pp. 533-534, excludes tops and its N14 equation
+# cannot be applied without cultivar information. Neither validates 0.14
+# globally. The source-derived proxy replaces an undocumented fixed biomass
+# partition, not a demonstrated impossible pin value. Local gross DM can be
+# supplied explicitly; missing local coverage never falls back to the proxy.
+# Decision: whep-sugar-cane-trash-per-tonne; whep#1551.
+.residue_sugar_cane_anchored <- function(
+  residues,
+  products,
+  method,
+  supplied = NULL
+) {
+  if (method == "supplied") {
+    return(.residue_cane_supplied(residues, supplied))
+  }
+  if (method == "pin") {
+    return(residues)
+  }
+  anchor <- list(
+    name_biomass = "Sugarcane",
+    label = "sugar cane",
+    product = "cane",
+    rate = 0.14,
+    basis = "prod_ygpit_mg",
+    method_residue = "hassuani_2005_provisional",
+    arg = "sugar_cane_residue",
+    class = "whep_sugar_cane_no_product"
+  )
+  .residue_anchored(residues, products, anchor)
+}
+
+# Replace one crop's residue rows by `anchor$rate` tonnes of dry matter per
+# unit of the crop's `anchor$basis` (tonnes of product or hectares).
+.residue_anchored <- function(residues, products, anchor) {
+  if (!rlang::has_name(residues, "name_biomass")) {
+    return(residues)
+  }
+  is_crop <- residues$name_biomass %in% anchor$name_biomass
+  if (!any(is_crop)) {
+    return(residues)
+  }
+  crop <- .residue_anchored_rows(
+    residues[is_crop, ],
+    dplyr::filter(products, .data$name_biomass %in% anchor$name_biomass),
+    anchor
+  )
+  dplyr::bind_rows(residues[!is_crop, ], crop)
+}
+
+.residue_anchored_rows <- function(residue, products, anchor) {
+  kgdm <- .residue_anchor_kgdm(anchor$name_biomass)
+  keyed <- .residue_anchor_keys(residue, products)
+  residue <- keyed$residue
+  products <- keyed$products
+  .check_anchor_unique(residue)
+  .check_anchor_unique(products)
+  basis <- .residue_anchor_basis(products, anchor)
+  .check_residue_anchor_basis(residue, basis, anchor)
   residue |>
     dplyr::left_join(
-      fruit,
-      by = c("year", "area"),
+      basis,
+      by = c("year", "anchor_polity_code", "anchor_source_code"),
       relationship = "many-to-one"
     ) |>
     dplyr::mutate(
-      prod_ygpit_mg = .data$fruit_basis * rate / kgdm,
-      method_residue = paste0("malaysia_nbs_", method)
+      prod_ygpit_mg = .data$anchor_basis * anchor$rate / kgdm,
+      method_residue = anchor$method_residue
     ) |>
-    dplyr::select(-"fruit_basis")
+    dplyr::select(
+      -dplyr::all_of(c(
+        "anchor_basis",
+        "anchor_polity_code",
+        "anchor_source_code"
+      ))
+    )
 }
 
-.oil_palm_fruit_basis <- function(products, basis) {
-  if (!rlang::has_name(products, basis)) {
+.residue_anchor_basis <- function(products, anchor) {
+  if (!rlang::has_name(products, anchor$basis)) {
     cli::cli_abort(
       c(
-        "The crop-residue pin has no {.field {basis}} column, which the oil
-         palm residue anchor needs.",
-        "i" = "Use {.code oil_palm_residue = \"pin\"} to keep the pin's own
-          oil palm residue."
+        "The crop-residue pin has no {.field {anchor$basis}} column, which the
+         {anchor$label} residue anchor needs.",
+        "i" = "Use {.code {anchor$arg} = \"pin\"} to keep the pin's own
+          {anchor$label} residue."
       ),
-      class = "whep_oil_palm_no_product"
+      class = c(anchor$class, "whep_residue_anchor_no_product")
+    )
+  }
+  values <- products[[anchor$basis]]
+  if (!is.numeric(values) || any(!is.finite(values)) || any(values < 0)) {
+    cli::cli_abort(
+      "Residue anchor product inputs must be supplied, finite and nonnegative.",
+      class = "whep_residue_anchor_bad_product",
+      product_rows = products
     )
   }
   dplyr::summarise(
     products,
-    fruit_basis = sum(.data[[basis]]),
-    .by = c("year", "area")
+    anchor_basis = sum(.data[[anchor$basis]]),
+    .by = c("year", "anchor_polity_code", "anchor_source_code")
   )
 }
 
-# A residue row with no fruit row would come out `NA`, then sum to zero and be
-# dropped by `get_primary_residues()`: an absent input turned into no residue.
-# Refuse instead. No cli pluralisation markers, for the reason
+# A residue row with no product row would come out `NA`, then sum to zero and
+# be dropped by `get_primary_residues()`: an absent input turned into no
+# residue. Refuse instead. No cli pluralisation markers, for the reason
 # `.warn_residues_no_area()` gives.
-.check_oil_palm_fruit <- function(residue, fruit) {
-  orphan <- dplyr::anti_join(residue, fruit, by = c("year", "area"))
+.check_residue_anchor_basis <- function(residue, basis, anchor) {
+  orphan <- dplyr::anti_join(
+    residue,
+    basis,
+    by = c("year", "anchor_polity_code", "anchor_source_code")
+  )
   if (nrow(orphan) == 0L) {
     return(invisible(NULL))
   }
@@ -519,24 +677,224 @@
   labels <- unique(paste(orphan$area, orphan$year))
   cli::cli_abort(
     c(
-      "{n_orphan} oil palm residue rows have no fruit row to anchor on.",
+      "{n_orphan} {anchor$label} residue rows have no {anchor$product} row to
+       anchor on.",
       "i" = "Area and year: {.val {labels}}.",
-      "i" = "Use {.code oil_palm_residue = \"pin\"} to keep the pin's own oil
-        palm residue."
+      "i" = "Use {.code {anchor$arg} = \"pin\"} to keep the pin's own
+        {anchor$label} residue."
     ),
-    class = "whep_oil_palm_no_product"
+    class = c(anchor$class, "whep_residue_anchor_no_product")
   )
 }
 
-.oil_palm_residue_kgdm <- function(biomass_coefs = whep::biomass_coefs) {
+.residue_anchor_kgdm <- function(
+  name_biomass,
+  biomass_coefs = whep::biomass_coefs
+) {
   kgdm <- biomass_coefs$Residue_kgDM_kgFM[
-    biomass_coefs$Name_biomass %in% "Oil palm"
+    biomass_coefs$Name_biomass %in% name_biomass
   ]
-  if (length(kgdm) != 1L || is.na(kgdm) || kgdm <= 0) {
+  if (length(kgdm) != 1L || !is.finite(kgdm) || kgdm <= 0 || kgdm > 1) {
     cli::cli_abort(
-      "{.field biomass_coefs} has no single positive oil palm
-       {.field Residue_kgDM_kgFM}, which the oil palm residue anchor needs."
+      "{.field biomass_coefs} has no single finite fraction in (0, 1] for {.val {name_biomass}}
+       {.field Residue_kgDM_kgFM}, which its residue anchor needs."
     )
   }
   kgdm
+}
+
+# Source labels are read once to make local pin-source codes. Resolved rows
+# match only on canonical reporting polity and year. The bounded legacy
+# adapter retains unresolved source rows (not pseudo-polities), with a warning
+# listing the exact label/year/code. Tanzania 1961-1963 is unresolved in this
+# pin; deciding its reported territory is separate work (whep#458, #684).
+.residue_anchor_keys <- function(residue, products) {
+  labels <- unique(c(residue[["area"]], products[["area"]]))
+  residue <- .residue_anchor_identity(residue, labels)
+  products <- .residue_anchor_identity(products, labels)
+  .check_anchor_source_keys(residue, products)
+  unresolved <- dplyr::bind_rows(residue, products) |>
+    dplyr::filter(is.na(.data$anchor_polity_code)) |>
+    dplyr::distinct(.data$area, .data$year, .data$anchor_source_code)
+  if (nrow(unresolved) > 0L) {
+    unresolved_labels <- paste(unresolved$area, unresolved$year)
+    cli::cli_warn(
+      c(
+        "Residue anchor retains {nrow(unresolved)} unresolved source keys.",
+        "i" = "Local source codes match only within this pin; polity remains NA.",
+        "i" = "Unresolved labels/years: {.val {unresolved_labels}}."
+      ),
+      class = "whep_residue_anchor_source_identity",
+      unresolved_keys = unresolved
+    )
+  }
+  list(residue = residue, products = products)
+}
+
+.residue_anchor_identity <- function(x, labels) {
+  .check_anchor_year(x)
+  if (!rlang::has_name(x, "area")) {
+    x <- ensure_columns(x, tibble::tibble(area = character()))
+  }
+  resolved <- .add_reporting_polity_columns(x)
+  missing <- is.na(resolved$reporting_polity_code) &
+    (is.na(x$area) | !nzchar(stringr::str_trim(x$area)))
+  if (any(missing)) {
+    cli::cli_abort(
+      "An unresolved residue anchor needs a nonempty pin-source label.",
+      class = "whep_residue_anchor_missing_identity",
+      missing_rows = x[missing, ]
+    )
+  }
+  dplyr::mutate(
+    x,
+    anchor_polity_code = resolved$reporting_polity_code,
+    anchor_source_code = dplyr::if_else(
+      is.na(.data$anchor_polity_code),
+      match(.data$area, labels),
+      0L
+    )
+  )
+}
+
+
+.check_anchor_year <- function(x) {
+  if (
+    !rlang::has_name(x, "year") ||
+      !is.numeric(x$year) ||
+      any(!is.finite(x$year)) ||
+      any(x$year != floor(x$year))
+  ) {
+    cli::cli_abort(
+      "Residue anchor years must be supplied finite annual identifiers.",
+      class = "whep_residue_anchor_bad_year",
+      invalid_rows = x
+    )
+  }
+  invisible(x)
+}
+
+.check_anchor_source_keys <- function(residue, products) {
+  rows <- dplyr::bind_rows(residue, products) |>
+    dplyr::filter(is.na(.data$anchor_polity_code))
+  if (!rlang::has_name(rows, "area_code")) {
+    return(invisible(NULL))
+  }
+  ambiguous <- rows |>
+    dplyr::distinct(.data$year, .data$area, .data$area_code) |>
+    dplyr::count(.data$year, .data$area, name = "source_count") |>
+    dplyr::filter(.data$source_count > 1L)
+  if (nrow(ambiguous) > 0L) {
+    cli::cli_abort(
+      "An unresolved label/year identifies inconsistent source area codes.",
+      class = "whep_residue_anchor_source_ambiguous",
+      ambiguous_rows = ambiguous
+    )
+  }
+  invisible(NULL)
+}
+
+.check_anchor_unique <- function(residue) {
+  keys <- c("year", "anchor_polity_code", "anchor_source_code")
+  if (anyDuplicated(residue[keys])) {
+    cli::cli_abort(
+      "Multiple rows identify the same crop anchor; their totals are ambiguous.",
+      class = "whep_residue_anchor_duplicate",
+      duplicate_rows = residue
+    )
+  }
+  invisible(residue)
+}
+
+.check_cane_data_method <- function(method, supplied) {
+  if (method != "supplied" && !is.null(supplied)) {
+    cli::cli_abort(
+      "Use {.code sugar_cane_residue = \"supplied\"} to use local cane data.",
+      class = "whep_cane_unused_data"
+    )
+  }
+  if (method == "supplied") {
+    .check_cane_supplied_data(supplied)
+  }
+  invisible(NULL)
+}
+
+.check_cane_supplied_data <- function(x) {
+  required <- c("reporting_polity_code", "year", "residue_dm_t", "source")
+  if (!inherits(x, "data.frame") || !all(rlang::has_name(x, required))) {
+    cli::cli_abort(
+      "Supplied cane data needs {.field {required}}.",
+      class = "whep_cane_invalid_data"
+    )
+  }
+  invalid <- !is.numeric(x$residue_dm_t) ||
+    !is.numeric(x$year) ||
+    anyNA(x[required]) ||
+    any(!is.finite(x$residue_dm_t)) ||
+    any(!is.finite(x$year)) ||
+    any(x$year != floor(x$year)) ||
+    !is.character(x$source) ||
+    !is.character(x$reporting_polity_code) ||
+    any(x$residue_dm_t < 0) ||
+    any(!nzchar(stringr::str_trim(x$source))) ||
+    any(!nzchar(stringr::str_trim(x$reporting_polity_code))) ||
+    anyDuplicated(x[c("reporting_polity_code", "year")]) > 0L
+  if (invalid) {
+    cli::cli_abort(
+      "Supplied cane data needs unique polity-years, nonnegative finite DM and sources.",
+      class = "whep_cane_invalid_data"
+    )
+  }
+  invisible(x)
+}
+
+.residue_cane_supplied <- function(residues, supplied) {
+  .check_cane_supplied_data(supplied)
+  cane <- residues$name_biomass %in% "Sugarcane"
+  if (!any(cane)) {
+    return(residues)
+  }
+  rows <- .residue_anchor_identity(residues[cane, ], unique(residues[["area"]]))
+  .check_anchor_unique(rows)
+  missing <- dplyr::anti_join(
+    rows,
+    supplied,
+    by = c("anchor_polity_code" = "reporting_polity_code", "year"),
+    na_matches = "never"
+  )
+  if (nrow(missing) > 0L) {
+    cli::cli_abort(
+      "Supplied gross cane trash is missing for {nrow(missing)} polity-year rows.",
+      class = "whep_cane_missing_data",
+      missing_rows = missing
+    )
+  }
+  out <- .residue_cane_join(rows, supplied)
+  dplyr::bind_rows(residues[!cane, ], out)
+}
+
+.residue_cane_join <- function(rows, supplied) {
+  kgdm <- .residue_anchor_kgdm("Sugarcane")
+  rows |>
+    dplyr::left_join(
+      dplyr::select(
+        supplied,
+        "reporting_polity_code",
+        "year",
+        "residue_dm_t",
+        "source"
+      ),
+      by = c("anchor_polity_code" = "reporting_polity_code", "year"),
+      relationship = "many-to-one",
+      na_matches = "never"
+    ) |>
+    dplyr::mutate(
+      prod_ygpit_mg = .data$residue_dm_t / kgdm,
+      method_residue = paste0("supplied_gross_dm:", .data$source)
+    ) |>
+    dplyr::select(
+      -dplyr::all_of(
+        c("anchor_polity_code", "anchor_source_code", "residue_dm_t", "source")
+      )
+    )
 }

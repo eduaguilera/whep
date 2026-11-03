@@ -362,13 +362,26 @@ test_that("the enumerated baseline can only shrink", {
   # 114 with whep#1195, on top of whep#1317's 112: the residue pin's legacy
   # recovery rate, attached per (crop, area) and keyed on the area's year-free
   # HANPP region. Re-derived by running the audit on the merged tree.
-  # 119 with build_cell_moisture_regime() and whep#1448, on top of whep#1195's
-  # 114: the outside-run depth fill joins a country's mean over one requested
-  # year's window (`single_year`, +1), and the residue base reads the
-  # Wirsenius (2000) Table 3.16 ratios and region membership per (crop, area),
-  # and the HANPP region of each cereal area (+4). Re-derived by running
+  # 120 with build_cell_moisture_regime(), the per-part residue re-evaluation
+  # of the rainfed/irrigated split (whep#1233) and whep#1448, on top of
+  # whep#1195's 114: the outside-run depth fill joins a country's mean over one
+  # requested year's window (`single_year`, +1); `.rr_model_rows()` attaches
+  # the HANPP region by area, one time-invariant join (+1); the residue base
+  # reads the Wirsenius (2000) Table 3.16 ratios and region membership per
+  # (crop, area), and the HANPP region of each cereal area (+4). Re-derived by
+  # running
   # `sum(.territorial_join_baseline()$n)` on the merged tree.
-  expect_lte(sum(baseline$n), 119L)
+  # 121 with whep#1495, on top of the 120 above: the FBS 2551 rebase puts
+  # each area's 2010-2013 overlap ratio on the new vintage
+  # (`time_invariant`). Re-derived by running
+  # `sum(.territorial_join_baseline()$n)`.
+  # 122 with whep#1508, on top of that: the pre-1961 residue
+  # back-cast attaches the same year-free HANPP region to the production it
+  # spends the cereal estimator on. Re-derived by running
+  # `sum(.territorial_join_baseline()$n)`.
+  # Shared allocation removes one old join; native allocator adds four.
+  # Count measured on the combined integration tree.
+  expect_lte(sum(baseline$n), 125L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -655,7 +668,16 @@ test_that("every year-free territorial grouping is classified", {
   # (`year_axis`, +1); one region row per area and one ratio lookup per
   # (crop, area) pair (+2). Re-derived by running
   # `sum(.territorial_grouping_baseline()$n)` on the merged tree.
-  expect_lte(sum(full$n), 149L)
+  # 150 with whep#1495, on top of the 149 above: the FBS 2551 rebase takes
+  # the median of each area's ratio over the 2010-2013 overlap (`year_axis`).
+  # Re-derived by running `sum(.territorial_grouping_baseline()$n)`.
+  # 151 with whep#1514, on top of whep#1495's 150: `.sjr_warn_untraded_food()`
+  # totals the dropped food per area for its warning (`diagnostic`).
+  # Re-derived by running `sum(.territorial_grouping_baseline()$n)` on the
+  # merged tree.
+  # Native allocator groups plus the two dictionary-only bucket guards.
+  # Count measured on the combined integration tree.
+  expect_lte(sum(full$n), 157L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
@@ -827,9 +849,14 @@ test_that("the allocation key is audited in both the grains it can take", {
     ),
     tibble::tibble(area_code = 1L, level_polity_code = "U1")
   )
+  polity <- whep:::.alloc_target_cols(
+    tibble::tibble(polity_code = "AAA-1900-2000", item_prod_code = 15L),
+    tibble::tibble(polity_code = "AAA-1900-2000")
+  )
   want <- sort(c(
     paste(container, collapse = ", "),
-    paste(unit, collapse = ", ")
+    paste(unit, collapse = ", "),
+    paste(polity, collapse = ", ")
   ))
 
   joins <- .ja_joins()

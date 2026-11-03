@@ -17,6 +17,9 @@ devtools::load_all(".")
 
 # Helper from prepare_upload.R (inlined to avoid executing its example call)
 create_version <- function(data, board, name, ...) {
+  # Restricted inputs must never be republished as a public pin (#1386).
+  whep::whep_assert_publishable(data)
+
   paths <- file.path(
     tempdir(),
     c(

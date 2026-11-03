@@ -13,12 +13,20 @@ expected name when trying to get the dataset with \code{whep_read_file()}.
 \item \code{board_url}: The public static URL where the data is found, following
 the concept of a \emph{board} from the
 \href{https://pins.rstudio.com/index.html}{\code{pins}} package, which is what we
-use for storing these input datasets.
+use for storing these input datasets. For a restricted row it is a path
+relative to the restricted board, \verb{restricted:<folder>/_pins.yaml}, so
+no personal address enters the registry.
 \item \code{version}: The specific version of the dataset, as defined by the \code{pins}
 package. The version is a string similar to \code{"20250714T123343Z-114b5"}.
 This version is the one used by default if no \code{version} is specified when
 calling \code{whep_read_file()}. If you want to use a different one, you can
 find the available versions of a file by using \code{whep_list_file_versions()}.
+\item \code{access}: \code{"public"}, or \code{"restricted"} for licensed or confidential
+data read from a private board with per-user credentials. See
+\code{\link[=whep_data_access_status]{whep_data_access_status()}}.
+\item \code{public_alternative}: for a restricted row, the public alias suggested
+instead when restricted access is unavailable, or \code{NA}. It is advice in
+error messages only; nothing is ever read in its place.
 }
 }
 \source{
@@ -117,13 +125,14 @@ WHEP ships the recovery rate and the regional ratio the predecessor used
 \code{\link[=get_primary_residues]{get_primary_residues()}} undoes the recovery exactly, dividing by the same
 rate, but cannot recompute the predecessor's residue from production. It
 then re-keys the regional ratio on Wirsenius's own region membership, and
-estimates cereal residue from the pin's production and harvested area
-instead of reading it (#1448).
+estimates cereal residue (#1448), and that of the non-cereal crops with
+their own IPCC Table 11.2 line (#1518), from the pin's production and
+harvested area instead of reading it.
 
 It is not a small input. The pin holds 7.63 Gt of recovered residue for
 2010 (Straw 3.60 Gt, Other crop residues 2.49 Gt, Firewood 1.54 Gt) and
-327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 8.73
-Gt (Straw 3.84 Gt, Other crop residues 3.14 Gt, Firewood 1.76 Gt) and 395
+327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 7.64
+Gt (Straw 3.92 Gt, Other crop residues 2.82 Gt, Firewood 0.90 Gt) and 366
 Gt of residue produced. 3,998 of its 249,095 output rows carry \code{NA} polity
 columns because the pin is name-keyed.
 
@@ -140,8 +149,9 @@ straw scales with the field crop. The second is fodder, where the current
 build is close to twice the pin on every forage and silage item, the pin
 predating that work. Replacing the pin therefore means choosing a residue
 model, which is a science decision and not a refresh. For cereals that
-model is chosen by \code{get_primary_residues(cereal_residue = )}; it still
-runs on the pin's production.
+model is chosen by \code{get_primary_residues(cereal_residue = )}, and for the
+non-cereals with an IPCC line by \verb{non_cereal_residue =}; both still run on
+the pin's production.
 }
 
 \subsection{\code{bilateral_trade} is built by \code{\link[=build_detailed_trade]{build_detailed_trade()}}}{

@@ -38,7 +38,8 @@ test_that("legacy below-ground fields stay retired from biomass_coefs", {
   ) |>
     dplyr::select(!dplyr::starts_with("..."))
 
-  testthat::expect_equal(dim(source_coefs), c(421L, 63L))
+  # 422 rows since the Aquatic Plants row was added (whep#970).
+  testthat::expect_equal(dim(source_coefs), c(422L, 63L))
   testthat::expect_identical(names(source_coefs), names(whep::biomass_coefs))
   testthat::expect_false(any(legacy %in% names(source_coefs)))
   testthat::expect_false(any(legacy %in% names(whep::biomass_coefs)))
@@ -101,8 +102,8 @@ test_that("no row has an out-of-range Edible_portion", {
   )
 })
 
-test_that("the proximate columns exceed dry matter on a known 69 rows", {
-  # Protein + carbohydrate + lipid + fibre cannot exceed dry matter. 69 of 421
+test_that("the proximate columns exceed dry matter on a known 68 rows", {
+  # Protein + carbohydrate + lipid + fibre cannot exceed dry matter. 68 of 418
   # rows do (#752); Honey left the set in #1096. Lysine, Phytase and Enzimes
   # left it and Ammonium chloride joined it in #1074. Some are feed additives
   # where a composition block is not applicable (Urea, Ammonium chloride),
@@ -123,13 +124,13 @@ test_that("the proximate columns exceed dry matter on a known 69 rows", {
   dry_matter <- coefs$Product_kgDM_kgFM * 1000
   # Compare with a tolerance: three rows (Melon, Strawberry, Duck eggs) close
   # exactly against dry matter and exceed it only by ~1e-14, which is float
-  # noise, not a data defect. Of the 69 that remain, 68 exceed by more than
+  # noise, not a data defect. Of the 68 that remain, 67 exceed by more than
   # 1 g/kg, so the set is not tolerance-sensitive in any other way.
   over <- !is.na(dry_matter) &
     proximate > 0 &
     proximate > dry_matter + 1e-6
 
-  testthat::expect_equal(sum(over), 69L)
+  testthat::expect_equal(sum(over), 68L)
   testthat::expect_true("Barley" %in% coefs$Name_biomass[over])
 })
 
@@ -138,4 +139,150 @@ test_that("unknown coefficient table errors", {
     whep::whep_coef_table("does_not_exist"),
     "Unknown coefficient table"
   )
+})
+
+# Cereal root:shoot and N contents as printed in IPCC (2006) Vol. 4 Ch. 11
+# Table 11.2 (pp. 11.17-11.18) and IPCC (2019) Table 11.1a (p. 11.18); the two
+# agree on every value both list. NA marks a crop the tables give no value for
+# (whep#1520). `Other_cereals` is the "Grains" / "Generic Grains" row.
+.ipcc_cereal_reference <- function() {
+  tibble::tribble(
+    ~ipcc_crop,      ~rs,  ~n_ag, ~n_bg,
+    "Wheat",         0.24, 0.006, 0.009,
+    "Winter_wheat",  0.23, 0.006, 0.009,
+    "Spring_wheat",  0.28, 0.006, 0.009,
+    "Maize",         0.22, 0.006, 0.007,
+    "Rice",          0.16, 0.007, NA,
+    "Barley",        0.22, 0.007, 0.014,
+    "Oats",          0.25, 0.007, 0.008,
+    "Millet",        NA,   0.007, NA,
+    "Sorghum",       NA,   0.007, 0.006,
+    "Rye",           NA,   0.005, 0.011,
+    "Other_cereals", 0.22, 0.006, 0.009
+  )
+}
+
+.ipcc_cereal_long <- function() {
+  res <- whep::whep_coef_table("ipcc_residue_coefs")
+  columns <- tibble::tribble(
+    ~quantity, ~value_col,      ~source_col,
+    "rs",      "rs_ratio_ipcc", "source_rs_ratio",
+    "n_ag",    "n_ag_residue",  "source_n_ag",
+    "n_bg",    "n_bg_residue",  "source_n_bg"
+  )
+  purrr::pmap(columns, function(quantity, value_col, source_col) {
+    .ipcc_cereal_reference() |>
+      dplyr::select(ipcc_crop, ipcc = dplyr::all_of(quantity)) |>
+      dplyr::left_join(
+        dplyr::select(
+          res,
+          ipcc_crop,
+          whep = dplyr::all_of(value_col),
+          source = dplyr::all_of(source_col)
+        ),
+        by = "ipcc_crop"
+      ) |>
+      dplyr::mutate(quantity = quantity)
+  }) |>
+    purrr::list_rbind()
+}
+
+test_that("cereal root:shoot and N match the IPCC tables they cite", {
+  long <- .ipcc_cereal_long()
+  sourced <- dplyr::filter(long, !is.na(ipcc))
+  testthat::expect_equal(sourced$whep, sourced$ipcc)
+  testthat::expect_false(any(stringr::str_detect(sourced$source, "^fill")))
+})
+
+test_that("cereal values IPCC does not give are declared generic fills", {
+  long <- .ipcc_cereal_long()
+  filled <- dplyr::filter(long, is.na(ipcc))
+  # IPCC (2019) Table 11.1a note e: "No estimate is available. The most
+  # appropriate generic value can be used"; Generic Grains is 0.22 and 0.009.
+  generic <- c(rs = 0.22, n_ag = 0.006, n_bg = 0.009)
+  testthat::expect_equal(filled$whep, unname(generic[filled$quantity]))
+  testthat::expect_true(all(stringr::str_detect(filled$source, "^fill")))
+})
+
+test_that("ipcc_residue_coefs labels every value with its own source", {
+  res <- whep::whep_coef_table("ipcc_residue_coefs")
+  cols <- c(
+    "source_slope_intercept",
+    "source_rs_ratio",
+    "source_n_ag",
+    "source_n_bg"
+  )
+  testthat::expect_true(all(cols %in% names(res)))
+  testthat::expect_false("source" %in% names(res))
+  for (col in cols) {
+    testthat::expect_false(any(is.na(res[[col]]) | res[[col]] == ""))
+  }
+})
+
+test_that("the live root table carries the corrected cereal root:shoot", {
+  root <- whep::whep_coef_table("ipcc_root_coefs")
+  res <- whep::whep_coef_table("ipcc_residue_coefs")
+  cereals <- setdiff(.ipcc_cereal_reference()$ipcc_crop, "Other_cereals")
+  joined <- dplyr::inner_join(
+    dplyr::filter(root, ipcc_crop %in% cereals),
+    res,
+    by = "ipcc_crop"
+  )
+  testthat::expect_equal(nrow(joined), length(cereals))
+  testthat::expect_equal(joined$rs_default, joined$rs_ratio_ipcc)
+})
+
+test_that("ipcc_root_coefs labels every value with its own source", {
+  root <- whep::whep_coef_table("ipcc_root_coefs")
+  cols <- c("source_rs_default", "source_rs_variants", "source_bg_ref")
+  testthat::expect_true(all(cols %in% names(root)))
+  testthat::expect_false("source" %in% names(root))
+  for (col in cols) {
+    testthat::expect_false(any(is.na(root[[col]]) | root[[col]] == ""))
+  }
+})
+
+test_that("non-IPCC root:shoot rows are declared assumed, not cited", {
+  root <- whep::whep_coef_table("ipcc_root_coefs")
+  # IPCC (2006) Tab. 11.2 and (2019) Tab. 11.1a hold no row for these crops.
+  absent <- c(
+    "Groundnuts",
+    "Sunflower",
+    "Rapeseed",
+    "Other_oilseeds",
+    "Sugar_beet",
+    "Sugarcane",
+    "Cotton",
+    "Other_fiber",
+    "Vegetables",
+    "Sesame"
+  )
+  src <- root$source_rs_default[match(absent, root$ipcc_crop)]
+  testthat::expect_true(all(stringr::str_detect(src, "^assumed, unverified")))
+})
+
+test_that("unsupported non-cereal residue lines stay labelled as assumptions", {
+  # These nine lines were relabelled by #1542, also resolving #1552.
+  # IPCC 2006/2019 Table 11.2 has no crop-specific line for them; the
+  # vegetable tuber proxy is an assumption rather than an IPCC vegetable line.
+  crops <- c(
+    "Rapeseed",
+    "Sunflower",
+    "Other_oilseeds",
+    "Sugar_beet",
+    "Sugarcane",
+    "Cotton",
+    "Other_fiber",
+    "Permanent_crops",
+    "Vegetables"
+  )
+  res <- whep::whep_coef_table("ipcc_residue_coefs") |>
+    dplyr::filter(ipcc_crop %in% crops)
+
+  testthat::expect_setequal(res$ipcc_crop, crops)
+  testthat::expect_equal(nrow(res), length(crops))
+  testthat::expect_true(all(stringr::str_starts(
+    res$source_slope_intercept,
+    stringr::fixed("assumed, unverified:")
+  )))
 })

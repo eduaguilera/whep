@@ -233,6 +233,47 @@
 #' holds the VLOOKUP column-index vector the upstream `Coefs` sheet addresses
 #' by absolute position, which read as data claims an `Edible_portion` of 4.
 #'
+#' The `Aquatic Plants` row is WHEP's own, not the upstream workbook's, which
+#' has no seaweed row: [items_full] bridged CBS item 2775 to a placeholder
+#' name that matched nothing, so its feed mass dropped out of feed
+#' availability and its food mass carried no protein or energy (whep#970).
+#' Two sources fill it, one per use:
+#'
+#' - **Food** (`N_kgN_kgFM`, `GE_product_MJ_kgFM`, `Lipids_g_kgFM`,
+#'   `Edible_portion`): FAO's own composition factor for the item, read from
+#'   FAO, *Food balance sheets: a handbook*, Rome, 2001, Annex I "Food
+#'   composition in terms of retail weight", row `AQUATIC PLANTS`, PDF page
+#'   68 (printed 64), <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>:
+#'   54 kcal, 2.8 g protein and 0.6 g fat per 100 g of the commodity as
+#'   recorded, i.e. fresh. So nitrogen is 2.8 / 100 / 6.25 = 0.00448 kg per
+#'   kg, the energy cell holds 540 kcal, 2.25936 MJ, per kg, and
+#'   `Edible_portion` is 1 because FAO applies the factor to the recorded
+#'   quantity directly. The energy is FAO's dietary energy, not
+#'   bomb-calorimeter gross energy: it is what [build_food_supply()] turns
+#'   into `energy_kcal_cap_day`, against FBS element 664. Oracle: FAOSTAT FBS
+#'   item 2775, World (area 5000), 2010, implies 26.5 g protein per kg (element
+#'   671 over element 5142), 5.5% below the 2001 factor; and 372 kcal per kg,
+#'   so current FBS uses a lower energy factor than the 2001 table.
+#' - **Feed** (`Product_kgDM_kgFM`, `Product_kgN_kgDM`): Heuze, V., Tran, G.,
+#'   Giger-Reverdin, S., Lessire, M. and Lebas, F. (2017), *Seaweeds (marine
+#'   macroalgae)*, Feedipedia, INRAE, CIRAD, AFZ and FAO,
+#'   <https://feedipedia.org/node/78>, table "Laminaria and Saccharina
+#'   seaweeds" (fresh): dry matter 15.4% as fed (SD 3.6, range 9.7-22.5,
+#'   n = 56), crude protein 9.8% of DM (n = 50), so 0.01568 kg N per kg DM.
+#'   It is the only fresh-seaweed table on that page; the others are dried
+#'   meals at 85-93% DM, which would put fresh mass at nearly its own dry
+#'   weight.
+#'
+#' The two disagree on nitrogen per kg of fresh matter -- 0.00448 against
+#' 0.154 x 0.01568 = 0.00241 -- because FAO's factor covers the whole
+#' aquatic-plant basket and Feedipedia's table covers kelps only. Protein
+#' differs widely across that basket: McHugh, D. J. (2003), *A guide to the
+#' seaweed industry*, FAO Fisheries Technical Paper 441, chapter 8,
+#' <https://www.fao.org/4/y4765e/y4765e0b.htm>, puts nori (*Porphyra*) at
+#' 30-50% protein and *Laminaria* at about 10%. Each value is kept on the use
+#' it was published for. `Product_kgC_kgDM` and the remaining columns are
+#' left empty: no source was read for them.
+#'
 #' @format
 #' A tibble where each row corresponds to one product or item. It contains
 #' 63 columns:
@@ -370,22 +411,108 @@
 #'   matter. At 5 g/kg honey is 1.69x FBS, where it was zero. Only the
 #'   protein moves a computed number: nothing in the package reads the
 #'   carbohydrate or calcium columns.
-#' - `Oats` and `Maize` are **unchanged**, on the agronomic value. Their rows,
-#'   5 `Avena grano` 117 g/kg and 7 `Harina de Maiz` 87 g/kg, move *away* from
-#'   the FBS density (72.6 and 62.2 g/kg, country sum) where the agronomic
-#'   83.8 and 78.0 are closer, so following the row would be consistency at
-#'   the cost of accuracy. Open for an expert.
+#' - `Maize` now carries **0.009888** (61.8 g/kg) and `Oats` **0.011584**
+#'   (72.4 g/kg), replacing the agronomic 0.01248 and 0.013415 (78.0 and
+#'   83.8 g/kg, a feed-table whole grain). Their own rows, 7 `Harina de Maiz`
+#'   87 g/kg and 5 `Avena grano` 117 g/kg, are not followed: they are the
+#'   composition of what is eaten, and the flour or groats is only a
+#'   fraction of the grain that `food_t` counts. The new values are FAOSTAT
+#'   FBS's own World density for 2010, element 671 over element 5142
+#'   (maize 7,311,361.1 t over 118,366 kt; oats 279,096.3 t over 3,853 kt),
+#'   the construct wheat already follows (93.0). Over 2010-2023 it runs
+#'   61.6-64.3 for maize and 70.6-72.8 for oats. Decision
+#'   `whep-maize-oats-food-protein-density`, settled by agents on two
+#'   independent composition tables put through FAO's extraction rates:
+#'   - USDA FoodData Central, SR Legacy (April 2018): cornmeal, degermed
+#'     7.11 and whole-grain 8.12 g protein per 100 g (fdc_id 168929, 169697);
+#'     rolled oats, dry, 13.15 (173904).
+#'   - ANSES, Ciqual 2020: maize flour 6.23 and polenta 7.88 (alim_code 9545,
+#'     9614); oatmeal flakes 13.3 (9311).
+#'   - FAO, *Technical conversion factors for agricultural commodities*,
+#'     <https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf>:
+#'     `Flour of Maize` 90% (Kenya; 59-97% across countries), `Oats, Rolled`
+#'     58% (United States; 45-73%).
+#'
+#'   That gives 56-73 g per kg of maize and 76-77 per kg of oats, which the
+#'   FBS density fits. FAO's old-method FBS (71.9 and 83.4, food-weighted
+#'   country sum) is not adopted: it was built on FAO, *Food balance sheets:
+#'   a handbook* (2001), Annex I, <https://www.fao.org/4/x9892e/x9892e00.pdf>,
+#'   PDF page 64 (printed 60), whose rolled oats at 16.0 g per 100 g sit more
+#'   than 20% above both modern tables. The agronomic value stays selectable
+#'   as `build_food_supply(protein_basis = "product_nitrogen")`.
 #' - `Rice` is **unchanged**: its basis was settled in #751/#755.
 #' - `Vegetables, other` is **unchanged** and moves no food number: no
 #'   `item_cbs_code` bridges to it (`Vegetables, Other` 2605 reaches
 #'   `Artichoke` through `items_full`). Its row 113 would give 33.3 g/kg
 #'   against the literal's 14.0, and neither is checked.
 #'
-#' All three new values are the workbook's own composition figures, which,
-#' like the rest of this block, have no `Sources` entry: they are corroborated
-#' by the FBS oracle, not cited upstream. The workbook copy read was
-#' `afsetools/inst/extdata/Biomass_coefs.xlsx`; upstream still carries the old
-#' values in `Coefs` and should follow.
+#' The olive, rye and honey values are the workbook's own composition
+#' figures, which, like the rest of this block, have no `Sources` entry: they
+#' are corroborated by the FBS oracle, not cited upstream. The workbook copy
+#' read was `afsetools/inst/extdata/Biomass_coefs.xlsx`; upstream still
+#' carries the old values in `Coefs` and should follow.
+#'
+#' The `Figs` food-composition cells use **raw-fig** reference values,
+#' per edible portion, replacing a high-energy `Higo` row (2810 kcal/kg)
+#' consistent with dried fruit, despite the WHEP row's fresh-fruit dry
+#' matter (0.197).
+#' ANSES, *Ciqual 2020*, code 13012 `Fig, raw`, gives protein and crude
+#' protein (`N x 6.25`) both 1.19 g/100 g, available carbohydrate 13.5 g/100 g,
+#' and calcium 57 mg/100 g. Therefore `N_kgN_kgFM` is **0.001904**
+#' (11.9 g protein/kg divided by 6250), carbohydrate **135 g/kg** and calcium
+#' **570 mg/kg**. The N cell is a conversion of the source's explicitly
+#' defined crude-protein quantity, not a separate elemental-N observation.
+#' Ciqual reports fat only as `< 0.5 g/100 g`, so that bound is not substituted
+#' as an exact value. USDA FoodData Central SR Legacy, FDC 173021 `Figs, raw`,
+#' nutrient 1004 gives 0.3 g fat/100 g: the lipid cell is **3 g/kg**.
+#' That legacy entry has zero recorded data points and no derivation code;
+#' it is a reference value, not a demonstrated direct lipid measurement.
+#' The calcium choice is provisional: USDA's raw-fig reference is 350 mg/kg,
+#' versus Ciqual's 570 mg/kg. These populations do not establish a universal
+#' composition; the alternative is 220 mg/kg lower (38.6%). Ciqual supplies
+#' the selected raw-food reference, not a cross-source consensus.
+#'
+#' The fig vitamin A cell stays at **70 micrograms/kg**, interpreted for this
+#' row as retinol activity equivalents (RAE): USDA nutrient 1106 is
+#' 7 micrograms RAE/100 g. Its retinol-only entry (nutrient 1105) is an
+#' assumed zero (USDA derivation Z) and is not interchangeable with vitamin
+#' A activity. This interpretation does
+#' not standardize the activity basis of other rows in the inherited column.
+#' Sources: <https://ciqual.anses.fr/> (2020 English workbook, sheet `compo`)
+#' and <https://fdc.nal.usda.gov/food-details/173021/nutrients>
+#' (SR Legacy April 2018 archive). These are nutrient-specific reference
+#' values per edible portion, not a paired drying experiment or a claim that
+#' every fig cultivar has the same composition. No common energy or moisture
+#' multiplier
+#' is applied across nutrients. Agronomic nitrogen, dry matter, and the other
+#' inherited fig cells are unchanged and are not validated by this repair.
+#' No [items_full] row reaches `Figs`, so this food-nitrogen edit changes no
+#' current food-nutrition lookup. This is a science decision, scoped to the
+#' cited fresh-food observations (issue #752).
+#'
+#' The sugar defects remain explicit. `White sugar` still contains 1025.9 g
+#' carbohydrate/kg after the workbook's dry-matter rescale; `Brown sugar`
+#' contains 995 g/kg against 965 g/kg dry matter. A source label is not proof
+#' that the dry-matter cell is correct. The workbook labels `Total azucar`
+#' as `Brown sugar`; a reversed assignment is an inference, not an established
+#' transcription error. [items_full] uses these rows for `Sugar (Raw
+#' Equivalent)`/`Sweeteners, Other` and `Sugar non-centrifugal`, respectively.
+#' Retail white/brown sugar observations do not establish those aggregate
+#' compositions, and transferring white sugar per kg dry matter to
+#' non-centrifugal sugar ignores its protein, minerals and other solids.
+#' Repair requires a coherent commodity/quantity basis and dry-matter,
+#' protein and carbohydrate treatment; the earlier 995/965 g/kg replacements
+#' are not retained merely because they pass a mass bound.
+#'
+#' `Butter, Ghee` also remains unresolved: 830 g fat/kg exceeds its 821.4 g/kg
+#' dry matter. FAO, *Food balance sheets: a handbook* (2001), Annex I,
+#' printed p. 65 gives cow butter 81.1 g fat/100 g and cow ghee 99.1.
+#' FAO's *Statistical Yearbook 2014: Latin America and the Caribbean Food
+#' and Agriculture*, p. 159 lists butter and ghee separately within the
+#' aggregate (<https://www.fao.org/4/i3592e/i3592e.pdf>), so a butter-only
+#' observation cannot establish its composition. `Vegetables, other` and
+#' `Tigernuts` retain their known composition/basis inconsistencies too.
+#' This scoped fig repair does not close issue #752 or validate those rows.
 #'
 #' The tree-nut rows `Almonds`, `Walnut` and `Hazelnut` pair a **kernel**
 #' nitrogen density with an `Edible_portion` that now refers to the nut **in
@@ -775,15 +902,13 @@
 #'   `"Other processing residues"`).
 #' - `Cat_1`: Primary category label used in material flow accounting.
 #' - `Name_biomass`: Corresponding item name in `biomass_coefs`, enabling
-#'   joins with the biomass coefficient table. `NA` for the 22 live-animal
-#'   items, which are heads rather than biomass and have no coefficient row by
-#'   design. Three rows instead carry the literal string `"0"`, an upstream
-#'   placeholder that matches no `biomass_coefs` row: 2775 Aquatic Plants,
-#'   4000 Animal draught and 2899 Miscellaneous. Every other value resolves.
-#'   Draught is measured in work hours and Miscellaneous is a residual
-#'   aggregate, so neither has a biomass counterpart; Aquatic Plants is a real
-#'   commodity whose coefficient row does not exist yet, so its CBS feed and
-#'   food mass carries no dry matter, protein or energy (whep#970).
+#'   joins with the biomass coefficient table; every non-missing value
+#'   resolves. `NA` means the item has no biomass counterpart: the 22
+#'   live-animal items, which are heads rather than biomass, 4000 Animal
+#'   draught, which is measured in work hours, and 2899 Miscellaneous, a
+#'   residual aggregate. Upstream, the last two and 2775 Aquatic Plants carry
+#'   the literal placeholder `"0"`; here 2775 bridges to the `Aquatic Plants`
+#'   row of [biomass_coefs] instead (whep#970).
 #' - `dbMFA_items`: Item identifier used in the material flow analysis
 #'   database.
 #' - `FEDNA`: Name of the FEDNA feed-composition table entry
@@ -988,11 +1113,9 @@
 #' - `region_IPCC`: IPCC regional grouping used in climate assessments.
 #' - `region_labour`: Labour-focused regional grouping.
 #' - `region_labour_agg`: Aggregated labour-focused regional grouping.
-#' - `region_labour_mech`: Labour mechanisation regional grouping. Angola
-#'   (code 7) holds the sub-region name `"Middle Africa"` rather than a
-#'   mechanisation class, inherited from [regions_full]; the other damaged row
-#'   there, Northern Mariana Islands (163), is not a polity, so this table has
-#'   no row to inherit it into. See [regions_full] (whep#855).
+#' - `region_labour_mech`: Labour mechanisation regional grouping, `"mech"`
+#'   or `"no_mech"`, inherited from [regions_full] (see there for the Angola
+#'   cell repaired in whep#855).
 #' @inheritSection regions_full Which regional groupings WHEP reads
 #' @source Compiled from [FAOSTAT](https://www.fao.org/faostat/), UN M49,
 #'   ILO, IEA, and other international statistical sources.
@@ -1103,24 +1226,20 @@
 #' - `region_labour`: Labour-focused region.
 #' - `region_labour_agg`: Aggregated labour region, one of `"SAA"`, `"LACA"`,
 #'   `"Europe"`, `"AUS"`, `"SE-Asia"`, `"MENA"`, `"FSU"`, `"NAME"` or `"RoW"`.
-#'   Northern Mariana Islands (code 163) instead holds `"Micronesia"`, its own
-#'   `region_UN_sub` value.
 #' - `region_labour_mech`: Labour mechanisation region, `"mech"` or
-#'   `"no_mech"`. Two cells hold a sub-region name instead -- Angola (code 7)
-#'   `"Middle Africa"` and Northern Mariana Islands (163) `"Micronesia"`, each
-#'   its own `region_labour`-family value -- which looks like a column shift in
-#'   the source spreadsheet. At code 163 the shift is two columns wide, since
-#'   `region_labour_agg` is damaged in the same row; Angola's
-#'   `region_labour_agg` is intact. Nothing here reads either column, so
-#'   nothing computes on the bad cells; which class each belongs in is not
-#'   recoverable from anything shipped with the package, and no public
-#'   taxonomy defines this mechanised/not-mechanised split, so they are pinned
-#'   in `test_region_classifications.R` rather than guessed at (whep#855).
-#'   Group agreement is suggestive but not deductive: the other eight
-#'   `region_labour == "Middle Africa"` rows are all `"no_mech"` and the other
-#'   eight `region_UN_sub == "Micronesia"` rows are all `"mech"`, yet the
-#'   column is not a function of either grouping -- `"Pacific"`, `"FSU"` and
-#'   `"South America - South Cone"` each split across both classes.
+#'   `"no_mech"`. Three cells held the row's UN M49 region name instead of
+#'   a class, in the source spreadsheet too: Angola (code 7)
+#'   `region_labour_mech` `"Middle Africa"`, and Northern Mariana Islands
+#'   (163) `"Micronesia"` in both `region_labour_agg` and
+#'   `region_labour_mech`. They were filled with the class every other member
+#'   of that region carries: Angola `"no_mech"` (the other eight Middle
+#'   Africa countries), Northern Mariana Islands `"mech"` and `"AUS"` (the
+#'   other Micronesia rows, all `"mech"` and all `"AUS"` except the US Minor
+#'   Outlying Islands, `"NAME"`). The column is not strictly a function of
+#'   region -- `"Pacific"`, `"FSU"` and `"South America - South Cone"` each
+#'   split across both classes -- so this is a region-analogy fill, not a
+#'   recovered source value (whep#855). Nothing in the package reads either
+#'   column.
 #' @section Which regional groupings WHEP reads:
 #' The grouping columns are not all inputs to this package. Six have a consumer
 #' in the tree, measured over `R/`, `data-raw/`, `tests/`, `vignettes/` and
@@ -1278,7 +1397,7 @@
 #'   builder enforces.
 #'
 #' @source Eurostat dissemination API
-#'   (<https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1>), dataflows
+#'   ([API guide](https://ec.europa.eu/eurostat/web/user-guides/data-browser/api-data-access/api-getting-started/sdmx2.1)), dataflows
 #'   `apro_cpshr`, `apro_cpnhr_h`, `apro_mt_ls_r` and `ef_lsk_poultry`; IBGE
 #'   SIDRA aggregate metadata
 #'   (<https://servicodados.ibge.gov.br/api/v3/agregados>), tables 5457,

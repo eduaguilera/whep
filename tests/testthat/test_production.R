@@ -90,7 +90,9 @@ testthat::test_that("get_primary_production(example = TRUE) needs no remote", {
 # "Tanzania" is the opposite case and the one the pin really carries: no
 # canonical area name, but a polity alias, so it exercises the recovery route.
 # The crop is a pulse, not a cereal: cereal residue is recomputed from
-# production (whep#1448), every other crop's is read from the pin.
+# production (whep#1448). So are pulses by default (whep#1518), so these tests
+# select `non_cereal_residue = "pin"`, the path every crop with no IPCC line
+# takes.
 residues_pin_fixture <- function() {
   tibble::tribble(
     ~Area,         ~Product_residue, ~Item_cbs,             ~Prod_ygpit_Mg,
@@ -124,7 +126,9 @@ testthat::test_that("get_primary_residues aggregates residues on codes", {
   })
 
   testthat::expect_warning(
-    out <- suppressMessages(whep::get_primary_residues()),
+    out <- suppressMessages(whep::get_primary_residues(
+      non_cereal_residue = "pin"
+    )),
     "resolved to no area"
   )
 
@@ -163,7 +167,7 @@ testthat::test_that("get_primary_residues ignores NA rows within a group", {
       )
   })
 
-  out <- whep::get_primary_residues()
+  out <- whep::get_primary_residues(non_cereal_residue = "pin")
 
   spain <- out |> dplyr::filter(area_code == 203L)
   # The valid 100-tonne row must survive; only the NA sibling is ignored.
@@ -200,7 +204,7 @@ testthat::test_that("get_primary_residues converts each crop's residue to DM", {
   straw_rate <- pin_recovery_rate("Pulses", "West Europe")
   other_rate <- pin_recovery_rate("Permanent crops", "West Europe")
 
-  out <- whep::get_primary_residues()
+  out <- whep::get_primary_residues(non_cereal_residue = "pin")
 
   straw <- out[out$item_cbs_code_residue == 2105, ]
   testthat::expect_equal(straw$value, 100 / straw_rate)
@@ -230,7 +234,7 @@ testthat::test_that("get_primary_residues keeps a missing DM content visible", {
   })
 
   testthat::expect_warning(
-    out <- whep::get_primary_residues(),
+    out <- whep::get_primary_residues(non_cereal_residue = "pin"),
     "no residue dry-matter content"
   )
   # The fresh mass is kept whole; the dry matter is NA, not a silent partial
@@ -247,7 +251,9 @@ testthat::test_that("get_primary_residues aborts without name_biomass", {
     dplyr::select(residues_pin_fixture(), -"Name_biomass")
   })
   testthat::expect_error(
-    suppressMessages(suppressWarnings(whep::get_primary_residues())),
+    suppressMessages(suppressWarnings(whep::get_primary_residues(
+      non_cereal_residue = "pin"
+    ))),
     "name_biomass"
   )
 })
@@ -257,7 +263,9 @@ testthat::test_that("get_primary_residues keeps unresolved areas visible", {
     residues_pin_fixture()
   })
 
-  out <- suppressMessages(suppressWarnings(whep::get_primary_residues()))
+  out <- suppressMessages(suppressWarnings(whep::get_primary_residues(
+    non_cereal_residue = "pin"
+  )))
 
   # The row whose area label did not resolve is reported, not dropped, so the
   # gap stays visible downstream instead of silently shrinking the totals.
@@ -287,7 +295,9 @@ testthat::test_that("get_primary_residues resolves a short-form area label", {
     residues_pin_fixture()
   })
 
-  out <- suppressMessages(suppressWarnings(whep::get_primary_residues()))
+  out <- suppressMessages(suppressWarnings(whep::get_primary_residues(
+    non_cereal_residue = "pin"
+  )))
 
   tanzania <- out |> dplyr::filter(area_code == 215L)
   testthat::expect_equal(nrow(tanzania), 1)
@@ -365,7 +375,9 @@ testthat::test_that("get_primary_residues undoes the recovery the pin carries", 
       dplyr::mutate(Year = 2000L, Product_residue = "Residue")
   })
 
-  out <- suppressMessages(whep::get_primary_residues())
+  out <- suppressMessages(whep::get_primary_residues(
+    non_cereal_residue = "pin"
+  ))
 
   spain <- out[out$area_code == 203L, ]
   tanzania <- out[out$area_code == 215L, ]
@@ -398,7 +410,7 @@ testthat::test_that("get_primary_residues refuses a pin row it cannot undo", {
     pin("Unobtainium", 10)
   })
   testthat::expect_error(
-    whep::get_primary_residues(),
+    whep::get_primary_residues(non_cereal_residue = "pin"),
     class = "whep_residue_pin_recovery"
   )
   # A positive residue where the predecessor's rate is 0: the pin cannot have
@@ -407,14 +419,14 @@ testthat::test_that("get_primary_residues refuses a pin row it cannot undo", {
     pin("Potatoes", 10)
   })
   testthat::expect_error(
-    whep::get_primary_residues(),
+    whep::get_primary_residues(non_cereal_residue = "pin"),
     class = "whep_residue_pin_recovery"
   )
   local_mocked_bindings(whep_read_file = function(name, ...) {
     dplyr::select(pin("Wheat", 10), -"Item_prod")
   })
   testthat::expect_error(
-    whep::get_primary_residues(),
+    whep::get_primary_residues(non_cereal_residue = "pin"),
     class = "whep_residue_pin_recovery"
   )
 })

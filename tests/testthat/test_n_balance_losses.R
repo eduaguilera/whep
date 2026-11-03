@@ -583,7 +583,8 @@ testthat::test_that("ipcc2019_atl_med reproduces the former ipcc2019 output", {
     0.25900000000000001
   )
   out <- whep::calculate_soil_n2o(x, method = "ipcc2019_atl_med")
-  testthat::expect_identical(out$n2o_direct_n_t, golden)
+  # Tolerance, not identical: macOS arm64 differs in the last bit.
+  testthat::expect_equal(out$n2o_direct_n_t, golden, tolerance = 1e-12)
   testthat::expect_true(all(out$method_soil_n2o == "ipcc2019_atl_med"))
 })
 
@@ -1206,12 +1207,13 @@ testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") applies F
   # Section 11.2.2.2, p. 11.25: FracLEACH-(H) 0.24 in wet climates and in
   # dry climates under irrigation other than drip (all irrigation counts as
   # non-drip), zero in dry climates otherwise. EF5 0.011 (Table 11.3).
+  # Eq. 11.10 applies it to the N added (100 t), not the surplus (60 t).
   x <- tibble::tribble(
-    ~n_surplus_t, ~moisture_regime, ~water_regime,
-    100, "wet", "rainfed",
-    100, "wet", "irrigated",
-    100, "dry", "irrigated",
-    100, "dry", "rainfed"
+    ~n_surplus_t, ~n_input_for_n2o_t, ~moisture_regime, ~water_regime,
+    60, 100, "wet", "rainfed",
+    60, 100, "wet", "irrigated",
+    60, 100, "dry", "irrigated",
+    60, 100, "dry", "rainfed"
   )
   out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")
 
@@ -1220,12 +1222,12 @@ testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") applies F
   # denitrify either: it is booked as retained in the profile.
   testthat::expect_equal(
     out$denitrification_n_t,
-    c(76, 76, 76, 0),
+    c(36, 36, 36, 0),
     tolerance = 1e-12
   )
   testthat::expect_equal(
     out$retained_profile_n_t,
-    c(0, 0, 0, 100),
+    c(0, 0, 0, 60),
     tolerance = 1e-12
   )
   testthat::expect_equal(
@@ -1249,8 +1251,89 @@ testthat::test_that("calculate_n_leaching(method = \"ipcc_fracleach\") applies F
   )
 })
 
-testthat::test_that("ipcc_fracleach needs no water regime on wet rows", {
+testthat::test_that("ipcc_fracleach caps leaching at the surplus and says so", {
+  x <- tibble::tribble(
+    ~n_surplus_t, ~n_input_for_n2o_t, ~moisture_regime, ~water_regime,
+    10, 100, "wet", "rainfed",
+    0, 50, "dry", "irrigated",
+    30, 100, "wet", "rainfed",
+    5, 100, "dry", "rainfed"
+  )
+  out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")
+
+  testthat::expect_equal(out$no3_n_t, c(10, 0, 24, 0), tolerance = 1e-12)
+  testthat::expect_true(all(out$denitrification_n_t >= 0))
+  testthat::expect_equal(
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    out$n_surplus_t,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    out$method_leaching,
+    c(
+      "ipcc_fracleach_wet_capped_surplus",
+      "ipcc_fracleach_dry_irrigated_capped_surplus",
+      "ipcc_fracleach_wet",
+      "ipcc_fracleach_dry_rainfed_retained"
+    )
+  )
+})
+
+testthat::test_that("ipcc_fracleach refuses to run without the N added", {
   x <- tibble::tribble(~n_surplus_t, ~moisture_regime, 100, "wet")
+  testthat::expect_error(
+    whep::calculate_n_leaching(x, method = "ipcc_fracleach"),
+    class = "whep_missing_n_added"
+  )
+  # Read as zero, a missing N added leaches nothing and the partition still
+  # closes (100 = 0 leached + 100 denitrified), so the identity cannot see it.
+  vacuous <- tibble::tribble(
+    ~n_surplus_t, ~n_input_for_n2o_t, ~moisture_regime,
+    100, 0, "wet"
+  ) |>
+    whep::calculate_n_leaching(method = "ipcc_fracleach")
+  expect_supplied_guard(
+    identity = isTRUE(all.equal(
+      vacuous$no3_n_t + vacuous$denitrification_n_t,
+      vacuous$n_surplus_t
+    )),
+    guard = whep::calculate_n_leaching(
+      tibble::tribble(
+        ~n_surplus_t, ~n_input_for_n2o_t, ~moisture_regime,
+        100, NA_real_, "wet"
+      ),
+      method = "ipcc_fracleach"
+    )
+  )
+})
+
+testthat::test_that("fracleach_surplus keeps the surplus basis selectable", {
+  x <- tibble::tribble(
+    ~n_surplus_t, ~n_input_for_n2o_t, ~moisture_regime, ~water_regime,
+    100, 500, "wet", "rainfed",
+    100, 500, "dry", "rainfed"
+  )
+  out <- whep::calculate_n_leaching(x, method = "fracleach_surplus")
+
+  testthat::expect_equal(out$no3_n_t, c(24, 0), tolerance = 1e-12)
+  testthat::expect_equal(out$denitrification_n_t, c(76, 0), tolerance = 1e-12)
+  testthat::expect_equal(out$retained_profile_n_t, c(0, 100), tolerance = 1e-12)
+  testthat::expect_equal(
+    out$method_leaching,
+    c("fracleach_surplus_wet", "fracleach_surplus_dry_rainfed_retained")
+  )
+  # The surplus basis needs no N added.
+  testthat::expect_no_error(whep::calculate_n_leaching(
+    dplyr::select(x, -"n_input_for_n2o_t"),
+    method = "fracleach_surplus"
+  ))
+})
+
+testthat::test_that("ipcc_fracleach needs no water regime on wet rows", {
+  x <- tibble::tribble(
+    ~n_surplus_t, ~n_input_for_n2o_t, ~moisture_regime,
+    100, 100, "wet"
+  )
   out <- whep::calculate_n_leaching(x, method = "ipcc_fracleach")
   testthat::expect_equal(out$no3_n_t, 24, tolerance = 1e-12)
 })
@@ -1302,7 +1385,12 @@ testthat::test_that("calculate_n_leaching example fixture is schema-complete", {
       "method_leaching"
     )
   )
-  inputs <- dplyr::select(out, "n_surplus_t", "moisture_regime")
+  inputs <- dplyr::select(
+    out,
+    "n_surplus_t",
+    "moisture_regime",
+    "n_input_for_n2o_t"
+  )
   testthat::expect_equal(
     whep::calculate_n_leaching(inputs, method = "ipcc_fracleach"),
     out
@@ -2220,7 +2308,8 @@ testthat::test_that("calculate_indirect_n2o_nh3 ipcc2019_atl_med reproduces the 
     0.048499999999999995
   )
   out <- whep::calculate_indirect_n2o_nh3(x, method = "ipcc2019_atl_med")
-  testthat::expect_identical(out$n2o_indirect_nh3_n_t, golden)
+  # Tolerance, not identical: macOS arm64 differs in the last bit.
+  testthat::expect_equal(out$n2o_indirect_nh3_n_t, golden, tolerance = 1e-12)
   testthat::expect_true(all(out$method_n2o_indirect_nh3 == "ipcc2019_atl_med"))
 })
 

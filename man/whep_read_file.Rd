@@ -15,7 +15,10 @@ whep_read_file(
 }
 \arguments{
 \item{file_alias}{Internal name of the requested file. You can find the
-possible values in the \code{alias} column of the \code{\link{whep_inputs}} dataset.}
+possible values in the \code{alias} column of the \code{\link{whep_inputs}} dataset.
+An alias whose \code{access} is \code{"restricted"} needs restricted access
+(\strong{restricted access}, see \code{\link[=whep_data_access_status]{whep_data_access_status()}}): it is read from the restricted board or the
+call aborts, and the result carries \code{data_access = "restricted"}.}
 
 \item{type}{The extension of the file that must be read. Possible values:
 \itemize{
@@ -192,13 +195,14 @@ WHEP ships the recovery rate and the regional ratio the predecessor used
 \code{\link[=get_primary_residues]{get_primary_residues()}} undoes the recovery exactly, dividing by the same
 rate, but cannot recompute the predecessor's residue from production. It
 then re-keys the regional ratio on Wirsenius's own region membership, and
-estimates cereal residue from the pin's production and harvested area
-instead of reading it (#1448).
+estimates cereal residue (#1448), and that of the non-cereal crops with
+their own IPCC Table 11.2 line (#1518), from the pin's production and
+harvested area instead of reading it.
 
 It is not a small input. The pin holds 7.63 Gt of recovered residue for
 2010 (Straw 3.60 Gt, Other crop residues 2.49 Gt, Firewood 1.54 Gt) and
-327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 8.73
-Gt (Straw 3.84 Gt, Other crop residues 3.14 Gt, Firewood 1.76 Gt) and 395
+327.7 Gt over 1961--2021, which \code{\link[=get_primary_residues]{get_primary_residues()}} turns into 7.64
+Gt (Straw 3.92 Gt, Other crop residues 2.82 Gt, Firewood 0.90 Gt) and 366
 Gt of residue produced. 3,998 of its 249,095 output rows carry \code{NA} polity
 columns because the pin is name-keyed.
 
@@ -215,8 +219,9 @@ straw scales with the field crop. The second is fodder, where the current
 build is close to twice the pin on every forage and silage item, the pin
 predating that work. Replacing the pin therefore means choosing a residue
 model, which is a science decision and not a refresh. For cereals that
-model is chosen by \code{get_primary_residues(cereal_residue = )}; it still
-runs on the pin's production.
+model is chosen by \code{get_primary_residues(cereal_residue = )}, and for the
+non-cereals with an IPCC line by \verb{non_cereal_residue =}; both still run on
+the pin's production.
 }
 
 \subsection{\code{bilateral_trade} is built by \code{\link[=build_detailed_trade]{build_detailed_trade()}}}{
@@ -242,6 +247,83 @@ balance carries: item 1293's unbacked tonnage, screened by
 \code{method_unbacked_quantity} (#1023), and three CBS names with no
 \code{item_cbs_code}. On the tonnes that do reach a trade matrix the two
 versions differ by 0.056\%. \code{.clean_bilateral_trade()} reads either schema.
+}
+}
+
+\section{Restricted access}{
+
+WHEP uses public data unless the caller explicitly chooses a restricted
+option, and it never switches between the two on its own. A restricted
+option is chosen in one of two ways:
+\itemize{
+\item by reading a restricted alias of \code{\link{whep_inputs}} with
+\code{\link[=whep_read_file]{whep_read_file()}};
+\item by picking a \verb{method =} or \verb{source =} value that is labelled
+\strong{restricted access} in the function's documentation. The default of
+such an argument is always a public option.
+}
+
+Choosing a restricted option without working access aborts with an error
+of class \code{whep_restricted_unavailable} (fields \code{input} and \code{reason}). It
+says why access failed (\code{not_configured}, \code{unauthorised}, \code{unreachable} or
+\code{missing}, when the board holds no such pin), how to set access up, and
+which public input the registry's \code{public_alternative} column suggests
+instead. That suggestion is advice only: nothing is read in its place.
+
+Data read from the restricted board carries a \code{data_access} column equal
+to \code{"restricted"} (or, for a file path, a \code{data_access} attribute), so its
+provenance stays visible downstream. Public inputs are returned unchanged.
+\subsection{Configuring access}{
+
+Set these environment variables in \verb{~/.Renviron} (not in a project
+\code{.Renviron}, which would hide every other \verb{WHEP_*} path):
+\itemize{
+\item \code{WHEP_RESTRICTED_BOARD}: the address of your copy of the restricted
+folder. Either your own WebDAV path,
+\verb{https://saco.csic.es/remote.php/dav/files/<login>/<folder>/} (saco >
+Files > Settings shows the WebDAV address), or the share link you were
+sent, \verb{https://saco.csic.es/s/<token>}, which is converted to its WebDAV
+form \verb{https://saco.csic.es/public.php/dav/files/<token>/}.
+\item \code{WHEP_RESTRICTED_SECRET}: for your own path, an app password (saco >
+Personal settings > Security > Create new app password); for a share
+link, the share's password.
+\item \code{WHEP_RESTRICTED_USER} (optional): your login. It is taken from the
+WebDAV path when unset, and is \code{anonymous} for a share link.
+}
+
+Requests carry \code{Authorization: Basic} and \code{X-Requested-With: XMLHttpRequest}; Nextcloud refuses share-link WebDAV without the latter.
+Credentials are read from the environment for each read or access check
+and never
+stored in any returned object or message.
+}
+
+\subsection{Republishing restricted data}{
+
+Data read from the restricted board also carries the attribute
+\code{whep_access = "restricted"}. Pin upload code calls
+\code{\link[=whep_assert_publishable]{whep_assert_publishable()}} before writing, which refuses data carrying
+either mark. The marks survive \code{dplyr::filter()} and \code{dplyr::mutate()},
+but a summary can drop both, so whoever publishes derived data must check
+that no restricted input fed it.
+}
+
+\subsection{Offering a restricted option (for package authors)}{
+
+A function argument that offers a restricted option must:
+\itemize{
+\item keep a public option as its default;
+\item label the restricted value in its \verb{@param} with the phrase from
+\code{.restricted_label()}, written as an inline roxygen R expression, which
+renders as "(\strong{restricted access}, see \code{\link[=whep_data_access_status]{whep_data_access_status()}})";
+\item inherit this section with
+\verb{@inheritSection whep_data_access_status Restricted access};
+\item validate the argument with \code{.arg_match_access()}, whose error names the
+restricted values as such;
+\item read the data through \code{\link[=whep_read_file]{whep_read_file()}}, which aborts when access fails
+and records \code{data_access};
+\item record the chosen method in a \verb{method_<quantity>} column, as for any
+other method choice.
+}
 }
 }
 

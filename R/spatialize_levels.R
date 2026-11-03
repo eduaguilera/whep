@@ -220,7 +220,10 @@
 #' at this depth aborts with class `whep_level_container_not_admitted` rather
 #' than returning a grid that silently lacks it.
 #'
-#' @return A `tibble` with `lon`, `lat`, `area_code` (integer, the container's
+#' @return With `geographic_key = "polity"`, a `tibble` with `polity_code`,
+#'   `lon`, `lat`, `start_year`, `end_year`, `cell_area_ha`, `land_area_ha`
+#'   and `cell_area_frac`. Source numeric codes are not used or returned.
+#'   Otherwise a `tibble` with `lon`, `lat`, `area_code` (integer, the container's
 #'   reporting code), `level_polity_code` (character, `NA` at level 0),
 #'   `level` (integer), `cell_area_frac`, `polycell_id`, `start_year`,
 #'   `end_year`, `cell_area_ha` and `land_area_ha`. At level 0 with
@@ -228,6 +231,15 @@
 #'   returns are passed through unchanged; with `"year_aware"` those six
 #'   arrive alongside `start_year` and `end_year`.
 #'
+#' @param geographic_key Geographic identity for the level-0 year-aware read.
+#'   `"polity"` retains each supplied `polity_code`, including territories
+#'   without a FAOSTAT code. It neither folds source codes nor assigns land
+#'   to modern owners. `"reporting_area"` retains the legacy interface for
+#'   consumers not yet migrated. Polity mode requires explicit validity
+#'   intervals and a partition without duplicate or measured excess claims.
+#'   It cannot establish absence of geometric overlap from area totals alone;
+#'   validate the source partition before supplying it. Use its result with
+#'   polity-keyed inputs to [build_gridded_landuse()].
 #' @seealso [build_allocation_layer()], [read_polycell_support()].
 #' @export
 #'
@@ -284,7 +296,8 @@ read_level_country_grid <- function(
   reference_year = NULL,
   grid_vintage = c("year_aware", "snapshot_2015"),
   containers = NULL,
-  double_claim = c("co_presence", "measured")
+  double_claim = c("co_presence", "measured"),
+  geographic_key = c("reporting_area", "polity")
 ) {
   level <- .check_grid_level(level)
   containers <- .level_check_containers(containers)
@@ -295,6 +308,19 @@ read_level_country_grid <- function(
   # something to report, never to change what it returns.
   vintage_given <- length(grid_vintage) == 1L
   grid_vintage <- rlang::arg_match(grid_vintage)
+  geographic_key <- rlang::arg_match(geographic_key)
+  if (geographic_key == "polity") {
+    return(.read_polity_grid(
+      support,
+      reference_year,
+      list(
+        level = level,
+        vintage = grid_vintage[[1L]],
+        containment = containment,
+        containers = containers
+      )
+    ))
+  }
   if (level == 0L) {
     .refuse_level0_containers(containers)
     return(.level0_country_grid(

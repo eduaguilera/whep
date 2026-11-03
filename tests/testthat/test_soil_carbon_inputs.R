@@ -655,14 +655,8 @@ test_that(".sci_manure_crop_layer emits the manure-engine crops contract", {
   testthat::expect_equal(crop15$crop_area_ha, 40)
 })
 
-# The only two pin-backed reads in .sci_read_manure() are its default inputs,
-# get_primary_production() and get_wide_cbs(). Both are stubbed here, so the
-# turnkey wiring is exercised offline on a fixture: everything downstream of
-# the two readers -- feed demand, national redistribution, excretion, manure
-# allocation and the crop layer -- runs for real. Doing this on real data
-# instead needs the network and builds the full 1850-2023 series to keep one
-# year (get_wide_cbs() takes no year argument), which cost >16 GB and broke the
-# r-universe check; the year-scoping fix is tracked in #367.
+# Stub production, CBS and residue readers so the turnkey manure chain runs
+# offline. Demand, allocation, excretion and the crop layer run for real.
 
 # A herd large enough to excrete, the CBS feed that sustains it, and the
 # harvested-area rows the crop layer allocates that manure onto. `area` must be
@@ -694,11 +688,20 @@ test_that(".sci_manure_crop_layer emits the manure-engine crops contract", {
   )
 }
 
+# Preserve the reader's public defaults: the soil model reads its cereal
+# method from that signature even when this offline fixture supplies the data.
+.sci_turnkey_residues <- function(...) {
+  whep:::.example_get_primary_residues()
+}
+
 test_that(".sci_read_manure wires the turnkey chain to cropland applied_c", {
   area <- .sci_manure_turnkey_area()
+  residues <- .sci_turnkey_residues
+  formals(residues) <- formals(whep::get_primary_residues)
   testthat::local_mocked_bindings(
     get_primary_production = function(...) .sci_manure_turnkey_prod(area),
-    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area)
+    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area),
+    get_primary_residues = residues
   )
   applied <- suppressWarnings(suppressMessages(
     whep:::.sci_read_manure(years = 1970L)
@@ -720,7 +723,7 @@ test_that(".sci_bedding_supply traces the cereal straw bedding (whep#1005)", {
   destinies <- suppressWarnings(
     prod |>
       whep:::.sci_crop_prod_wide() |>
-      whep::calculate_crop_npp() |>
+      whep:::.sci_crop_npp() |>
       whep::calculate_residue_destinies(method = "recovery_regional")
   )
   out <- suppressWarnings(whep:::.sci_bedding_supply(prod))
@@ -736,9 +739,12 @@ test_that(".sci_bedding_supply traces the cereal straw bedding (whep#1005)", {
 
 test_that(".sci_read_manure beds the housed manure by default", {
   area <- .sci_manure_turnkey_area()
+  residues <- .sci_turnkey_residues
+  formals(residues) <- formals(whep::get_primary_residues)
   testthat::local_mocked_bindings(
     get_primary_production = function(...) .sci_manure_turnkey_prod(area),
-    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area)
+    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area),
+    get_primary_residues = residues
   )
   seen <- NULL
   testthat::local_mocked_bindings(
@@ -825,6 +831,36 @@ testthat::test_that("the input C:N is formed from matched carbon and nitrogen", 
   per_ha <- whep:::.sci_per_hectare(out)
   # 1100 / 30, NOT 1300 / 30.
   testthat::expect_equal(per_ha$input_cn, 1100 / 30)
+})
+
+testthat::test_that("the layer carries the residue, root and input nitrogen per hectare", {
+  # The regime split re-forms each part's input C:N from its own residue and
+  # root, so the layer has to say how much of the input nitrogen is theirs.
+  # A component whose nitrogen is unknown stays unknown, not zero.
+  gridded <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2000L,
+    crop_area_ha = 10,
+    input_type = c("crop_residue", "root", "manure"),
+    c_mass_mg = c(800, 200, 300),
+    n_mass_mg = c(10, NA, 20)
+  )
+  keys <- c("lon", "lat", "area_code", "item_prod_code", "year")
+  out <- whep:::.sci_sum_components(gridded, keys) |>
+    whep:::.sci_per_hectare() |>
+    whep:::.sci_humified_fraction(keys, whep::residue_humification)
+  testthat::expect_equal(out$residue_n_mgn_ha_yr, 1)
+  testthat::expect_true(is.na(out$root_n_mgn_ha_yr))
+  testthat::expect_equal(out$input_n_mgn_ha_yr, 3)
+  # The input C:N is still the matched ratio, now readable from the layer.
+  testthat::expect_equal(out$input_cn, 1100 / 30)
+  testthat::expect_equal(
+    out$input_cn * out$input_n_mgn_ha_yr,
+    (800 + 300) / 10
+  )
 })
 
 testthat::test_that("components with no nitrogen at all give an absent ratio", {
@@ -1455,15 +1491,15 @@ testthat::test_that("the default runs the engine on the carbon support", {
   testthat::expect_identical(reads, 1L)
 })
 
-testthat::test_that("the engine's national table is folded onto the support's bucket", {
+testthat::test_that("the engine refuses a shared bucket and keeps source territories", {
   # Sudan (276) and South Sudan (277) report separately, but the carbon
-  # support is keyed on their shared bucket 206. Unfolded, neither finds a
-  # cell and the crop never reaches the grid.
+  # support cannot assign either observation to its territory using only
+  # their shared bucket 206. Reject that support instead of pooling totals.
   inputs <- list(
     country_areas = tibble::tribble(
       ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-      2010L, 276L,       15L,             30,
-      2010L, 277L,       15L,             10
+      2015L, 276L,       15L,             30,
+      2015L, 277L,       15L,             10
     ),
     crop_patterns = tibble::tribble(
       ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
@@ -1472,8 +1508,8 @@ testthat::test_that("the engine's national table is folded onto the support's bu
     ),
     gridded_cropland = tibble::tribble(
       ~lon,  ~lat,  ~year, ~cropland_ha,
-      30.25, 10.25, 2010L, 100,
-      30.75, 10.25, 2010L, 100
+      30.25, 10.25, 2015L, 100,
+      30.75, 10.25, 2015L, 100
     )
   )
   support <- tibble::tribble(
@@ -1481,7 +1517,162 @@ testthat::test_that("the engine's national table is folded onto the support's bu
     30.25, 10.25, 206L,       1,
     30.75, 10.25, 206L,       1
   )
-  out <- suppressMessages(whep:::.sci_engine_crops(2010L, support, inputs))
-  testthat::expect_setequal(out$area_code, 206L)
-  testthat::expect_equal(sum(out$rainfed_ha + out$irrigated_ha), 40)
+  testthat::expect_error(
+    whep:::.sci_engine_crops(2015L, support, inputs),
+    class = "whep_crop_allocation_identity"
+  )
+  support$area_code <- c(276L, 277L)
+  out <- suppressMessages(whep:::.sci_engine_crops(2015L, support, inputs)) |>
+    dplyr::arrange(.data$area_code)
+  testthat::expect_identical(out$area_code, c(276L, 277L))
+  testthat::expect_equal(out$rainfed_ha + out$irrigated_ha, c(30, 10))
+})
+
+# -- The commodity balance's straw (whep#1519) ---------------------------------
+
+# Wheat and rice (cereals) and soybean (not), as get_primary_production()
+# carries them: rice on a milled-equivalent basis.
+.sci_cbs_straw_fixture <- function() {
+  tibble::tribble(
+    ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
+    ~year, ~unit, ~value,
+    203L, 15, 2511L, NA, 2010L, "tonnes", 100,
+    203L, 15, 2511L, NA, 2010L, "ha", 40,
+    203L, 27, 2807L, NA, 2010L, "tonnes", 67,
+    203L, 27, 2807L, NA, 2010L, "ha", 20,
+    203L, 236, 2555L, NA, 2010L, "tonnes", 60,
+    203L, 236, 2555L, NA, 2010L, "ha", 20
+  )
+}
+
+testthat::test_that("the soil chain prices cereal straw as the CBS does", {
+  wide <- whep:::.sci_crop_prod_wide(.sci_cbs_straw_fixture())
+  out <- whep:::.sci_crop_npp(wide)
+  by_crop <- function(d, code) d[d$item_prod_code == code, ]
+  # The CBS's cereal method, read from get_primary_residues()'s default so
+  # the two sides cannot drift apart again.
+  testthat::expect_identical(whep:::.cbs_cereal_residue_method(), "ipcc")
+  wheat <- whep::calculate_crop_residues(
+    by_crop(wide, "15"),
+    method = "ipcc"
+  )
+  testthat::expect_equal(by_crop(out, "15")$residue_dm_t, wheat$residue_dm_t)
+  testthat::expect_identical(by_crop(out, "15")$method_residue, "ipcc")
+  # Rice reaches the IPCC line per tonne of paddy: the milled 67 t are the
+  # paddy 100 t times the 0.67 extraction rate get_primary_production() took.
+  rice <- by_crop(wide, "27") |>
+    dplyr::mutate(production_t = 100) |>
+    whep::calculate_crop_residues(method = "ipcc")
+  testthat::expect_equal(by_crop(out, "27")$residue_dm_t, rice$residue_dm_t)
+  # Non-cereals are not the CBS's cereal line: they keep the ensemble.
+  soy <- whep::calculate_crop_residues(by_crop(wide, "236"))
+  testthat::expect_equal(by_crop(out, "236")$residue_dm_t, soy$residue_dm_t)
+  testthat::expect_identical(by_crop(out, "236")$method_residue, "ensemble")
+})
+
+testthat::test_that("soil-returned cereal residue C follows the CBS straw", {
+  prod <- .sci_cbs_straw_fixture()
+  out <- suppressWarnings(whep:::.sci_npp_from_primary_prod(prod))
+  wide <- whep:::.sci_crop_prod_wide(prod) |>
+    dplyr::mutate(
+      production_t = dplyr::if_else(
+        .data$item_prod_code == "27",
+        .data$production_t / 0.67,
+        .data$production_t
+      )
+    )
+  # The product goes back to milled rice; only straw and root are on paddy.
+  milled <- function(d) {
+    rice <- d$item_prod_code == "27"
+    d$product_dm_t[rice] <- d$product_dm_t[rice] * 0.67
+    d
+  }
+  expected <- dplyr::bind_rows(
+    wide |>
+      dplyr::filter(.data$item_prod_code != "236") |>
+      whep::calculate_crop_npp(residue_method = "ipcc") |>
+      milled(),
+    wide |>
+      dplyr::filter(.data$item_prod_code == "236") |>
+      whep::calculate_crop_npp()
+  ) |>
+    whep::calculate_residue_destinies(method = "recovery_regional") |>
+    whep::calculate_npp_carbon_nitrogen() |>
+    suppressWarnings() |>
+    dplyr::arrange(.data$item_prod_code)
+  out <- dplyr::arrange(out, .data$item_prod_code)
+  testthat::expect_equal(out$residue_soil_c_t, expected$residue_soil_c_t)
+  testthat::expect_equal(out$residue_soil_n_t, expected$residue_soil_n_t)
+  testthat::expect_equal(out$root_c_t, expected$root_c_t)
+})
+
+testthat::test_that("rice grain stays milled, its straw priced on paddy", {
+  wide <- whep:::.sci_crop_prod_wide(.sci_cbs_straw_fixture())
+  rice_in <- wide[wide$item_prod_code == "27", ]
+  out <- whep:::.sci_crop_npp(wide)
+  rice <- out[out$item_prod_code == "27", ]
+  plain <- whep::calculate_crop_npp(rice_in, residue_method = "ipcc")
+  # The product is the 67 t of milled rice get_primary_production() books.
+  testthat::expect_equal(rice$production_t, 67)
+  testthat::expect_equal(rice$product_dm_t, plain$product_dm_t)
+  testthat::expect_equal(rice$yield_dm_t_ha, plain$yield_dm_t_ha)
+  # The straw is not: a 100 t paddy harvest leaves more of it.
+  testthat::expect_gt(rice$residue_dm_t, plain$residue_dm_t)
+  testthat::expect_equal(
+    rice$crop_npp_dm_t,
+    rice$product_dm_t + rice$residue_dm_t + rice$root_dm_t
+  )
+})
+
+testthat::test_that("soil input years are checked before normalization", {
+  purrr::walk(list(2020.5, NA_real_, Inf, 1e20, "2020"), \(yr) {
+    data <- .sci_fixture_data_with_area()
+    data$npp$year <- yr
+    testthat::expect_error(
+      .sci_static(resolution = "polity", data = data),
+      class = "whep_crop_allocation_year"
+    )
+    data <- .sci_fixture_data_with_area()
+    data$manure$year <- yr
+    testthat::expect_error(
+      .sci_static(resolution = "polity", data = data),
+      class = "whep_crop_allocation_year"
+    )
+    data <- .sci_fixture_data_with_area()
+    data$harvested_area$year <- yr
+    testthat::expect_error(
+      .sci_static(resolution = "polity", data = data),
+      class = "whep_crop_allocation_year"
+    )
+    testthat::expect_error(
+      .sci_static(
+        years = yr,
+        resolution = "polity",
+        data = .sci_fixture_data_with_area()
+      ),
+      class = "whep_crop_allocation_year"
+    )
+  })
+})
+
+testthat::test_that("primary crop reshaping rejects invalid annual keys", {
+  primary <- .sci_primary_prod_fixture()
+  primary$year <- 2020.5
+  testthat::expect_error(
+    whep:::.sci_harvested_area(primary),
+    class = "whep_crop_allocation_year"
+  )
+  testthat::expect_error(
+    whep:::.sci_crop_prod_wide(primary),
+    class = "whep_crop_allocation_year"
+  )
+})
+
+testthat::test_that("supplied grid years are checked before year filtering", {
+  data <- .sci_two_year_data()
+  data$gridded_crops$year[1] <- 2020.5
+  testthat::expect_error(
+    .sci_crop_area_build(resolution = "grid", data = data),
+    class = "whep_crop_allocation_year"
+  )
 })

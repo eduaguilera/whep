@@ -32,6 +32,11 @@
   whep:::.classify_moisture_regime(data, ...)
 }
 
+# The precipitation-plus-irrigation water term, no longer the default (#1531).
+.mr_classify_irrig <- function(data, ...) {
+  .mr_classify(data, ..., water = "precip_irrig")
+}
+
 .mr_value <- function(result, column, at_year) {
   result |>
     dplyr::filter(year == at_year) |>
@@ -68,20 +73,20 @@ testthat::test_that("the output carries the documented columns", {
   testthat::expect_equal(nrow(result), 6L)
 })
 
-testthat::test_that("the defaults are trailing_30 and precip_irrig", {
-  fixture <- .mr_panel() |>
-    dplyr::mutate(irrig_mm = 0)
-
-  result <- .mr_classify(fixture, years = 1935L)
-
+testthat::test_that("the defaults are trailing_30 and precip", {
+  # Issue #1531: precipitation alone is IPCC's definition, so the default
+  # needs no irrigation column, and a row holding one does not use it.
+  result <- .mr_classify(.mr_panel(), years = 1935L)
   testthat::expect_equal(
     result$method_moisture_regime,
-    "ipcc2019_wet_dry;trailing_30;precip_irrig"
+    "ipcc2019_wet_dry;trailing_30;precip"
   )
-  testthat::expect_error(
-    .mr_classify(.mr_panel(), years = 1935L),
-    class = "whep_moisture_regime_columns"
+  with_irrig <- .mr_classify(
+    dplyr::mutate(.mr_panel(), irrig_mm = 5000),
+    years = 1935L
   )
+  testthat::expect_equal(with_irrig$water_mm, result$water_mm)
+  testthat::expect_equal(with_irrig$moisture_regime, result$moisture_regime)
 })
 
 testthat::test_that("each row's ratio is its own water over its own PET", {
@@ -179,7 +184,7 @@ testthat::test_that("the edges hold on precipitation plus irrigation too", {
     1.75,  0.25, 2000L,     25,           0,      600,    2000,       401
   )
 
-  result <- .mr_classify(edges, window = "annual") |>
+  result <- .mr_classify_irrig(edges, window = "annual") |>
     dplyr::arrange(lon)
 
   testthat::expect_equal(result$water_mm, c(500, 501, 1000, 1001))
@@ -209,7 +214,7 @@ testthat::test_that("the edges hold on precipitation plus irrigation too", {
 }
 
 testthat::test_that("irrigation turns a dry irrigated row wet", {
-  with_irrig <- .mr_classify(.mr_regimes(), window = "annual") |>
+  with_irrig <- .mr_classify_irrig(.mr_regimes(), window = "annual") |>
     dplyr::arrange(water_regime)
   precip_only <- .mr_classify(
     .mr_regimes(),
@@ -242,7 +247,7 @@ testthat::test_that("rainfed irrigation is a structural zero, never a value", {
       irrig_mm = dplyr::if_else(water_regime == "rainfed", 50, irrig_mm)
     )
 
-  result <- .mr_classify(na_rainfed, window = "annual")
+  result <- .mr_classify_irrig(na_rainfed, window = "annual")
 
   testthat::expect_equal(
     .mr_value(dplyr::filter(result, water_regime == "rainfed"), irrig_mm, 2000),
@@ -250,7 +255,7 @@ testthat::test_that("rainfed irrigation is a structural zero, never a value", {
   )
   testthat::expect_false(anyNA(result$moisture_regime))
   testthat::expect_error(
-    .mr_classify(wet_rainfed, window = "annual"),
+    .mr_classify_irrig(wet_rainfed, window = "annual"),
     class = "whep_moisture_regime_domain"
   )
 })
@@ -617,7 +622,7 @@ testthat::test_that("an irrigated series needs irrigation every window year", {
   fixture <- dplyr::bind_rows(rainfed, irrigated)
 
   testthat::expect_message(
-    with_irrig <- .mr_classify(fixture, years = 2000L),
+    with_irrig <- .mr_classify_irrig(fixture, years = 2000L),
     class = "whep_moisture_regime_unclassified"
   )
   precip_only <- .mr_classify(fixture, years = 2000L, water = "precip")
@@ -646,7 +651,7 @@ testthat::test_that("irrigation is averaged per crop and regime", {
   fixture <- dplyr::bind_rows(rice, wheat) |>
     dplyr::mutate(water_regime = "irrigated")
 
-  result <- .mr_classify(fixture, years = 2000L) |>
+  result <- .mr_classify_irrig(fixture, years = 2000L) |>
     dplyr::arrange(item_cbs_code)
 
   testthat::expect_equal(result$irrig_mm, c(100, 900))
@@ -690,7 +695,7 @@ testthat::test_that("a separate record averages only the irrigated years", {
     irrig_mm = 100
   )
   testthat::expect_identical(
-    .mr_classify(
+    .mr_classify_irrig(
       climate,
       years = 2000L,
       irrigation = full
@@ -712,7 +717,7 @@ testthat::test_that("a held record year with no depth still fails closed", {
   )
 
   testthat::expect_message(
-    result <- .mr_classify(climate, years = 2000L, irrigation = record),
+    result <- .mr_classify_irrig(climate, years = 2000L, irrigation = record),
     class = "whep_moisture_regime_unclassified"
   )
   testthat::expect_true(is.na(result$moisture_regime))
@@ -725,7 +730,7 @@ testthat::test_that("a held record year with no depth still fails closed", {
     prec_mm = dplyr::if_else(year == 1975L, NA_real_, prec_mm)
   )
   testthat::expect_message(
-    holed_result <- .mr_classify(
+    holed_result <- .mr_classify_irrig(
       holed,
       years = 2000L,
       irrigation = dplyr::mutate(record, irrig_mm = 700)
@@ -840,6 +845,6 @@ testthat::test_that("an all-zero irrigation layer is refused", {
 
   expect_supplied_guard(
     identity = all(!is.na(vacuous$irrig_mm)),
-    guard = .mr_classify(vacuous, window = "annual")
+    guard = .mr_classify_irrig(vacuous, window = "annual")
   )
 })

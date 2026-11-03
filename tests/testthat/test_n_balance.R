@@ -311,7 +311,11 @@
     carbon_balance = .nb_carbon_balance(),
     primary_prod = .nb_primary_prod(),
     fertilizer = .nb_fertilizer(),
-    crop_patterns = .nb_crop_patterns(),
+    crop_allocation = .ca_static_allocation(
+      .nb_cell_polity(),
+      .nb_crop_patterns(),
+      .nb_type_cropland()
+    ),
     type_cropland = .nb_type_cropland(),
     residue_destiny_input = .nb_residue_destiny_input()
   )
@@ -591,6 +595,112 @@ testthat::test_that("the bedding supply is national, keyed on the territory", {
     c("year", "territory", "bedding_dm_t", "bedding_c_t", "bedding_n_t")
   )
   testthat::expect_identical(supply$territory, "10")
+})
+
+testthat::test_that("recycling and the residue removals read one destiny argument set", {
+  # The residue left on the field (recycled) and the residue that leaves it
+  # (used, bedding, burnt) are the two halves of one destiny split, so both
+  # paths must call it with the same method, recovery variant and bedding
+  # fraction.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  residue <- dplyr::mutate(
+    .nb_npp_input(),
+    region_krausmann = "Western Europe",
+    region_un_sub = "Western Europe"
+  )
+  data <- list(
+    npp_n_input = residue,
+    residue_destiny_input = residue,
+    residue_destiny_recovery = "wirsenius",
+    residue_bedding = "fraction",
+    residue_bedding_fraction = 0.3
+  )
+  calls <- list()
+  real <- whep::calculate_residue_destinies
+  testthat::local_mocked_bindings(
+    calculate_residue_destinies = function(x, ...) {
+      calls[[length(calls) + 1L]] <<- list(...)
+      real(x, ...)
+    },
+    .package = "whep"
+  )
+  npp <- whep:::.n_balance_npp(data)
+  row <- tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    item_cbs_code = 2511L,
+    year = 2010L,
+    n_input_full_t = 1
+  )
+  out <- whep:::.nb_add_residue_destiny(row, data, key)
+  testthat::expect_length(calls, 2L)
+  testthat::expect_identical(calls[[1]], calls[[2]])
+  testthat::expect_identical(calls[[1]]$recovery, "wirsenius")
+  testthat::expect_identical(calls[[1]]$bedding_fraction, 0.3)
+  testthat::expect_identical(calls[[1]]$method, "recovery_regional")
+  # What stays plus what leaves is the whole residue nitrogen.
+  testthat::expect_equal(
+    npp$residue_soil_n_t +
+      out$used_residue_n_t +
+      out$bedding_residue_n_t +
+      out$burnt_residue_n_t,
+    npp$residue_n_t
+  )
+  testthat::expect_gt(out$bedding_residue_n_t, 0)
+})
+
+testthat::test_that("the manure bedding reads the balance's one destiny split", {
+  # Recycling, the residue removals and the bedding that comes back as manure
+  # are read from one destiny split with one argument set, the recovery
+  # variant left at the package default. What stays plus what leaves is the
+  # gross residue N, and the bedded N that leaves the field is the bedded N
+  # the manure input brings back.
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  residue <- dplyr::mutate(
+    .nb_npp_input(),
+    region_krausmann = "Western Europe",
+    region_un_sub = "Western Europe"
+  )
+  data <- list(
+    npp_n_input = residue,
+    residue_destiny_input = residue,
+    residue_bedding = "fraction",
+    residue_bedding_fraction = 0.3
+  )
+  calls <- list()
+  real <- whep::calculate_residue_destinies
+  default <- eval(formals(real)$recovery)[[1]]
+  testthat::local_mocked_bindings(
+    calculate_residue_destinies = function(x, ...) {
+      calls[[length(calls) + 1L]] <<- list(...)
+      real(x, ...)
+    },
+    .package = "whep"
+  )
+  npp <- whep:::.n_balance_npp(data)
+  row <- dplyr::distinct(residue, dplyr::across(dplyr::all_of(key)))
+  out <- whep:::.nb_add_residue_destiny(row, data, key)
+  supply <- whep:::.ni_manure_bedding(data)
+
+  testthat::expect_length(calls, 3L)
+  testthat::expect_identical(calls[[1]], calls[[2]])
+  testthat::expect_identical(calls[[1]], calls[[3]])
+  testthat::expect_identical(calls[[1]]$recovery, default)
+  testthat::expect_gt(out$bedding_residue_n_t, 0)
+  testthat::expect_equal(
+    npp$residue_soil_n_t +
+      out$used_residue_n_t +
+      out$bedding_residue_n_t +
+      out$burnt_residue_n_t,
+    npp$residue_n_t,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    sum(supply$bedding_n_t),
+    sum(out$bedding_residue_n_t),
+    tolerance = 1e-12
+  )
 })
 
 testthat::test_that("bedded straw N is priced as applied manure, not as excreta", {
@@ -1516,12 +1626,32 @@ testthat::test_that("area_split replaces the yield share by the area share", {
 })
 
 testthat::test_that("the regime split aborts when no shares can be built", {
+  # A regime layer that covers none of the balance's cells: the real share
+  # path runs and builds nothing. The layer is supplied, so the default
+  # readers (the gridded crop areas and the country grid, both pins) are
+  # never reached; the pin reader is stubbed to abort under its own class
+  # so that a regression reaching one fails here instead of going online.
   testthat::local_mocked_bindings(
-    .nb_regime_shares = function(...) NULL,
+    whep_read_file = function(file_alias, ...) {
+      cli::cli_abort("Pin {.val {file_alias}} read.", class = "t_pin_read")
+    },
+    .download_pin_paths = function(file_alias, ...) {
+      cli::cli_abort("Pin {.val {file_alias}} read.", class = "t_pin_read")
+    },
     .package = "whep"
   )
+  data <- .nb_data_with_drivers()
+  data$regime_areas <- tibble::tibble(
+    lon = 100.25,
+    lat = -10.25,
+    area_code = 10L,
+    item_prod_code = 56L,
+    year = 2010L,
+    rainfed_ha = 50,
+    irrigated_ha = 50
+  )
   testthat::expect_error(
-    .nb_run_regime("yield_split"),
+    .nb_run_regime("yield_split", data = data),
     class = "whep_regime_shares_missing"
   )
 })
@@ -1604,8 +1734,11 @@ testthat::test_that("inputs and drivers keyed by the former urban names balance 
 testthat::test_that("the default manure source reproduces the pre-option balance", {
   # Written by the code before the manure-source option existed (whep main at
   # 5421973b), relabelled for the human-N rename; see test_n_balance_inputs.R.
-  # Held at the as-shipped EF3 it was written under (whep#601), and at the
-  # legacy residue feed share, which it predates (whep#1398).
+  # That code recycled the gross residue N; the recycling default is now the
+  # soil-returned residue, so the gross basis is asked for to keep this
+  # test's subject the manure source. Held at the as-shipped EF3 it was
+  # written under (whep#601), and at the legacy residue feed share, which it
+  # predates (whep#1398).
   golden <- readRDS(testthat::test_path(
     "fixtures",
     "n_inputs_default_golden.rds"
@@ -1617,6 +1750,7 @@ testthat::test_that("the default manure source reproduces the pre-option balance
   # predates the sourced bedding share (whep#1005), so it is reproduced under
   # the rule it was written with: no bedding.
   data <- .nb_data_with_drivers()
+  data$recycling_residue_basis <- "total_residue"
   data$methods <- list(losses = list(ef3_source = "as_shipped"))
   data$residue_feed_share <- "legacy"
   data$residue_bedding <- "fraction"
@@ -1625,7 +1759,8 @@ testthat::test_that("the default manure source reproduces the pre-option balance
       nh3 = "ipcc",
       n2o = "ipcc2019_atl_med",
       n2o_indirect = "ipcc2019_atl_med",
-      leaching = "ipcc_fracleach",
+      # The golden predates FracLEACH on the N added (whep#1535).
+      leaching = "fracleach_surplus",
       regime = "none"
     ),
     data = data
@@ -1634,7 +1769,7 @@ testthat::test_that("the default manure source reproduces the pre-option balance
   atl_med <- c("ipcc2019_atl_med", "ipcc2019_atl_med_no_loss_row")
   testthat::expect_true(all(out$method_soil_n2o %in% atl_med))
   testthat::expect_true(all(out$method_n2o_indirect_nh3 %in% atl_med))
-  testthat::expect_true(all(out$method_leaching == "ipcc_fracleach_wet"))
+  testthat::expect_true(all(out$method_leaching == "fracleach_surplus_wet"))
   # Added after the golden: the retained-in-profile term (zero on wet rows),
   # the drivers' provenance and the class the leaching drivers carry.
   testthat::expect_true(all(out$retained_profile_n_t == 0))
@@ -1956,15 +2091,19 @@ testthat::test_that("the ATL/MED options reproduce the former balance", {
   # method took the `ipcc2019` name (MED, so EF1 0.005 and the Rainfed ef on
   # NH3). FracLEACH 0.24 on every row then equals today's wet rows. The
   # golden also predates the sourced bedding share (whep#1005), so it is
-  # reproduced under the rule it was written with: no bedding.
+  # reproduced under the rule it was written with: no bedding, and it
+  # recycled the gross residue N.
   data <- .nb_data_with_drivers()
   data$methods <- list(losses = list(ef3_source = "as_shipped"))
   data$residue_feed_share <- "legacy"
   data$residue_bedding <- "fraction"
+  data$recycling_residue_basis <- "total_residue"
+  # It also predates FracLEACH on the N added (whep#1535).
   out <- .nb_run_methods(
     data = data,
     n2o = "ipcc2019_atl_med",
-    n2o_indirect = "ipcc2019_atl_med"
+    n2o_indirect = "ipcc2019_atl_med",
+    leaching = "fracleach_surplus"
   )
   testthat::expect_equal(
     sum(out$n2o_direct_n_t),
@@ -1981,6 +2120,20 @@ testthat::test_that("the ATL/MED options reproduce the former balance", {
   atl_med <- c("ipcc2019_atl_med", "ipcc2019_atl_med_no_loss_row")
   testthat::expect_true(all(out$method_soil_n2o %in% atl_med))
   testthat::expect_true(all(out$method_n2o_indirect_nh3 %in% atl_med))
+})
+
+testthat::test_that("ipcc_fracleach leaches 0.24 of the N added, capped at the surplus", {
+  out <- .nb_run_methods()
+  expected <- pmin(out$n_input_for_n2o_t * 0.24, out$surplus_t)
+  testthat::expect_equal(out$no3_n_t, expected, tolerance = 1e-9)
+  testthat::expect_true(any(out$no3_n_t > 0))
+  testthat::expect_true(any(out$no3_n_t < 0.24 * out$surplus_t))
+  testthat::expect_true(any(out$no3_n_t > 0.24 * out$surplus_t))
+  testthat::expect_equal(
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    out$surplus_t,
+    tolerance = 1e-9
+  )
 })
 
 testthat::test_that("the balance refuses loss drivers without a moisture regime", {
@@ -2016,14 +2169,19 @@ testthat::test_that("dry irrigated parts leach and dry rainfed parts do not", {
   data$n_balance_leaching_drivers$moisture_regime <- "dry"
   out <- .nb_run_methods(data, regime = "yield_split")
   irrigated <- out$water_regime == "irrigated"
+  # 0.24 of the N added (Eq. 11.10), capped at the surplus (whep#1535).
   testthat::expect_equal(
     out$no3_n_t[irrigated],
-    0.24 * out$surplus_t[irrigated],
+    pmin(0.24 * out$n_input_for_n2o_t, out$surplus_t)[irrigated],
     tolerance = 1e-12
   )
   testthat::expect_true(all(out$no3_n_t[!irrigated] == 0))
   testthat::expect_true(all(
-    out$method_leaching[irrigated] == "ipcc_fracleach_dry_irrigated"
+    out$method_leaching[irrigated] %in%
+      c(
+        "ipcc_fracleach_dry_irrigated",
+        "ipcc_fracleach_dry_irrigated_capped_surplus"
+      )
   ))
   testthat::expect_true(all(
     out$method_leaching[!irrigated] == "ipcc_fracleach_dry_rainfed_retained"
@@ -2835,4 +2993,10 @@ testthat::test_that("a grid balance builds its IMAGE-GNM drivers and closes", {
 
 testthat::test_that("the shared balance fixtures were never mutated", {
   expect_n_fixtures_untouched("nb_")
+})
+
+test_that("the balance's residue recovery default is the package's", {
+  default <- eval(formals(whep::calculate_residue_destinies)$recovery)[[1]]
+  args <- whep:::.nb_residue_destiny_args(list())
+  expect_identical(args$recovery, default)
 })

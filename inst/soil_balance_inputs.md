@@ -15,14 +15,13 @@ checks and `?`-examples run without any of these variables set.
 
 | Variable | Read by | Expected contents |
 |---|---|---|
-| `WHEP_LPJML_RUN_DIR` | `read_lpjml_hydrology()`, `read_lpjml_npp()`, `build_water_balance()` | An LPJmL run output directory holding the monthly NetCDFs: `mseepage.nc`, `mtransp.nc`, `mevap.nc`, `minterc.nc`, `mprec.nc`, `mrain.nc`, `mirrig.nc`, `mrunoff.nc`, `mdischarge.nc`, `mswc.nc`, `cft_nir.nc`. **See the year-coverage warning below.** |
+| `WHEP_LPJML_RUN_DIR` | `read_lpjml_hydrology()`, `read_lpjml_npp()`, `build_water_balance()` | An LPJmL run output directory holding the monthly NetCDFs: `mseepage.nc`, `mtransp.nc`, `mevap.nc`, `minterc.nc`, `mprec.nc`, `mrain.nc`, `mirrig.nc`, `mrunoff.nc`, `mrunoff_surf.nc`, `mrunoff_lat.nc` (the last two only for `build_water_balance(method = list(runoff = "surface_lateral"))`), `mdischarge.nc`, `mswc.nc`, `cft_nir.nc`. **See the year-coverage warning below.** |
 | `WHEP_CRU_DIR` | `read_cru_climate()` | A CRU TS directory with `cru_ts<version>.<years>.<var>.dat.nc` files (`tmp`, `pet`, `pre`, `tmn`, `tmx`, `frs`, …). Any CRU TS version is accepted; the newest present is used. |
 | `WHEP_HWSD_DIR` | `read_soil_ph()`, `read_soil_hydraulic()` | HWSD **v1.2** soil directory with `hwsd_data.csv` and `hwsd.bil`. The 2023 HWSD2 release is not wired (see #343). |
 | `WHEP_LUH2_DIR` | `read_luh2_landuse()` | **Optional** — without it the reference `states.nc` is downloaded from Zenodo and cached (see below). LUH2 directory with the gridded `states.nc` product (Hurtt et al. 2020). The base v2h release covers 850-2015; the annually-updated Global Carbon Budget variants extend further (the reference is LUH2-GCB2022, 850-2022), so check `states.nc`'s own time axis rather than assuming 2015. Whichever source is read, its vintage is recorded on the result, and an off-reference vintage warns — see below. Populate it with `inst/scripts/download/download_luh2.R`. |
 | `WHEP_HYDE_DIR` | `read_hyde_population()` | HYDE historical population directory. |
 | `WHEP_HANI_DIR` | `build_n_deposition()` | HaNi nitrogen-deposition directory. |
 | `WHEP_WIND_DIR` | `read_lpjml_wind()` | Directory with the consolidated monthly GSWP3-W5E5 wind forcing NetCDF, `wind_gswp3-w5e5_<span>_monthly.nc` (the `lpjml-wind-isimip-1901-2019` pin, placed there by `inst/scripts/download/download_climate.R`). Any span is accepted; the newest present is used, so an extended base needs no code change (#1069). The ERA5 companion pin in the same directory is a different grid and is not read here. |
-| `WHEP_CROP_PATTERNS_PATH` | `n_balance_spatialize.R` | Path to the crop-patterns grid. |
 | `WHEP_POLITY_FRACTION_PATH` | `build_cell_polity()` | **Optional override** — the per-cell polity-fraction grid is the `spatialize-cell-polity-fraction` pin, read by default (#694). Set this only to use a local producer build instead. |
 | `WHEP_TYPE_CROPLAND_PATH` | `n_balance_spatialize.R` | Path to the LUH2-type cropland grid. |
 

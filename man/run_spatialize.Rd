@@ -81,6 +81,11 @@ deep grid rather than from level 0. See \emph{What a granted depth runs}.
 \item \code{double_claim}: which clashes the depth read's double-claim gate
 refuses, \code{"co_presence"} (default) or \code{"measured"}, forwarded to
 \code{\link[=read_level_country_grid]{read_level_country_grid()}}. The default is the fail-closed rule.
+\item \code{geographic_key} (default \code{"reporting_area"}): use \code{"polity"} for
+inputs written by \code{\link[=prepare_polity_crop_inputs]{prepare_polity_crop_inputs()}}. Native mode requires
+landuse alone, level/output level zero, \code{area_key = "grid"},
+year-aware polycell geography and a prepared input directory. Its
+manifest and file checksums are verified before reading inputs.
 \item \code{output_level} (integer, default \code{0L}): grain of the crop output.
 \code{0L} sums granted-depth rows back onto the container, so
 \verb{(lon, lat, area_code, item_prod_code, year)} stays unique and the
@@ -154,6 +159,12 @@ historical year range present in \code{country_areas}.}
 }
 
 \section{Inputs read from \code{input_dir}}{
+
+Native polity mode reads \code{polity_country_areas.parquet} and
+\code{polity_country_grid.parquet} in place of the reporting-area files below.
+It requires \code{polity_input_manifest.json}, copies that manifest beside the
+outputs and records it in \code{run_metadata.yaml}. Source metadata is retained
+on crop output; CFT aggregates refer to that crop-level provenance.
 
 Landuse (\code{components} contains \code{"landuse"}):
 \itemize{

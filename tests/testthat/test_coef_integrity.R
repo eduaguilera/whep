@@ -87,3 +87,29 @@ test_that("crop -> residue item map uses straw / other-residue codes only", {
   testthat::expect_false(any(is.na(m$residue_item_cbs_code)))
   testthat::expect_true(all(m$residue_item_cbs_code %in% c(2105, 2106)))
 })
+
+test_that("fonio is a cereal, like the other minor cereals (issue #1521)", {
+  bio <- whep::whep_coef_table("bio_coefs") |>
+    dplyr::filter(item_prod_code %in% c("92", "94"))
+  fonio <- bio |> dplyr::filter(item_prod_code == "94")
+  quinoa <- bio |> dplyr::filter(item_prod_code == "92")
+  testthat::expect_equal(fonio$name_biomass, "Cereals nes")
+  testthat::expect_equal(fonio$product_dm_kgfm, quinoa$product_dm_kgfm)
+  testthat::expect_gt(fonio$product_dm_kgfm, 0.8)
+
+  ipcc <- whep::whep_coef_table("ipcc_crop_mapping") |>
+    dplyr::filter(item_prod_code == "94")
+  testthat::expect_equal(ipcc$ipcc_crop, "Other_cereals")
+  testthat::expect_equal(ipcc$crop_group, "Wheat")
+
+  full <- whep::items_prod_full |>
+    dplyr::filter(item_prod_code == "94")
+  quinoa_full <- whep::items_prod_full |>
+    dplyr::filter(item_prod_code == "92")
+  testthat::expect_equal(full$Name_biomass, "Cereals nes")
+  testthat::expect_equal(full$Cat_Ymax, quinoa_full$Cat_Ymax)
+
+  map <- whep::whep_coef_table("crop_residue_item_map") |>
+    dplyr::filter(item_prod_code == "94")
+  testthat::expect_equal(map$residue_item_cbs_code, 2105)
+})

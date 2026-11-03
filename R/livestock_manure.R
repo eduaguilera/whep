@@ -4,12 +4,12 @@
 #' Shared description of the `options` list the IPCC manure engine takes,
 #' documented once and inherited by the functions that accept it.
 #'
-#' @param options A named list of manure-engine options. All but nine
+#' @param options A named list of manure-engine options. All but ten
 #'   defaults reproduce the behaviour in force before whep#949. The exceptions
-#'   are `enteric_ef_source`, `ef3_source` and `slurry_crust`, which since
-#'   whep#601 read the 2019 Refinement's Tier 1 enteric factors and direct
-#'   manure N2O EF3 and move Tier 1 enteric CH4 and both tiers' direct manure
-#'   N2O, `mcf_source`, which moved from the shipped table to the 2019
+#'   are `enteric_ef_source`, `ef3_source`, `slurry_crust` and `nex_source`,
+#'   which since whep#601 read the 2019 Refinement's Tier 1 enteric factors,
+#'   direct manure N2O EF3 and Tier 1 N excretion and move Tier 1 enteric
+#'   CH4, both tiers' direct manure N2O and Tier 1 manure N2O, `mcf_source`, which moved from the shipped table to the 2019
 #'   Refinement in whep#1022 and does move Tier 2 manure CH4, `mms_shares`,
 #'   which moved from the unsourced placeholder table to the GLEAM 2.0 ingest
 #'   in whep#958 and does move both tiers' manure N2O, `pasture_bo`, which
@@ -90,6 +90,31 @@
 #'   `method_manure_n2o` records the EF3 choice (`ef3_ipcc_2019;
 #'   slurry_crust_half` or `ef3_as_shipped`). On FAOSTAT 2020 heads the
 #'   default lowers Tier 1 direct manure N2O from 1.523 to 1.178 Tg.
+#'
+#'   `nex_source` selects the Tier 1 N excretion per head, which both Tier 1
+#'   manure N2O terms scale with:
+#'   * `"ipcc_2019"` (default): [ipcc_n_excretion_tier1], the 2019
+#'     Refinement's Equation 10.30 (Updated) over the Table 10.19 (Updated)
+#'     rate and the Table 10A.5 (New) typical animal mass, by IPCC region. A
+#'     missing coefficient aborts by default; see `nex_missing` below.
+#'   * `"as_shipped"`: [ipcc_2019_n_excretion], per-head values no IPCC table
+#'     publishes, read before whep#601. Kept so earlier figures stay
+#'     reproducible.
+#'
+#'   `nex_missing` selects what happens when the 2019 table has no
+#'   coefficient for a species and region:
+#'   * `"error"` (default): abort with class `whep_missing_nex`; the condition's
+#'     `missing_coefficients` tibble identifies input rows, species, region,
+#'     category and available population context. No partial result is returned.
+#'   * `"as_shipped"`: explicitly request the legacy coefficient for missing
+#'     2019 rows, stamped `nex_as_shipped_fallback`. This is a hybrid estimate,
+#'     not a fully 2019-derived result. Rows absent from both tables still abort.
+#'
+#'   `method_manure_n2o` records which (`nex_ipcc_2019` or
+#'   `nex_as_shipped`). On FAOSTAT 2020 heads the hybrid lowers Tier 1 N
+#'   excretion from 144.9 to 126.3 Tg N and Tier 1 manure N2O from 2.151 to
+#'   1.962 Tg when `nex_missing = "as_shipped"` explicitly permits the
+#'   missing geese and regional buffalo coefficients in that population.
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
@@ -209,17 +234,19 @@ NULL
 
 #' IPCC 2019 Tier 1 manure N2O (direct + indirect).
 #'
-#' Uses default per-head nitrogen excretion rates (`ipcc_2019_n_excretion`)
-#' instead of the energy-balance N intake, then reuses the Tier 2 direct and
-#' indirect N2O helpers (which need only `n_excretion` and `heads`).
+#' Uses default per-head nitrogen excretion (`options$nex_source` selects the
+#' edition, see `.join_n_excretion_tier1()`) instead of the energy-balance N
+#' intake, then reuses the Tier 2 direct and indirect N2O helpers (which need
+#' only `n_excretion` and `heads`).
 #' @noRd
 .calc_manure_n2o_tier1 <- function(data, options = list()) {
   if (!rlang::has_name(data, "species_gen")) {
     data <- dplyr::mutate(data, species_gen = .get_general_species(species))
   }
+  nex_options <- .manure_options(options)
   data <- data |>
     dplyr::mutate(method_manure_n2o = "IPCC_2019_Tier1") |>
-    .join_n_excretion_tier1() |>
+    .join_n_excretion_tier1(nex_options$nex_source, nex_options$nex_missing) |>
     .calc_direct_n2o(options) |>
     .calc_indirect_n2o(options)
   data |>
@@ -229,32 +256,155 @@ NULL
 }
 
 #' Join default per-head N excretion (kg N/head/yr) for Tier 1.
+#'
+#' `nex_source = "ipcc_2019"` (default) reads [ipcc_n_excretion_tier1], the
+#' 2019 Refinement's Equation 10.30 (Updated) over its Table 10.19 rates and
+#' Table 10A.5 typical masses, by IPCC region. `"as_shipped"` reads
+#' `ipcc_2019_n_excretion`, the unsourced per-head table WHEP read before
+#' whep#601, kept so earlier figures stay reproducible.
+#'
+#' Missing coefficients abort unless `nex_missing = "as_shipped"` explicitly
+#' requests a legacy coefficient, stamped `nex_as_shipped_fallback`. This
+#' covers a row whose IPCC region does not resolve (the as-shipped
+#' `"Global"` row then applies), buffalo in North America and Oceania, which
+#' Table 10.19 marks NA, and a species neither table names (geese). The
+#' `region` this adds stays on the frame: the manure-management split keys on
+#' it (see `mms_region` in [manure_engine_options]).
 #' @noRd
-.join_n_excretion_tier1 <- function(data) {
+.join_n_excretion_tier1 <- function(
+  data,
+  nex_source = "ipcc_2019",
+  nex_missing = "error"
+) {
+  nex_missing <- rlang::arg_match(nex_missing, c("error", "as_shipped"))
   data <- data |>
     dplyr::mutate(
-      manure_category = dplyr::case_when(
-        .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
-        species_gen == "Cattle" ~ "Other Cattle",
-        # `ipcc_2019_n_excretion` publishes swine as two rows, "Swine - Market"
-        # (15) and "Swine - Breeding" (18) kg N head-1 yr-1. Until whep#1107
-        # the herd arrived as one undifferentiated "Swine" key, which the
-        # base-species augmentation below answered with their mean (16.5) --
-        # a rate no animal has. FAOSTAT reports the two halves separately, so
-        # key each half on its own published row instead.
-        species_gen == "Swine" & .is_breeding_swine(species) ~
-          "Swine - Breeding",
-        species_gen == "Swine" ~ "Swine - Market",
-        TRUE ~ species_gen
-      )
+      manure_category = .nex_category_as_shipped(species, species_gen)
     )
   if (!rlang::has_name(data, "region") && .has_gleam_region_key(data)) {
     data <- .add_ipcc_region(data)
   }
+  shipped <- .lookup_nex_as_shipped(data)
+  if (nex_source == "as_shipped") {
+    return(
+      data |>
+        dplyr::mutate(n_excretion = shipped) |>
+        .stamp_assumption("method_manure_n2o", "nex_as_shipped", TRUE)
+    )
+  }
 
-  # Augment the table with base-species rows (mean over subcategories, e.g.
-  # "Swine - Market"/"Swine - Breeding" -> "Swine") so a species_gen key with no
-  # exact subcategory still matches.
+  region <- if (rlang::has_name(data, "region")) {
+    as.character(data$region)
+  } else {
+    rep(NA_character_, nrow(data))
+  }
+  nex <- dplyr::filter(ipcc_n_excretion_tier1, edition == "ipcc_2019")
+  nex_2019 <- nex$nex_kg_n_head_yr[match(
+    paste(region, .nex_category_ipcc_2019(data$species, data$species_gen)),
+    paste(nex$region, nex$category)
+  )]
+  selected <- if (nex_missing == "as_shipped") {
+    dplyr::coalesce(nex_2019, shipped)
+  } else {
+    nex_2019
+  }
+  .check_nex_supplied(
+    data,
+    selected,
+    region,
+    .nex_category_ipcc_2019(data$species, data$species_gen)
+  )
+  data |>
+    dplyr::mutate(n_excretion = selected) |>
+    .stamp_assumption("method_manure_n2o", "nex_ipcc_2019", !is.na(nex_2019)) |>
+    .stamp_assumption(
+      "method_manure_n2o",
+      "nex_as_shipped_fallback",
+      is.na(nex_2019)
+    )
+}
+
+
+.check_nex_supplied <- function(data, nex, region, category) {
+  missing <- which(is.na(nex))
+  if (length(missing) == 0L) {
+    return(invisible(NULL))
+  }
+  missing_rows <- tibble::tibble(
+    row = missing,
+    species = data$species[missing],
+    region = region[missing],
+    category = category[missing]
+  ) |>
+    dplyr::bind_cols(dplyr::select(
+      data[missing, ],
+      dplyr::any_of(c(
+        "heads",
+        "year",
+        "area_code",
+        "iso3",
+        "reporting_polity_code"
+      ))
+    ))
+  cli::cli_abort(
+    c(
+      "No selected Tier 1 N-excretion coefficient for {length(missing)} row{?s}.",
+      i = "Inspect the condition's {.field missing_coefficients} table.",
+      i = "Supply supported species and regions, or explicitly request \
+        {.code options = list(nex_missing = 'as_shipped')} where legacy \
+        coefficients cover the missing rows."
+    ),
+    class = "whep_missing_nex",
+    missing_coefficients = missing_rows
+  )
+}
+
+#' The `ipcc_2019_n_excretion` category of each row.
+#' @noRd
+.nex_category_as_shipped <- function(species, species_gen) {
+  dplyr::case_when(
+    .is_dairy(species) & species_gen == "Cattle" ~ "Dairy Cattle",
+    species_gen == "Cattle" ~ "Other Cattle",
+    # `ipcc_2019_n_excretion` publishes swine as two rows, "Swine - Market"
+    # (15) and "Swine - Breeding" (18) kg N head-1 yr-1. Until whep#1107
+    # the herd arrived as one undifferentiated "Swine" key, which the
+    # base-species augmentation in `.lookup_nex_as_shipped()` answered with
+    # their mean (16.5) -- a rate no animal has. FAOSTAT reports the two
+    # halves separately, so key each half on its own published row instead.
+    species_gen == "Swine" & .is_breeding_swine(species) ~
+      "Swine - Breeding",
+    species_gen == "Swine" ~ "Swine - Market",
+    TRUE ~ species_gen
+  )
+}
+
+#' The [ipcc_n_excretion_tier1] category of each row.
+#'
+#' Finer than the as-shipped one for poultry, because Table 10.19 publishes
+#' laying hens, broilers, turkeys and ducks separately and FAOSTAT counts them
+#' separately; a chicken that is neither layer nor broiler takes the chicken
+#' aggregate row. Geese, and a bare `"Poultry"`, have no row.
+#' @noRd
+.nex_category_ipcc_2019 <- function(species, species_gen) {
+  dplyr::case_when(
+    species_gen != "Poultry" ~ .nex_category_as_shipped(species, species_gen),
+    stringr::str_detect(species, "(?i)layer|hen") ~ "Poultry - Layers",
+    stringr::str_detect(species, "(?i)broiler") ~ "Poultry - Broilers",
+    stringr::str_detect(species, "(?i)turkey") ~ "Turkeys",
+    stringr::str_detect(species, "(?i)duck") ~ "Ducks",
+    stringr::str_detect(species, "(?i)chicken") ~ "Chickens",
+    .default = NA_character_
+  )
+}
+
+#' Per-head N excretion from the as-shipped `ipcc_2019_n_excretion`.
+#'
+#' Regional where the row has a region the table names (cattle only),
+#' otherwise its `"Global"` row. The table is augmented with base-species rows
+#' (mean over subcategories, e.g. "Poultry - Broilers"/"Poultry - Layers" ->
+#' "Poultry") so a `species_gen` key with no exact subcategory still matches.
+#' @noRd
+.lookup_nex_as_shipped <- function(data) {
   nex_base <- ipcc_2019_n_excretion |>
     dplyr::mutate(
       cat_base = stringr::str_trim(stringr::str_extract(category, "^[^-]+"))
@@ -266,27 +416,19 @@ NULL
     dplyr::rename(category = cat_base)
   nex_all <- dplyr::bind_rows(ipcc_2019_n_excretion, nex_base) |>
     dplyr::distinct(region, category, .keep_all = TRUE)
-  global_nex <- nex_all |>
-    dplyr::filter(region == "Global") |>
-    dplyr::select(category, nex_global = nex_kg_n_head_yr)
-
-  if (rlang::has_name(data, "region")) {
-    data |>
-      dplyr::left_join(
-        dplyr::filter(nex_all, region != "Global"),
-        by = c("region", "manure_category" = "category")
-      ) |>
-      dplyr::left_join(global_nex, by = c("manure_category" = "category")) |>
-      dplyr::mutate(
-        n_excretion = dplyr::coalesce(nex_kg_n_head_yr, nex_global)
-      ) |>
-      dplyr::select(-dplyr::any_of(c("nex_kg_n_head_yr", "nex_global")))
-  } else {
-    data |>
-      dplyr::left_join(global_nex, by = c("manure_category" = "category")) |>
-      dplyr::mutate(n_excretion = nex_global) |>
-      dplyr::select(-dplyr::any_of("nex_global"))
+  key <- data$manure_category
+  global <- nex_all |>
+    dplyr::filter(region == "Global")
+  nex_global <- global$nex_kg_n_head_yr[match(key, global$category)]
+  if (!rlang::has_name(data, "region")) {
+    return(nex_global)
   }
+  regional <- dplyr::filter(nex_all, region != "Global")
+  nex_regional <- regional$nex_kg_n_head_yr[match(
+    paste(data$region, key),
+    paste(regional$region, regional$category)
+  )]
+  dplyr::coalesce(nex_regional, nex_global)
 }
 
 #' IPCC 2019 Tier 2 manure CH4.
@@ -1155,6 +1297,7 @@ NULL
     .check_mms_matched("ef3") |>
     dplyr::summarise(
       weighted_ef3 = sum(fraction * ef3),
+      weighted_ef3_pasture = sum(fraction * ef3 * .is_pasture_mms(mms_type)),
       mms_basis = dplyr::first(mms_basis),
       .by = row_id_n2o
     )
@@ -1169,6 +1312,10 @@ NULL
       manure_n2o_direct = n_animals *
         n_excretion *
         weighted_ef3 *
+        n2o_to_n,
+      manure_n2o_direct_pasture = n_animals *
+        n_excretion *
+        weighted_ef3_pasture *
         n2o_to_n
     ) |>
     .stamp_assumption(
@@ -1176,7 +1323,19 @@ NULL
       paste0("mms_assumed_", out$mms_basis),
       !is.na(out$mms_basis)
     ) |>
-    dplyr::select(-row_id_n2o, -weighted_ef3, -mms_basis)
+    dplyr::select(-row_id_n2o, -weighted_ef3, -weighted_ef3_pasture, -mms_basis)
+}
+
+#' Whether a manure-management label is the grazing stream.
+#'
+#' Pasture/range/paddock N is the one stream the IPCC reports under managed
+#' soils (2019 Refinement Vol 4 Ch 11, F_PRP, EF3PRP) rather than manure
+#' management (Ch 10). WHEP prices it in this chain, and reports that part
+#' apart as `manure_n2o_direct_pasture` and `manure_n2o_indirect_pasture`
+#' (whep#1524).
+#' @noRd
+.is_pasture_mms <- function(mms_type) {
+  mms_type == "Pasture/Range/Paddock"
 }
 
 #' Fail closed on a row that resolved no weighted EF3.
@@ -1235,7 +1394,11 @@ NULL
         ef5 *
         n2o_to_n,
       manure_n2o_indirect = n2o_volatilization +
-        n2o_leaching
+        n2o_leaching,
+      manure_n2o_indirect_pasture = n_animals *
+        n_excretion *
+        (fracs$frac_gas_pasture * ef4 + fracs$frac_leach_pasture * ef5) *
+        n2o_to_n
     ) |>
     dplyr::select(-n2o_volatilization, -n2o_leaching) |>
     .stamp_assumption(
@@ -1247,31 +1410,32 @@ NULL
 
 #' The volatilised and leached N fractions of each row, in row order.
 #'
+#' `frac_gas` and `frac_leach` price all the row's N; `frac_gas_pasture` and
+#' `frac_leach_pasture` are the part of them carried by its
+#' Pasture/Range/Paddock share, so the grazing N2O can be reported apart
+#' (whep#1524).
+#'
 #' `"single"` gives every row the `frac_gasms` and `frac_leach` of
 #' `indirect_n2o_ef`, the form before whep#1365: one Ch 11 fraction applied to
 #' all excreted N, pasture and stored manure alike. Kept so earlier figures
 #' stay reproducible; `frac_gasms` 0.20 is assumed, unverified.
 #' @noRd
 .indirect_n2o_fractions <- function(data, opt) {
+  split <- .indirect_mms_split(data, opt)
   if (identical(opt$indirect_n2o_fractions, "single")) {
-    edition <- opt$indirect_n2o_source
-    return(tibble::tibble(
-      frac_gas = rep(.get_indirect_param("frac_gasms", edition), nrow(data)),
-      frac_leach = rep(.get_indirect_param("frac_leach", edition), nrow(data))
-    ))
+    return(.single_indirect_fractions(split, opt$indirect_n2o_source))
   }
-  .weighted_indirect_fractions(data, opt)
+  .weighted_indirect_fractions(split, opt$indirect_n2o_source)
 }
 
-#' Table 10.22 fractions weighted over each row's manure-management split.
+#' Each row's manure-management split, keyed by `row_id_indirect`.
 #'
 #' The split is resolved exactly as `.calc_weighted_direct_n2o()` resolves it,
 #' so the two N2O terms price the same N on the same systems. The assumed
 #' splits of `.fill_assumed_mms_shares()` already warned on the direct path,
 #' so they are taken quietly here.
 #' @noRd
-.weighted_indirect_fractions <- function(data, opt) {
-  fracs <- .indirect_mms_fractions(opt$indirect_n2o_source)
+.indirect_mms_split <- function(data, opt) {
   data |>
     .resolve_manure_region(opt$mms_region, opt$mms_shares) |>
     dplyr::mutate(
@@ -1289,16 +1453,47 @@ NULL
       shares = opt$mms_shares
     ) |>
     .fill_assumed_mms_shares(opt$mms_shares, warn = FALSE) |>
-    .check_mms_matched("fraction") |>
-    dplyr::left_join(fracs, by = c("mms_type", "loss_category")) |>
-    .check_indirect_matched() |>
+    .check_mms_matched("fraction")
+}
+
+#' One fraction on all of a row's N; its pasture part is the pasture share.
+#' @noRd
+.single_indirect_fractions <- function(split, edition) {
+  gas <- .get_indirect_param("frac_gasms", edition)
+  leach <- .get_indirect_param("frac_leach", edition)
+  split |>
     dplyr::summarise(
-      frac_gas = sum(fraction * frac_gas_ms),
-      frac_leach = sum(fraction * frac_leach_ms),
+      pasture = sum(fraction * .is_pasture_mms(mms_type)),
       .by = row_id_indirect
     ) |>
     dplyr::arrange(row_id_indirect) |>
-    dplyr::select(frac_gas, frac_leach)
+    dplyr::transmute(
+      frac_gas = gas,
+      frac_leach = leach,
+      frac_gas_pasture = gas * pasture,
+      frac_leach_pasture = leach * pasture
+    )
+}
+
+#' Table 10.22 fractions weighted over each row's manure-management split.
+#' @noRd
+.weighted_indirect_fractions <- function(split, edition) {
+  split |>
+    dplyr::left_join(
+      .indirect_mms_fractions(edition),
+      by = c("mms_type", "loss_category")
+    ) |>
+    .check_indirect_matched() |>
+    dplyr::mutate(pasture = .is_pasture_mms(mms_type)) |>
+    dplyr::summarise(
+      frac_gas = sum(fraction * frac_gas_ms),
+      frac_leach = sum(fraction * frac_leach_ms),
+      frac_gas_pasture = sum(fraction * frac_gas_ms * pasture),
+      frac_leach_pasture = sum(fraction * frac_leach_ms * pasture),
+      .by = row_id_indirect
+    ) |>
+    dplyr::arrange(row_id_indirect) |>
+    dplyr::select(-row_id_indirect)
 }
 
 #' The Table 10.22 animal category of each row.
@@ -1460,8 +1655,9 @@ NULL
 #' Tier 2 method from Tier 1 instead of leaving them `NA`, and whep#1245 made
 #' `indirect_n2o_source` read the 2019 Table 11.3 EF5 and FracLEACH-(H) that
 #' the shipped table had cited while holding the 2006 values. whep#601 moved
-#' `enteric_ef_source` and `ef3_source` off tables that held 2006, mixed or
-#' unpublished values under a 2019 name onto the 2019 Refinement.
+#' `enteric_ef_source`, `ef3_source` and `nex_source` off tables that held
+#' 2006, mixed or unpublished values under a 2019 name onto the 2019
+#' Refinement.
 #' @noRd
 .manure_options <- function(options = list()) {
   defaults <- list(
@@ -1476,7 +1672,9 @@ NULL
     enteric_ef_source = "ipcc_2019",
     ef3_source = "ipcc_2019",
     slurry_crust = "half",
-    indirect_n2o_fractions = "per_mms"
+    indirect_n2o_fractions = "per_mms",
+    nex_source = "ipcc_2019",
+    nex_missing = "error"
   )
   unknown <- setdiff(names(options), names(defaults))
   if (length(unknown) > 0) {
@@ -1500,6 +1698,8 @@ NULL
   ef3_source <- opt$ef3_source
   slurry_crust <- opt$slurry_crust
   indirect_n2o_fractions <- opt$indirect_n2o_fractions
+  nex_source <- opt$nex_source
+  nex_missing <- opt$nex_missing
   list(
     mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
@@ -1536,7 +1736,9 @@ NULL
     indirect_n2o_fractions = rlang::arg_match(
       indirect_n2o_fractions,
       c("per_mms", "single")
-    )
+    ),
+    nex_source = rlang::arg_match(nex_source, c("ipcc_2019", "as_shipped")),
+    nex_missing = rlang::arg_match(nex_missing, c("error", "as_shipped"))
   )
 }
 

@@ -60,8 +60,8 @@ falls back to mass.}
 (\code{year}, \code{element}, \code{item_cbs_code}, \code{price}). Used only when
 \code{method = "value"}; built automatically when \code{NULL}.}
 
-\item{trade_recovery}{One of \code{"pass_through"} (default), \code{"net_import"} or
-\code{"none"}, selecting
+\item{trade_recovery}{One of \code{"byproduct_residual"} (default),
+\code{"pass_through"}, \code{"net_import"} or \code{"none"}, selecting
 the CBS every internally built input is derived from — the wide CBS, the
 processing coefficients, the supply-use tables, the bilateral trade
 matrices and the prices. See \code{\link[=build_commodity_balances]{build_commodity_balances()}} for what each

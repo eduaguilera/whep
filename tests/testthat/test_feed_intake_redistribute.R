@@ -705,50 +705,50 @@ test_that(".build_feed_avail_national warns on unclassified CBS feed mass", {
   expect_true(2591L %in% out$item_cbs_code)
 })
 
-test_that(".build_feed_avail_national names the placeholder item it drops", {
-  # whep#970: CBS item 2775 "Aquatic Plants" is bridged by whep::items_full to
-  # the literal Name_biomass "0", which matches no biomass_coefs row, so its
-  # feed mass leaves availability at the density join. The warning has to say
-  # which item, how much, and that the bridge -- not the taxonomy -- is the
-  # gap, because the two need different repairs.
+test_that(".build_feed_avail_national names an item with no density row", {
+  # An items_full Name_biomass that matches no biomass_coefs row drops the
+  # item's feed mass at the density join. The warning has to say which item,
+  # how much, and that the bridge -- not the taxonomy -- is the gap, because
+  # the two need different repairs. The shipped bridge is exact since
+  # whep#970, so the gap is made here by removing 2775's coefficient row.
   cbs <- tibble::tribble(
-    ~year,
-    ~area_code,
-    ~item_cbs_code,
-    ~feed,
-    1970L,
-    1L,
-    2591L,
-    1000, # groundnut cake -> high_quality, classified fine
-    1970L,
-    1L,
-    2775L,
-    302970 # aquatic plants -> placeholder Name_biomass, no density
+    ~year, ~area_code, ~item_cbs_code, ~feed,
+    1970L, 1L,         2591L,          1000, # groundnut cake -> classified
+    1970L, 1L,         2775L,          302970 # aquatic plants -> row removed
+  )
+  coefs <- dplyr::filter(
+    whep::biomass_coefs,
+    .data$Name_biomass != "Aquatic Plants"
   )
   warning_text <- tryCatch(
     {
-      whep:::.build_feed_avail_national(cbs)
+      whep:::.build_feed_avail_national(cbs, biomass_coefs = coefs)
       NA_character_
     },
     warning = function(w) conditionMessage(w)
   )
   # cli wraps the message to the console width, so compare on one line.
   warning_text <- stringr::str_squish(warning_text)
-  expect_match(warning_text, "Aquatic Plants", fixed = TRUE)
-  expect_match(warning_text, "2775", fixed = TRUE)
+  expect_match(warning_text, "Aquatic Plants (2775)", fixed = TRUE)
   expect_match(warning_text, "302970", fixed = TRUE)
-  expect_match(warning_text, "placeholder", fixed = TRUE)
+  expect_match(
+    warning_text,
+    "no biomass_coefs row named Aquatic Plants",
+    fixed = TRUE
+  )
   # It is classified by the taxonomy, so the taxonomy must not be blamed.
   expect_false(grepl("absent from feed_taxonomy", warning_text, fixed = TRUE))
 
-  out <- suppressWarnings(whep:::.build_feed_avail_national(cbs))
+  out <- suppressWarnings(
+    whep:::.build_feed_avail_national(cbs, biomass_coefs = coefs)
+  )
   expect_false(2775L %in% out$item_cbs_code)
 })
 
 test_that(".build_feed_avail_national does not blame a non_feed item", {
-  # CBS item 2899 "Miscellaneous" carries the same "0" placeholder but is
-  # tagged "non_feed", so availability excludes it by design and no gap in
-  # biomass_coefs costs anything. Warning on it would report feed mass as lost
+  # CBS item 2899 "Miscellaneous" has no biomass counterpart (NA
+  # Name_biomass) and is tagged "non_feed", so availability excludes it by
+  # design and no gap in biomass_coefs costs anything. Warning on it would report feed mass as lost
   # to a data gap when it was never offered as feed.
   cbs <- tibble::tribble(
     ~year,
@@ -762,7 +762,7 @@ test_that(".build_feed_avail_national does not blame a non_feed item", {
     1970L,
     1L,
     2899L,
-    500 # miscellaneous -> non_feed AND placeholder Name_biomass
+    500 # miscellaneous -> non_feed AND no Name_biomass
   )
   expect_no_warning(out <- whep:::.build_feed_avail_national(cbs))
   expect_false(2899L %in% out$item_cbs_code)
@@ -866,7 +866,7 @@ test_that("get_feed_intake and the local build pass feed_loss down", {
 test_that(".build_redistribute_intake hands feed_loss to the engine", {
   seen <- new.env()
   testthat::local_mocked_bindings(
-    .with_residue_kgdm = function(data, residues) data,
+    .with_residue_kgdm = function(data, residues, ...) data,
     .national_redistribute = function(production, cbs, demand_tier, data, ...) {
       seen$engine <- data$feed_loss
       list(result = tibble::tibble(), code_shares = tibble::tibble())
@@ -885,6 +885,9 @@ test_that(".build_redistribute_intake hands feed_loss to the engine", {
 })
 
 test_that(".run_redistribute_national meets grass, caps concentrates", {
+  testthat::local_mocked_bindings(
+    get_primary_residues = function(...) whep:::.example_get_primary_residues()
+  )
   region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
@@ -2122,6 +2125,16 @@ test_that(".with_feed_eligibility derives, disables and yields to options", {
 })
 
 test_that("national engine never feeds crop residues to pigs (feed_table)", {
+  testthat::local_mocked_bindings(
+    get_primary_residues = function(...) {
+      tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue,
+        ~value, ~value_dm,
+        1970L, area, 2511L, 2105L, 1e6, 876000,
+        1970L, area, 2601L, 2106L, 1e6, 132000
+      )
+    }
+  )
   region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
   bouwman_regions <- unique(whep::conv_bouwman$region_bouwman)
   area <- region$area_code[region$region_bouwman %in% bouwman_regions][1]
@@ -2199,4 +2212,143 @@ test_that("the local grain hands the heads the unfolded polity support", {
 
   expect_identical(seen$args$polity_support, support)
   expect_identical(seen$args$country_grid, "grid")
+})
+
+test_that("national intake retains crop anchors for historical residue DM", {
+  seen <- new.env()
+  testthat::local_mocked_bindings(
+    .national_redistribute = function(production, cbs, demand_tier, data, ...) {
+      seen$kgdm <- data$residue_kgdm
+      seen$years <- production$year
+      list(result = tibble::tibble(), code_shares = tibble::tibble())
+    },
+    .reshape_redistribute_intake = function(...) tibble::tibble(),
+    get_primary_residues = function(...) stop("CBS already carries the mix")
+  )
+  whep:::.build_redistribute_intake(
+    "national",
+    "ipcc",
+    "historical",
+    production = .fi_residue_crops(),
+    cbs = whep:::.cbs_residue_backcast(
+      .fi_residue_history(),
+      .fi_residue_crops(),
+      1955L
+    ),
+    years = 1955L
+  )
+  expect_equal(unique(seen$years), 1955L)
+  expect_equal(nrow(seen$kgdm), 1L)
+  expected <- whep:::.backcast_crop_residues(
+    .fi_residue_history(),
+    .fi_residue_crops(),
+    1955L
+  ) |>
+    whep:::.residue_feed_kgdm()
+  expect_equal(seen$kgdm, expected)
+  expect_gt(sum(seen$kgdm$residue_kgdm_kgfm), 0)
+  # Explicit injected residues retain their pre-existing precedence.
+  supplied <- dplyr::mutate(.fi_residue_history(), year = 1955L)
+  whep:::.build_redistribute_intake(
+    "national",
+    "ipcc",
+    "historical",
+    production = .fi_residue_crops(),
+    cbs = whep:::.cbs_residue_backcast(
+      .fi_residue_history(),
+      .fi_residue_crops(),
+      1955L
+    ),
+    years = 1955L,
+    residues = supplied
+  )
+  expect_equal(seen$kgdm, whep:::.residue_feed_kgdm(supplied))
+})
+
+test_that("historical residue content follows the CBS-selected method", {
+  crops <- dplyr::bind_rows(
+    .fi_residue_crops(),
+    .fi_residue_crops() |>
+      dplyr::mutate(unit = "ha", value = 100)
+  )
+  read_content <- function(method) {
+    cbs <- whep:::.cbs_residue_backcast(
+      .fi_residue_history(),
+      crops,
+      1955L,
+      method = method
+    )
+    out <- whep:::.with_residue_kgdm(list(), NULL, cbs)$residue_kgdm
+    expect_equal(nrow(out), 1L)
+    rows <- whep:::.backcast_crop_residues(
+      .fi_residue_history(),
+      crops,
+      1955L,
+      method = method
+    )
+    expect_equal(out, whep:::.residue_feed_kgdm(rows))
+    out$residue_kgdm_kgfm
+  }
+  expect_lt(read_content("production_ratio"), read_content("area_rate"))
+})
+
+test_that("CBS-provided crop mix is authoritative without rereading pins", {
+  cbs <- whep:::.cbs_residue_backcast(
+    .fi_residue_history(),
+    .fi_residue_crops(),
+    1955L
+  )
+  out <- whep:::.with_residue_kgdm(
+    list(),
+    stop("must not read a different residue vintage"),
+    cbs
+  )
+  expect_equal(out$residue_kgdm, attr(cbs, "residue_feed_kgdm"))
+  # Hand-built balances without provenance retain the existing gap warning.
+  flat <- tibble::tibble(
+    year = 1955L,
+    area_code = 203L,
+    item_cbs_code = 2106L,
+    feed = 100
+  )
+  missing <- whep:::.with_residue_kgdm(list(), .fi_residue_history(), flat)
+  expect_warning(
+    whep:::.build_feed_avail_national(
+      flat,
+      residue_kgdm = missing$residue_kgdm
+    ),
+    "100 t fresh"
+  )
+})
+
+test_that("local context uses the same historical CBS crop mix", {
+  cbs <- whep:::.cbs_residue_backcast(
+    .fi_residue_history(),
+    .fi_residue_crops(),
+    1955L
+  )
+  testthat::local_mocked_bindings(
+    .local_paths = function(...) list(),
+    get_primary_residues = function(...) stop("must not reread residues")
+  )
+  ctx <- whep:::.local_run_context(
+    "ipcc",
+    "historical",
+    production = .fi_residue_crops(),
+    cbs = cbs
+  )
+  expect_equal(ctx$data$residue_kgdm, attr(cbs, "residue_feed_kgdm"))
+})
+
+test_that("post-anchor residue content is unchanged", {
+  rows <- .fi_residue_history()
+  baseline <- whep:::.residue_feed_kgdm(rows)
+  cbs <- whep:::.cbs_residue_backcast(rows, .fi_residue_crops(), 1955L)
+  attr(cbs, "residue_feed_kgdm") <- dplyr::bind_rows(
+    attr(cbs, "residue_feed_kgdm"),
+    baseline
+  )
+  got <- whep:::.with_residue_kgdm(list(), rows, cbs)$residue_kgdm |>
+    dplyr::filter(.data$year >= 1961L)
+  expect_equal(got, baseline)
 })

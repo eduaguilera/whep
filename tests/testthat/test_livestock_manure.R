@@ -1224,7 +1224,7 @@ testthat::test_that("each swine half takes its own published N excretion", {
     heads = c(900, 100)
   )
 
-  result <- whep:::.join_n_excretion_tier1(data)
+  result <- whep:::.join_n_excretion_tier1(data, "as_shipped")
 
   testthat::expect_equal(
     result$manure_category,
@@ -1234,6 +1234,102 @@ testthat::test_that("each swine half takes its own published N excretion", {
     )
   )
   testthat::expect_equal(result$n_excretion, c(15, 18))
+})
+
+
+# whep#601. The Tier 1 N excretion is Equation 10.30 (Updated) of the 2019
+# Refinement: the Table 10.19 (Updated) rate times the Table 10A.5 (New)
+# typical animal mass, times 365 / 1000. Germany is Western Europe and
+# India the Indian Subcontinent.
+testthat::test_that("Tier 1 N excretion is the 2019 rate times its mass", {
+  data <- tibble::tribble(
+    ~species,             ~iso3,
+    "Dairy Cattle",       "DEU",
+    "Cattle, non-dairy",  "IND",
+    "Sheep",              "IND",
+    "Hogs",               "DEU",
+    "Chickens, layers",   "DEU",
+    "Turkeys",            "IND",
+    "Geese",              "IND"
+  ) |>
+    dplyr::mutate(
+      heads = 1,
+      species_gen = whep:::.get_general_species(species)
+    )
+
+  result <- whep:::.join_n_excretion_tier1(data, nex_missing = "as_shipped")
+
+  testthat::expect_equal(
+    result$n_excretion,
+    c(
+      0.54 * 600,
+      0.44 * 226,
+      0.32 * 31,
+      0.38 * 190,
+      0.87 * 1.9,
+      0.74 * 6.8,
+      0.7 * 1000 / 365
+    ) *
+      365 /
+      1000
+  )
+  # Geese have no row in either table, so they keep the as-shipped poultry
+  # value (the mean of its broiler 0.6 and layer 0.8) and say so.
+  testthat::expect_equal(
+    result$method_manure_n2o,
+    c(rep("nex_ipcc_2019", 6), "nex_as_shipped_fallback")
+  )
+})
+
+testthat::test_that("legacy Nex for a row with no IPCC region is explicitly selected", {
+  data <- tibble::tibble(
+    species = c("Dairy Cattle", "Sheep"),
+    species_gen = c("Cattle", "Sheep"),
+    heads = 1
+  )
+
+  result <- whep:::.join_n_excretion_tier1(data, nex_missing = "as_shipped")
+
+  testthat::expect_equal(result$n_excretion, c(70, 12))
+  testthat::expect_equal(
+    result$method_manure_n2o,
+    rep("nex_as_shipped_fallback", 2)
+  )
+})
+
+testthat::test_that("nex_source as_shipped restores the old Nex", {
+  data <- tibble::tibble(
+    species = c("Dairy Cattle", "Sheep"),
+    iso3 = "USA",
+    heads = 1
+  )
+
+  shipped <- whep::calculate_manure_emissions(
+    data,
+    tier = 1,
+    options = list(nex_source = "as_shipped")
+  )
+  default <- whep::calculate_manure_emissions(data, tier = 1)
+
+  testthat::expect_equal(shipped$n_excretion, c(105, 12))
+  testthat::expect_equal(
+    default$n_excretion,
+    c(0.59 * 650, 0.35 * 40) * 365 / 1000
+  )
+  testthat::expect_true(all(
+    stringr::str_detect(shipped$method_manure_n2o, "nex_as_shipped")
+  ))
+  testthat::expect_true(all(
+    stringr::str_detect(default$method_manure_n2o, "nex_ipcc_2019")
+  ))
+  testthat::expect_error(
+    whep::calculate_manure_emissions(
+      data,
+      tier = 1,
+      options = list(nex_source = "ipcc_2006")
+    ),
+    class = "rlang_error"
+  )
 })
 
 
@@ -1472,9 +1568,11 @@ testthat::test_that("indirect_n2o_source selects the Table 11.3 edition", {
   # both editions, so only the leaching term moves:
   #   2019: 5000 * (0.20 * 0.010 + 0.24 * 0.011)  * 44 / 28 = 36.4571 kg N2O.
   #   2006: 5000 * (0.20 * 0.010 + 0.30 * 0.0075) * 44 / 28 = 33.3929 kg N2O.
+  # The species only resolves the pasture share reported apart (whep#1524); the
+  # single form prices every row's N alike.
   data <- tibble::tribble(
-    ~heads, ~n_excretion, ~method_manure_n2o,
-    100,    50,           "IPCC_2019_Tier2"
+    ~species,       ~species_gen, ~heads, ~n_excretion, ~method_manure_n2o,
+    "Dairy Cattle", "Cattle",     100,    50,           "IPCC_2019_Tier2"
   )
   # The single-fraction form this lock was measured under is
   # `indirect_n2o_fractions = "single"` since whep#1365.
@@ -1801,4 +1899,190 @@ testthat::test_that("an unknown indirect_n2o_fractions value aborts", {
     whep:::.manure_options(list(indirect_n2o_fractions = "table_11_3")),
     "indirect_n2o_fractions"
   )
+})
+
+# Grazing N2O reported apart (whep#1524) --------------------------------------
+
+# The Pasture/Range/Paddock share of the Global GLEAM 2.0 split of
+# `species_gen`, read independently of the engine's resolver.
+.global_pasture_share <- function(species_gen) {
+  whep::regional_mms_distribution |>
+    dplyr::filter(
+      source == "gleam_2_0",
+      region == "Global",
+      species == species_gen,
+      mms_type == "Pasture/Range/Paddock"
+    ) |>
+    dplyr::pull(fraction) |>
+    sum()
+}
+
+testthat::test_that("grazing N2O is reported apart, inside the manure total", {
+  # The IPCC reports pasture, range and paddock N under managed soils (Ch 11),
+  # and the nitrogen balance prices the same N on its excreta rows. The
+  # livestock chain keeps pricing it (it is the one chain that feeds the GHG
+  # footprint), so it has to say how much of its manure N2O that is: otherwise
+  # nobody summing it with a managed-soils figure can net the overlap out.
+  data <- tibble::tribble(
+    ~species,       ~species_gen, ~heads, ~n_excretion,
+    "Dairy Cattle", "Cattle",     100,    50,
+    "Sheep",        "Sheep",      100,    20,
+    "Camels",       "Camels",     10,     40
+  )
+  out <- data |>
+    whep:::.calc_direct_n2o() |>
+    whep:::.calc_indirect_n2o()
+
+  share <- c(
+    .global_pasture_share("Cattle"),
+    .global_pasture_share("Sheep"),
+    .global_pasture_share("Camels")
+  )
+  pasture_n <- data$heads * data$n_excretion * share
+  # EF3PRP of the 2019 Refinement, Ch 11 Table 11.1 (Updated): 0.004 for
+  # cattle, pigs and poultry, 0.003 for sheep and other animals.
+  testthat::expect_equal(
+    out$manure_n2o_direct_pasture,
+    pasture_n * c(0.004, 0.003, 0.003) * 44 / 28,
+    tolerance = 1e-12
+  )
+  # FracGASM 0.21 and FracLEACH-(H) 0.24 (Ch 11 Table 11.3 (Updated)).
+  testthat::expect_equal(
+    out$manure_n2o_indirect_pasture,
+    pasture_n * (0.21 * 0.010 + 0.24 * 0.011) * 44 / 28,
+    tolerance = 1e-12
+  )
+  # A part of the total, never on top of it.
+  testthat::expect_true(all(
+    out$manure_n2o_direct_pasture <= out$manure_n2o_direct
+  ))
+  testthat::expect_true(all(
+    out$manure_n2o_indirect_pasture <= out$manure_n2o_indirect
+  ))
+  # Camels are wholly pasture, so all their manure N2O is grazing N2O.
+  testthat::expect_equal(share[3], 1)
+  testthat::expect_equal(
+    out$manure_n2o_direct_pasture[3],
+    out$manure_n2o_direct[3]
+  )
+  testthat::expect_equal(
+    out$manure_n2o_indirect_pasture[3],
+    out$manure_n2o_indirect[3]
+  )
+})
+
+testthat::test_that("the single indirect form also reports grazing N2O", {
+  data <- tibble::tribble(
+    ~species,       ~species_gen, ~heads, ~n_excretion,
+    "Dairy Cattle", "Cattle",     100,    50
+  )
+  out <- whep:::.calc_indirect_n2o(
+    data,
+    options = list(indirect_n2o_fractions = "single")
+  )
+  testthat::expect_equal(
+    out$manure_n2o_indirect_pasture,
+    out$manure_n2o_indirect * .global_pasture_share("Cattle"),
+    tolerance = 1e-12
+  )
+})
+
+testthat::test_that("both tiers carry the grazing N2O columns", {
+  tier1 <- tibble::tribble(
+    ~species,      ~heads,
+    "Sheep",       1000,
+    "Pigs",        1000
+  ) |>
+    whep::calculate_manure_emissions(
+      tier = 1,
+      options = list(nex_missing = "as_shipped")
+    )
+  testthat::expect_true(all(
+    c("manure_n2o_direct_pasture", "manure_n2o_indirect_pasture") %in%
+      names(tier1)
+  ))
+  testthat::expect_true(all(
+    tier1$manure_n2o_direct_pasture + tier1$manure_n2o_indirect_pasture <=
+      tier1$manure_n2o_total
+  ))
+  testthat::expect_true(all(tier1$manure_n2o_direct_pasture > 0))
+})
+
+testthat::test_that("unavailable Tier 1 Nex requires an explicit policy", {
+  data <- tibble::tribble(
+    ~species, ~species_gen, ~region, ~heads,
+    "Buffalo", "Buffalo", "North America", 3,
+    "Buffalo", "Buffalo", "Oceania", 4,
+    "Geese", "Poultry", "Asia", 5,
+    "Sheep", "Sheep", NA_character_, 6
+  )
+  err <- rlang::catch_cnd(whep:::.join_n_excretion_tier1(data))
+  testthat::expect_s3_class(err, "whep_missing_nex")
+  if (inherits(err, "whep_missing_nex")) {
+    testthat::expect_equal(err$missing_coefficients$species, data$species)
+    testthat::expect_equal(err$missing_coefficients$region, data$region)
+    testthat::expect_equal(err$missing_coefficients$heads, data$heads)
+  }
+  explicit <- whep:::.join_n_excretion_tier1(
+    data,
+    nex_missing = "as_shipped"
+  )
+  testthat::expect_equal(explicit$n_excretion, c(55, 55, 0.7, 12))
+  testthat::expect_true(all(grepl(
+    "nex_as_shipped_fallback",
+    explicit$method_manure_n2o
+  )))
+})
+
+testthat::test_that("legacy Nex opt-in still refuses an unknown coefficient", {
+  data <- tibble::tibble(
+    species = "Unknown animal",
+    species_gen = "Unknown animal",
+    region = "Asia",
+    heads = 1
+  )
+  testthat::expect_error(
+    whep:::.join_n_excretion_tier1(data, nex_missing = "as_shipped"),
+    class = "whep_missing_nex"
+  )
+})
+
+testthat::test_that("the manure engine validates and passes missing Nex policy", {
+  data <- tibble::tibble(species = "Geese", iso3 = "IND", heads = 1)
+  testthat::expect_error(
+    whep::calculate_manure_emissions(data, tier = 1),
+    class = "whep_missing_nex"
+  )
+  result <- whep::calculate_manure_emissions(
+    data,
+    tier = 1,
+    options = list(nex_missing = "as_shipped")
+  )
+  testthat::expect_equal(result$n_excretion, 0.7)
+  testthat::expect_match(result$method_manure_n2o, "nex_as_shipped_fallback")
+  testthat::expect_error(
+    whep::calculate_manure_emissions(
+      data,
+      tier = 1,
+      options = list(nex_missing = "unknown")
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("Nex policies agree on covered rows and preserve empty input", {
+  data <- tibble::tibble(
+    species = "Sheep",
+    species_gen = "Sheep",
+    region = "Western Europe",
+    heads = 100
+  )
+  strict <- whep:::.join_n_excretion_tier1(data)
+  hybrid <- whep:::.join_n_excretion_tier1(data, nex_missing = "as_shipped")
+  testthat::expect_identical(strict, hybrid)
+  testthat::expect_equal(strict$n_excretion, 0.36 * 40 / 1000 * 365)
+  testthat::expect_equal(strict$method_manure_n2o, "nex_ipcc_2019")
+  empty <- whep:::.join_n_excretion_tier1(data[0, ])
+  testthat::expect_equal(nrow(empty), 0L)
+  testthat::expect_true("n_excretion" %in% names(empty))
 })

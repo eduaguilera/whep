@@ -62,6 +62,24 @@ test_that(".assemble_n_nat_destiny keeps processing losses out of export", {
   expect_equal(sum(out$mg_n), 35)
 })
 
+test_that(".assemble_n_nat_destiny keeps aquaculture as its own destiny, not silently dropped (#379)", {
+  # Two provinces both feeding Fishmeal to aquaculture, entirely from local
+  # (Cropland-origin) production, so it should show up whole as local
+  # aquaculture consumption -- no export/import residual to reason about.
+  prov_raw <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Fishmeal", NA, "Agro-industry", "Agro-industry", "aquaculture", 30,
+    2000, "B", "Fishmeal", NA, "Agro-industry", "Agro-industry", "aquaculture", 20
+  )
+
+  out <- .assemble_n_nat_destiny(prov_raw)
+
+  expect_true("aquaculture" %in% out$destiny)
+  expect_equal(sum(out$mg_n[out$destiny == "aquaculture"]), 50)
+  # Nothing should have leaked into export/import as an unhandled residual.
+  expect_false(any(out$destiny %in% c("export", "import")))
+})
+
 
 # .summarise_crops_residues ----------------------------------------------------
 
@@ -206,6 +224,24 @@ test_that(".add_grass_wood reclassifies firewood from semi-natural residues", {
 
   expect_true(all(out$Item == "Firewood"))
   expect_true(all(out$Name_biomass == "Firewood"))
+})
+
+test_that(".add_grass_wood reclassifies Dehesa oak residue as firewood too", {
+  # Dehesa's biomass is named "Holm oak" (without "forest"), a different
+  # string from Forest_low's "Holm oak forest". This residue used to fall
+  # through to `TRUE ~ Item` and inherit the "Acorns" item name from the
+  # earlier merge, silently inflating Dehesa's acorn production with its own
+  # woody residue instead of being labelled Firewood like the other forest
+  # types.
+  input <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "Holm oak", "Acorns", "semi_natural_agroecosystems", "Dehesa", NA, "Residue", 40
+  )
+
+  out <- .add_grass_wood(input, .test_grass_biomass_coefs())
+
+  expect_equal(out$Item, "Firewood")
+  expect_equal(out$Name_biomass, "Firewood")
 })
 
 test_that(".add_grass_wood filters out NA production", {
@@ -355,6 +391,57 @@ test_that(".calculate_processing_shares returns 0 for zero national production",
   expect_equal(out$share_processing, 0)
 })
 
+# .calculate_processing_excess ----------------------------------------------------
+
+test_that(".calculate_processing_excess is 0 when domestic production covers processing", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Grapes", "Wine", 40, 0.5
+  )
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Grapes", 100
+  )
+
+  out <- .calculate_processing_excess(spain_coefs, national_production)
+
+  expect_equal(out$excess_fm, 0)
+})
+
+test_that(".calculate_processing_excess reports the shortfall when processing exceeds domestic production", {
+  # Modelled on Spain's soybean crush: domestic production is negligible next
+  # to the volume actually processed, almost all of it imported.
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Soyabeans", "Soyabean Cake", 3200000, 0.79,
+    2000, "Soyabeans", "Soyabean Oil", 3200000, 0.19
+  )
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Soyabeans", 3600
+  )
+
+  out <- .calculate_processing_excess(spain_coefs, national_production)
+
+  expect_equal(nrow(out), 1)
+  expect_equal(out$excess_fm, 3200000 - 3600)
+})
+
+test_that(".calculate_processing_excess treats missing national production as 0", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Soyabeans", "Soyabean Cake", 500, 0.79
+  )
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Wheat", 100
+  )
+
+  out <- .calculate_processing_excess(spain_coefs, national_production)
+
+  expect_equal(out$excess_fm, 500)
+})
+
 
 # .calculate_processing_excess (#1014) -----------------------------------------
 
@@ -469,12 +556,64 @@ test_that(".expand_processed_items multiplies processed mass by cf", {
     2000, "Grapes", "Wine", 0.5
   )
 
-  out <- .expand_processed_items(with_share, spain_coefs)
+  items_lookup <- tibble::tribble(
+    ~item, ~group,
+    "Wine", "Crop products"
+  )
+
+  out <- .expand_processed_items(with_share, spain_coefs, items_lookup)
 
   expect_equal(out$Item, "Wine")
   expect_equal(out$production_fm, 20)
   expect_equal(out$Box, "Cropland")
   expect_equal(out$prod_type, "Product")
+})
+
+test_that(".expand_processed_items boxes a non-cropland output by its own group instead of defaulting to Cropland", {
+  # Regression test: a Cropland input's processing coefficient can point to
+  # an output item that is not itself a crop product (e.g. a stray "Butter,
+  # Ghee" coefficient in the shared processing table). The output's own
+  # group must win over the Cropland-input default.
+  with_share <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~processed_fm,
+    2000, "A", "Coconut", "Coconuts - Incl Copra", 40
+  )
+
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~cf,
+    2000, "Coconuts - Incl Copra", "Butter, Ghee", 0.1
+  )
+
+  items_lookup <- tibble::tribble(
+    ~item, ~group,
+    "Butter, Ghee", "Livestock products"
+  )
+
+  out <- .expand_processed_items(with_share, spain_coefs, items_lookup)
+
+  expect_equal(out$Item, "Butter, Ghee")
+  expect_equal(out$Box, "Livestock")
+})
+
+test_that(".expand_processed_items falls back to Cropland when the output item is unclassified", {
+  with_share <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~processed_fm,
+    2000, "A", "Grape", "Grapes", 40
+  )
+
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~cf,
+    2000, "Grapes", "Wine", 0.5
+  )
+
+  items_lookup <- tibble::tribble(
+    ~item, ~group,
+    "Some other item", "Livestock products"
+  )
+
+  out <- .expand_processed_items(with_share, spain_coefs, items_lookup)
+
+  expect_equal(out$Box, "Cropland")
 })
 
 
@@ -632,24 +771,24 @@ test_that(".forwardfill_population does nothing when data already ends at last_y
 .test_processing_coefs <- function() {
   list(
     items = tibble::tribble(
-      ~item, ~Name_biomass,
-      "Grapes", "grape_bm",
-      "Wine", "wine_bm",
-      "Juice", "juice_bm",
-      "Sunflower seed", "sunflower_bm",
-      "Sunflower Cake", "cake_bm",
-      "Sunflower Oil", "oil_bm",
-      "Beef", "beef_bm"
+      ~item, ~Name_biomass, ~group,
+      "Grapes", "grape_bm", "Crop products",
+      "Wine", "wine_bm", "Crop products",
+      "Juice", "juice_bm", "Crop products",
+      "Sunflower seed", "sunflower_bm", "Crop products",
+      "Sunflower Cake", "cake_bm", "Crop products",
+      "Sunflower Oil", "oil_bm", "Crop products",
+      "Beef", "beef_bm", "Livestock products"
     ),
     biomass = tibble::tribble(
-      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
-      "grape_bm", 0.2, 0.01, # 0.002   N/t FM
-      "wine_bm", 0.02, 0.005, # 0.0001  N/t FM (nearly N-free)
-      "juice_bm", 0.1, 0.01, # 0.001   N/t FM
-      "sunflower_bm", 0.93, 0.028, # 0.02604 N/t FM
-      "cake_bm", 0.9, 0.08, # 0.072   N/t FM (N-concentrating)
-      "oil_bm", 1.0, 0.0, # 0       N/t FM
-      "beef_bm", 0.3, 0.03
+      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~N_kgN_kgFM,
+      "grape_bm", 0.2, 0.01, NA_real_, # 0.002   N/t FM
+      "wine_bm", 0.02, 0.005, NA_real_, # 0.0001  N/t FM (nearly N-free)
+      "juice_bm", 0.1, 0.01, NA_real_, # 0.001   N/t FM
+      "sunflower_bm", 0.93, 0.028, NA_real_, # 0.02604 N/t FM
+      "cake_bm", 0.9, 0.08, NA_real_, # 0.072   N/t FM (N-concentrating)
+      "oil_bm", 1.0, 0.0, NA_real_, # 0       N/t FM
+      "beef_bm", 0.3, 0.03, NA_real_
     )
   )
 }
@@ -817,6 +956,73 @@ test_that(".calculate_processed_amounts drops substitutions it cannot price in N
   expect_equal(nrow(out$processing_losses), 0)
 })
 
+test_that(".calculate_processed_amounts caps processed volume at domestic production, not the true processing volume (#1014)", {
+  # Modelled on Spain's soybean crush: domestic production (100) covers only
+  # a fraction of what actually gets processed (150, from value_to_process).
+  # Crediting the extra 50 to Cropland while also booking it as the primary
+  # item's own import double-counts the N (see .calculate_processing_excess()
+  # roxygen) -- so this function must not add it back in at all. The generic
+  # local/import trade split (.calculate_trade(), tested elsewhere) is what
+  # correctly books the processed item's own resulting shortfall as an
+  # import, once.
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "sunflower_bm", "Sunflower seed", "Cropland", "rainfed", "Product", 100
+  )
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    2000, "Sunflower seed", 1
+  )
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Sunflower seed", "Sunflower Cake", 150, 0.45,
+    2000, "Sunflower seed", "Sunflower Oil", 150, 0.4
+  )
+
+  out <- .calculate_processed_amounts(
+    prod,
+    processing_shares,
+    spain_coefs,
+    .test_processing_coefs()
+  )
+
+  cake <- out$processed_items$production_fm[
+    out$processed_items$Item == "Sunflower Cake"
+  ]
+
+  # Scaled from domestic production (100) via cf 0.45, then further capped by
+  # .processing_n_scaling()'s N-conservation output_scale -- not from
+  # value_to_process (150), which would give cf 0.45 * 150 = 67.5 before any
+  # such scaling.
+  expect_equal(cake, 36.167, tolerance = 1e-3)
+  expect_equal(out$non_processed$production_fm, 0)
+  expect_null(out$import_shortfall)
+})
+
+test_that(".add_product_n_per_fm prefers N_kgN_kgFM over Product coefs", {
+  # Same regression as .convert_fm_dm_n()/.convert_to_items_n(): this
+  # function must stay in sync with .convert_fm_dm_n()'s coefficient choice
+  # (see its own roxygen), so it needs the same N_kgN_kgFM priority.
+  df <- tibble::tribble(
+    ~Item, ~Name_biomass,
+    "Milk", "Milk_primary"
+  )
+  coefs <- list(
+    items = tibble::tribble(
+      ~item, ~Name_biomass,
+      "Milk", "Cow milk"
+    ),
+    biomass = tibble::tribble(
+      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~N_kgN_kgFM,
+      "Cow milk", 0.119, 0.0576, 0.00528
+    )
+  )
+
+  out <- .add_product_n_per_fm(df, coefs)
+
+  expect_equal(out$n_per_fm, 0.00528)
+})
+
 test_that(".processing_n_scaling leaves an exactly balanced substitution alone", {
   # Outputs carry precisely the input's N: no loss, outputs unscaled.
   candidate <- tibble::tribble(
@@ -945,8 +1151,8 @@ test_that(".convert_fm_dm_n converts FM to DM to N correctly", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
-    "Wheat", 0.88, 0.85, 0.02, 0.005
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Wheat", 0.88, 0.85, 0.02, 0.005, NA_real_
   )
 
   out <- .convert_fm_dm_n(merged, coefs)
@@ -962,6 +1168,26 @@ test_that(".convert_fm_dm_n converts FM to DM to N correctly", {
   expect_equal(residue$production_n, expected_n_residue)
 })
 
+test_that(".convert_fm_dm_n prefers N_kgN_kgFM over Product coefs for Product rows", {
+  # Same regression as .convert_to_items_n(): production_n must follow the
+  # same N_kgN_kgFM-preferred, Product-basis-fallback priority
+  # build_food_supply() documents, and must stay in sync with
+  # .add_product_n_per_fm() (see that function's roxygen).
+  merged <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
+    2000, "A", "Milk", "Livestock", "Livestock", NA, "Product", 1000, "Cow milk", "Cow milk"
+  )
+
+  coefs <- tibble::tribble(
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Cow milk", 0.119, NA_real_, 0.0576, NA_real_, 0.00528
+  )
+
+  out <- .convert_fm_dm_n(merged, coefs)
+
+  expect_equal(out$production_n, 1000 * 0.00528)
+})
+
 test_that(".convert_fm_dm_n uses primary biomass for special items", {
   merged <- tibble::tribble(
     ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
@@ -969,9 +1195,9 @@ test_that(".convert_fm_dm_n uses primary biomass for special items", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
-    "Almond", 0.9, 0.8, 0.03, 0.01,
-    "NutsGeneric", 0.5, 0.5, 0.01, 0.01
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Almond", 0.9, 0.8, 0.03, 0.01, NA_real_,
+    "NutsGeneric", 0.5, 0.5, 0.01, 0.01, NA_real_
   )
 
   out <- .convert_fm_dm_n(merged, coefs)
@@ -988,9 +1214,9 @@ test_that(".convert_fm_dm_n filters NA Item with zero production", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
-    "Something", 0.5, 0.5, 0.01, 0.01,
-    "Wheat", 0.88, 0.85, 0.02, 0.005
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Something", 0.5, 0.5, 0.01, 0.01, NA_real_,
+    "Wheat", 0.88, 0.85, 0.02, 0.005, NA_real_
   )
 
   out <- .convert_fm_dm_n(merged, coefs)
@@ -1064,6 +1290,28 @@ test_that(".add_feed maps all livestock types correctly", {
   fs <- out$feed_share_rum_mono
   expect_equal(fs$share_rum, 40 / 80)
   expect_equal(fs$share_mono, 40 / 80)
+})
+
+test_that(".add_feed classifies Aquaculture instead of dropping it into an unnamed NA column (#379)", {
+  intake <- tibble::tribble(
+    ~Year, ~Province_name, ~item_cbs, ~Livestock_cat, ~intake_MgFM,
+    2000, "A", "Fishmeal", "Cattle_meat", 60,
+    2000, "A", "Fishmeal", "Aquaculture", 40
+  )
+
+  out <- .add_feed(intake)
+
+  # feed must include the aquaculture intake, not just rum/mono, or it is
+  # silently excluded from the item's total feed demand.
+  expect_equal(out$feed_intake$feed, 60 + 40)
+
+  fs <- out$feed_share_rum_mono
+  expect_named(
+    fs,
+    c("Year", "Province_name", "Item", "share_rum", "share_mono", "share_aqua")
+  )
+  expect_equal(fs$share_rum, 60 / 100, tolerance = 1e-12)
+  expect_equal(fs$share_aqua, 40 / 100, tolerance = 1e-12)
 })
 
 
@@ -1263,7 +1511,7 @@ test_that(".combine_destinies conserves each item's demand over any row shape", 
 
 # .convert_to_items_n ----------------------------------------------------------
 
-test_that(".convert_to_items_n converts consumption FM to N", {
+test_that(".convert_to_items_n falls back to Product coefs when N_kgN_kgFM is absent", {
   combined <- tibble::tribble(
     ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
     2000, "A", "Wheat", "Cropland", "irrig", 100, 50, 20, 30
@@ -1275,17 +1523,47 @@ test_that(".convert_to_items_n converts consumption FM to N", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
-    "Wheat", 0.88, 0.02, 0.85, 0.005
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Wheat", 0.88, 0.02, 0.85, 0.005, NA_real_
   )
 
   out <- .convert_to_items_n(combined, codes, coefs)
 
-  # Wheat is "Product" type → uses Product coefs
+  # No N_kgN_kgFM → falls back to Product coefs.
   conv_factor <- 0.88 * 0.02
   expect_equal(out$food, 50 * conv_factor)
   expect_equal(out$other_uses, 20 * conv_factor)
   expect_equal(out$feed, 30 * conv_factor)
+})
+
+test_that(".convert_to_items_n prefers N_kgN_kgFM over Product coefs when both exist", {
+  # Regression test: the two nitrogen bases can disagree for a real item (cow
+  # milk: N_kgN_kgFM implies 3.30% protein, Product_kgN_kgDM * Product_kgDM_kgFM
+  # implies 4.28%). build_food_supply() documents N_kgN_kgFM as the preferred
+  # source "where available", so .convert_to_items_n() must match that
+  # priority instead of always deriving nitrogen from the Product basis.
+  combined <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Milk", "Livestock", NA, 100, 50, 20, 30
+  )
+
+  codes <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Milk", "Cow milk"
+  )
+
+  coefs <- tibble::tribble(
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Cow milk", 0.119, 0.0576, NA_real_, NA_real_, 0.00528
+  )
+
+  out <- .convert_to_items_n(combined, codes, coefs)
+
+  # N_kgN_kgFM must win over the Product-derived value (0.119 * 0.0576 =
+  # 0.0068544, about 30% higher than 0.00528).
+  expect_equal(out$food, 50 * 0.00528)
+  expect_equal(out$other_uses, 20 * 0.00528)
+  expect_equal(out$feed, 30 * 0.00528)
 })
 
 test_that(".convert_to_items_n uses residue coefs for Grass items", {
@@ -1300,8 +1578,8 @@ test_that(".convert_to_items_n uses residue coefs for Grass items", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
-    "Grass", 0.3, 0.01, 0.2, 0.025
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Grass", 0.3, 0.01, 0.2, 0.025, NA_real_
   )
 
   out <- .convert_to_items_n(combined, codes, coefs)
@@ -1444,8 +1722,8 @@ test_that(".split_local_consumption splits by shares and feed type", {
   )
 
   feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.6, 0.4
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Wheat", 0.5, 0.4, 0.1
   )
 
   out <- .split_local_consumption(local_import, feed_shares)
@@ -1456,8 +1734,9 @@ test_that(".split_local_consumption splits by shares and feed type", {
 
   expect_equal(vals[["population_food"]], 50)
   expect_equal(vals[["population_other_uses"]], 20)
-  expect_equal(vals[["livestock_rum"]], 100 * 0.3 * 0.6)
+  expect_equal(vals[["livestock_rum"]], 100 * 0.3 * 0.5)
   expect_equal(vals[["livestock_mono"]], 100 * 0.3 * 0.4)
+  expect_equal(vals[["aquaculture"]], 100 * 0.3 * 0.1)
   expect_equal(unique(out$Origin), "Cropland")
 })
 
@@ -1474,9 +1753,9 @@ test_that(".split_import_consumption limits imports and splits", {
   )
 
   feed_share_rum_mono <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.7, 0.3,
-    2000, "A", "FishProd", 0.6, 0.4
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Wheat", 0.7, 0.3, 0,
+    2000, "A", "FishProd", 0.6, 0.3, 0.1
   )
 
   out <- .split_import_consumption(
@@ -1523,6 +1802,30 @@ test_that(".split_import_consumption limits imports and splits", {
   expect_equal(fish_food, 10 * 0.5, tolerance = 1e-12)
 })
 
+test_that(".split_local_consumption and .split_import_consumption split feed into aquaculture too, not just rum/mono", {
+  # All demand goes to feed, entirely via the local route, so the math stays
+  # simple: local_feed = local_consumption = 100, split 50/30/20 across
+  # ruminant, monogastric and aquaculture.
+  local_import <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~local_consumption, ~import_consumption, ~food_share, ~feed_share, ~other_uses_share,
+    2000, "A", "FeedMix", "Agro-industry", NA, 100, 0, 0, 1, 0
+  )
+  feed_shares <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "FeedMix", 0.5, 0.3, 0.2
+  )
+
+  out <- .split_local_consumption(local_import, feed_shares)
+
+  vals <- out |>
+    dplyr::select(Destiny, MgN) |>
+    tibble::deframe()
+
+  expect_equal(vals[["aquaculture"]], 100 * 0.2, tolerance = 1e-12)
+  expect_equal(vals[["livestock_rum"]], 100 * 0.5, tolerance = 1e-12)
+  expect_equal(vals[["livestock_mono"]], 100 * 0.3, tolerance = 1e-12)
+})
+
 test_that(".split_import_consumption aggregates duplicates from Irrig_cat", {
   # Two Irrig_cat rows that become NA → should be aggregated
   local_vs_import <- tibble::tribble(
@@ -1532,8 +1835,8 @@ test_that(".split_import_consumption aggregates duplicates from Irrig_cat", {
   )
 
   feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 1.0, 0.0
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Wheat", 1.0, 0.0, 0.0
   )
 
   out <- .split_import_consumption(local_vs_import, feed_shares)
@@ -1818,9 +2121,9 @@ test_that(".finalize_prod_destiny combines local, import, export flows", {
   )
 
   feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Wheat", 0.7, 0.3,
-    2000, "A", "Fish", 0.0, 0.0
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Wheat", 0.7, 0.3, 0.0,
+    2000, "A", "Fish", 0.0, 0.0, 0.0
   )
 
   out <- .finalize_prod_destiny(
@@ -1876,8 +2179,8 @@ test_that(".finalize_prod_destiny does not fan out on a two-Box item", {
   )
 
   feed_shares <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
-    2000, "A", "Beet pulp", 1, 0
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono, ~share_aqua,
+    2000, "A", "Beet pulp", 1, 0, 0
   )
 
   out <- .finalize_prod_destiny(trade_data, codes, soil, feed_shares)
@@ -1919,7 +2222,8 @@ test_that(".finalize_prod_destiny does not fan out on a two-Box item", {
   tibble::tribble(
     ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
     "Average wood", 0.75, 0.01, 0.75, 0.0030
-  )
+  ) |>
+    dplyr::mutate(N_kgN_kgFM = NA_real_)
 }
 
 test_that(".convert_to_items_n prices Wood as stem and Firewood as branch", {
@@ -2001,4 +2305,416 @@ test_that("create_n_prov_destiny rejects an unknown wood_n_method", {
     create_n_prov_destiny(wood_n_method = "bark"),
     class = "rlang_error"
   )
+})
+
+# Exercise the builder's orchestration while keeping all external inputs offline.
+# Stop after the real seed and share helpers, before unrelated destination work.
+.test_seed_processing_builder <- function(seed, target) {
+  production <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~prod_type, ~production_fm,
+    2000L, "A", "Example crop", "Cropland", "Product", 100
+  )
+  npp <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~LandUse, ~Area_ygpit_ha,
+    2000L, "A", "Example crop", "Cropland", 1
+  )
+  seed_uses <- tibble::tibble(
+    Year = 2000L,
+    Item = "Example crop",
+    Element = "Domestic_supply",
+    Destiny = "Seed",
+    Value_destiny = seed
+  )
+  observed <- tibble::tibble(
+    Year = 2000L,
+    Item = "Example crop",
+    value_to_process = target,
+    ProcessedItem = "Example output",
+    cf = 0.5
+  )
+  available <- 100 - seed
+  testthat::local_mocked_bindings(
+    whep_read_file = \(name, ...) {
+      switch(
+        name,
+        codes_coefs_items_full = tibble::tibble(
+          group = "Crop",
+          item = "Example crop"
+        ),
+        pie_full_destinies_fm = seed_uses,
+        intake_ygiac = tibble::tibble(item_cbs = "Example crop"),
+        tibble::tibble()
+      )
+    },
+    .split_food_inedible_loss = \(destiny_df, ...) destiny_df,
+    .merge_items_biomass = \(...) npp,
+    .calculate_n_soil_inputs = \(...) tibble::tibble(),
+    .add_feed = \(...) list(),
+    .aggregate_crop_seminatural = \(...) production,
+    .combine_production_boxes = \(...) production,
+    get_processing_coefs = \(...) observed,
+    .spain_processing_coefs = \(x) x,
+    .warn_processing_excess = \(excess) {
+      testthat::expect_equal(excess$excess_fm, max(target - available, 0))
+    },
+    .calculate_processed_amounts = \(
+      prod_combined_boxes,
+      processing_shares,
+      ...
+    ) {
+      row <- dplyr::filter(processing_shares, Year == 2000L)
+      testthat::expect_equal(prod_combined_boxes$production_fm, available)
+      testthat::expect_equal(
+        available * row$share_processing,
+        min(target, available)
+      )
+      rlang::abort("Processing boundary reached", class = "test_boundary")
+    },
+    .package = "whep"
+  )
+  testthat::expect_error(whep::create_n_prov_destiny(), class = "test_boundary")
+}
+
+testthat::test_that("builder uses post-seed supply for processing and excess", {
+  .test_seed_processing_builder(seed = 0, target = 50)
+  .test_seed_processing_builder(seed = 10, target = 50)
+  .test_seed_processing_builder(seed = 10, target = 95)
+})
+
+# .split_food_inedible_loss ----------------------------------------------------
+
+test_that(".split_food_inedible_loss splits population_food by Edible_portion", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 100
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Eggs", "Eggs"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Eggs", 0.8
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  expect_equal(out$mg_n[out$destiny == "population_food"], 80)
+  expect_equal(out$mg_n[out$destiny == "population_food_inedible"], 20)
+  # Nothing is lost: the two rows sum back to the original total.
+  expect_equal(sum(out$mg_n), 100)
+})
+
+test_that(".split_food_inedible_loss treats a missing Edible_portion as 1", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Wheat", "rainfed", "Cropland", "Cropland",
+    "population_food", 100
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Wheat", "Wheat"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Wheat", NA_real_
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  # A missing Edible_portion degrades to fully edible: no inedible row.
+  expect_equal(nrow(out), 1)
+  expect_equal(out$destiny, "population_food")
+  expect_equal(out$mg_n, 100)
+})
+
+test_that(".split_food_inedible_loss leaves non-food destinies unchanged", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 100,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_other_uses", 10,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "export", 5
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Eggs", "Eggs"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Eggs", 0.8
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  expect_equal(out$mg_n[out$destiny == "population_other_uses"], 10)
+  expect_equal(out$mg_n[out$destiny == "export"], 5)
+  expect_equal(sum(out$mg_n), 115)
+})
+
+test_that(".split_food_inedible_loss keeps items independent", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 100,
+    2020, "Spain", "Wheat", "rainfed", "Cropland", "Cropland",
+    "population_food", 50
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Eggs", "Eggs",
+    "Wheat", "Wheat"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Eggs", 0.8,
+    "Wheat", 1
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  expect_equal(
+    out$mg_n[out$item == "Eggs" & out$destiny == "population_food"],
+    80
+  )
+  expect_equal(
+    out$mg_n[out$item == "Eggs" & out$destiny == "population_food_inedible"],
+    20
+  )
+  expect_equal(
+    out$mg_n[out$item == "Wheat" & out$destiny == "population_food"],
+    50
+  )
+  expect_false(any(
+    out$item == "Wheat" & out$destiny == "population_food_inedible"
+  ))
+})
+
+
+# build_food_protein_destiny ---------------------------------------------------
+
+test_that("build_food_protein_destiny sums population_food only by default", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 80,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food_inedible", 20
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "Spain", 1e6
+  )
+
+  out <- build_food_protein_destiny(destiny_df, population)
+
+  # protein_t = 80 MgN * 6.25 (N-to-protein) = 500 t; protein_g_cap_day =
+  # 500 * 1e6 / 1e6 population / 365 = 500 / 365.
+  expect_equal(out$protein_g_cap_day, 500 / 365)
+  expect_equal(out$method_protein_basis, "edible_portion")
+})
+
+test_that("build_food_protein_destiny adds the inedible remainder back in for whole_commodity", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 80,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food_inedible", 20
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "Spain", 1e6
+  )
+
+  out <- build_food_protein_destiny(
+    destiny_df,
+    population,
+    protein_basis = "whole_commodity"
+  )
+
+  # protein_t = (80 + 20) MgN * 6.25 = 625 t; protein_g_cap_day =
+  # 625 * 1e6 / 1e6 population / 365 = 625 / 365.
+  expect_equal(out$protein_g_cap_day, 625 / 365)
+  expect_equal(out$method_protein_basis, "whole_commodity")
+})
+
+test_that("build_food_protein_destiny excludes non-food destinies", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 80,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "livestock_rum", 1000,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "export", 1000
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "Spain", 1e6
+  )
+
+  out <- build_food_protein_destiny(destiny_df, population)
+
+  expect_equal(out$protein_g_cap_day, 500 / 365)
+})
+
+test_that("build_food_protein_destiny keeps provinces separate", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "A", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 36.5,
+    2020, "B", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 73
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "A", 1e6,
+    2020, "B", 1e6
+  )
+
+  out <- build_food_protein_destiny(destiny_df, population)
+
+  expect_equal(nrow(out), 2)
+  expect_equal(out$protein_g_cap_day[out$province_name == "A"], 0.625)
+  expect_equal(out$protein_g_cap_day[out$province_name == "B"], 1.25)
+})
+
+test_that("provincial extraction preserves the selected wood method", {
+  testthat::local_mocked_bindings(
+    .build_n_prov_destiny_raw = function(wood_n_method) {
+      expect_identical(wood_n_method, "single")
+      tibble::tibble(province_name = "A", mg_n = 1)
+    },
+    .split_food_inedible_loss = function(destiny_df, ...) destiny_df
+  )
+  expect_equal(
+    create_n_prov_destiny(wood_n_method = "single")$mg_n,
+    1
+  )
+})
+
+test_that("food-basket cereal densities do not reprice raw grain feedstocks", {
+  grains <- c("Wheat", "Rye", "Maize", "Oats")
+  biomass <- whep::biomass_coefs |>
+    dplyr::filter(Name_biomass %in% grains)
+  codes <- tibble::tibble(
+    item = biomass$Name_biomass,
+    Name_biomass = biomass$Name_biomass
+  )
+  raw <- biomass$Product_kgDM_kgFM * biomass$Product_kgN_kgDM
+  out <- .add_product_n_per_fm(
+    tibble::tibble(
+      Item = biomass$Name_biomass,
+      Name_biomass = biomass$Name_biomass
+    ),
+    list(items = codes, biomass = biomass)
+  )
+  expect_equal(out$n_per_fm, raw)
+  combined <- tibble::tibble(
+    Year = 2020,
+    Province_name = "Huesca",
+    Item = biomass$Name_biomass,
+    Box = "Cropland",
+    Irrig_cat = "Rainfed",
+    production_n = raw * 100,
+    food = 10,
+    other_uses = 20,
+    feed = 30
+  )
+  converted <- .convert_to_items_n(combined, codes, biomass)
+  converted <- dplyr::arrange(converted, match(Item, biomass$Name_biomass))
+  expect_equal(converted$food, biomass$N_kgN_kgFM * 10)
+  expect_equal(converted$feed, raw * 30)
+  expect_equal(converted$other_uses, raw * 20)
+})
+
+test_that("processing crop support preserves actual parent-year regimes", {
+  candidate <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Irrig_cat, ~processed_fm,
+    2020, "Huesca", "Wheat", "Wheat", "Rainfed", 30,
+    2020, "Huesca", "Wheat", "Wheat", "Irrigated", 10,
+    2015, "Huesca", "Wheat", "Wheat", "Irrigated", 20
+  )
+  outputs <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~from_item, ~production_fm,
+    2020, "Huesca", "Wheat", "Flour", "Wheat", 20,
+    2015, "Huesca", "Wheat", "Flour", "Wheat", 10
+  )
+  scaling <- outputs |>
+    dplyr::transmute(
+      Year,
+      Province_name,
+      Name_biomass,
+      Item = from_item,
+      output_scale = 0.5
+    )
+  testthat::local_mocked_bindings(
+    .add_product_n_per_fm = function(df, coefs) {
+      dplyr::mutate(df, n_per_fm = 0.1)
+    },
+    .package = "whep"
+  )
+  result <- whep:::.processing_crop_support(candidate, outputs, scaling, list())
+  expect_equal(sum(result$support_n), 1.5)
+  expect_equal(
+    result |>
+      dplyr::filter(Year == 2020, Irrig_cat == "Rainfed") |>
+      dplyr::pull(support_n),
+    0.75
+  )
+  expect_equal(
+    result |> dplyr::filter(Year == 2015) |> dplyr::pull(Irrig_cat),
+    "Irrigated"
+  )
+})
+testthat::test_that("residue support retains parents and production pricing", {
+  raw <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item,
+    ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
+    2020, "Huesca", "Olive", "Firewood",
+    "Cropland", "Cropland", "Rainfed", "Residue", 10,
+    2020, "Huesca", "Almond", "Firewood",
+    "Cropland", "Cropland", "Irrigated", "Residue", 20
+  )
+  coefs <- list(
+    items = tibble::tibble(item = "Firewood", Name_biomass = "Average wood"),
+    biomass = tibble::tibble(
+      Name_biomass = c("Average wood", "Grass"),
+      Product_kgDM_kgFM = 0.8,
+      Product_kgN_kgDM = 0.003,
+      Residue_kgDM_kgFM = 0.7,
+      Residue_kgN_kgDM = 0.004,
+      N_kgN_kgFM = 0.1
+    )
+  )
+  out <- whep:::.crop_residue_support(raw, coefs, "single")
+  testthat::expect_setequal(out$Name_biomass, c("Olive", "Almond"))
+  testthat::expect_equal(
+    out |> dplyr::filter(Name_biomass == "Olive") |> dplyr::pull(support_n),
+    0.028
+  )
+  ordinary <- whep:::.add_grass_wood(raw, coefs$biomass) |>
+    whep:::.prepare_prod_data(tibble::tibble(), coefs$items) |>
+    whep:::.convert_fm_dm_n(coefs$biomass, "single")
+  testthat::expect_equal(sum(out$support_n), sum(ordinary$production_n))
 })

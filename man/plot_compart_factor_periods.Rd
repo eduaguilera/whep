@@ -48,12 +48,12 @@ if (
   # decompose_cropland_surplus(by_period = TRUE).
   lmdi <- tibble::tribble(
     ~period, ~period_years, ~factor_label, ~component_type, ~additive,
-    "1865-1925", 60, "Size", "factor", 5400,
-    "1865-1925", 60, "Intensity", "factor", 3600,
-    "1865-1925", 60, "Inefficiency", "factor", -1200,
-    "1925-1965", 40, "Size", "factor", 4000,
-    "1925-1965", 40, "Intensity", "factor", 9200,
-    "1925-1965", 40, "Inefficiency", "factor", 2800
+    "1865-1930", 65, "Size", "factor", 5400,
+    "1865-1930", 65, "Intensity", "factor", 3600,
+    "1865-1930", 65, "Inefficiency", "factor", -1200,
+    "1930-1965", 35, "Size", "factor", 4000,
+    "1930-1965", 35, "Intensity", "factor", 9200,
+    "1930-1965", 35, "Inefficiency", "factor", 2800
   )
   panel <- plot_compart_factor_periods(lmdi, lmdi, lmdi, lmdi)
 }

@@ -49,7 +49,8 @@
   # mix's own dry-matter content, not the item's single one (whep#1215).
   data <- .with_residue_kgdm(
     .feed_demand_data(),
-    .filter_years(residues %||% get_primary_residues(), years)
+    .filter_years(residues %||% get_primary_residues(), years),
+    cbs = if (is.null(residues)) cbs
   )
   data$feed_loss <- feed_loss
   engine <- .national_redistribute(
@@ -254,6 +255,7 @@ build_feed_demand <- function(
   production = NULL,
   cbs = NULL
 ) {
+  cbs <- cbs %||% get_wide_cbs()
   list(
     paths = .local_paths(
       run_dir = run_dir,
@@ -264,8 +266,12 @@ build_feed_demand <- function(
     production = .normalise_feed_primary(
       production %||% get_primary_production()
     ),
-    cbs = .normalise_feed_cbs(cbs %||% get_wide_cbs()),
-    data = .with_residue_kgdm(.feed_demand_data(), get_primary_residues()),
+    cbs = .normalise_feed_cbs(cbs),
+    data = .with_residue_kgdm(
+      .feed_demand_data(),
+      get_primary_residues(),
+      cbs = cbs
+    ),
     demand_tier = demand_tier,
     feed_mode = feed_mode,
     grass_border_allowance = .local_intake_defaults()$grass_border_allowance
@@ -1007,7 +1013,7 @@ build_feed_demand <- function(
   production,
   cbs,
   demand_tier,
-  data = .feed_demand_data(),
+  data = .raw_national_feed_data(cbs),
   options = list(),
   feed_eligibility = "feed_table"
 ) {
@@ -1019,6 +1025,23 @@ build_feed_demand <- function(
     options,
     feed_eligibility
   )$result
+}
+
+# Match the public/local conversion (whep#1215, whep#1599). Prefer the
+# CBS-owned mix, including its historical method, when available (whep#1556).
+# Otherwise use the same residue reader as those paths, scoped to the CBS
+# years. An explicit `data` argument bypasses this default entirely.
+.raw_national_feed_data <- function(cbs) {
+  data <- .feed_demand_data()
+  kgdm <- attr(cbs, "residue_feed_kgdm")
+  if (!is.null(kgdm)) {
+    data$residue_kgdm <- kgdm
+    return(data)
+  }
+  .with_residue_kgdm(
+    data,
+    .filter_years(get_primary_residues(), unique(cbs$year))
+  )
 }
 
 # Run the national-grain engine, returning both the raw redistribute result and
@@ -1299,13 +1322,11 @@ build_feed_demand <- function(
 }
 
 # Why one CBS feed item failed to classify, so the warning says which table to
-# repair. A `Name_biomass` of "0" is the upstream placeholder carried by three
-# items_full rows, not a biomass name (whep#970).
+# repair.
 .feed_gap_reason <- function(feed_quality, name_biomass) {
   dplyr::case_when(
     is.na(feed_quality) ~ "absent from feed_taxonomy",
     is.na(name_biomass) ~ "no Name_biomass in items_full",
-    name_biomass == "0" ~ "placeholder Name_biomass '0'",
     .default = paste0("no biomass_coefs row named ", name_biomass)
   )
 }
@@ -1949,9 +1970,13 @@ build_feed_demand <- function(
   )
 }
 
-# Attach the residue crop-mix dry-matter table to a `.feed_demand_data()` list.
-.with_residue_kgdm <- function(data, residues) {
-  data$residue_kgdm <- .residue_feed_kgdm(residues)
+# Use the mix computed by the CBS itself (whep#1556), including its chosen
+# historical method and aggregate proxy. This also avoids reading a different
+# pin vintage. A caller-built CBS without this attribute keeps the existing
+# residue-reader fallback and the warning for uncovered feed rows.
+.with_residue_kgdm <- function(data, residues, cbs = NULL) {
+  data$residue_kgdm <- attr(cbs, "residue_feed_kgdm") %||%
+    .residue_feed_kgdm(residues)
   data
 }
 

@@ -334,7 +334,19 @@
     carbon_balance = .nbi_carbon_balance(),
     primary_prod = .nbi_primary_prod(),
     fertilizer = .nbi_fertilizer(),
-    crop_patterns = .nbi_crop_patterns(),
+    crop_allocation = .ca_static_allocation(
+      .nbi_cell_polity(),
+      .nbi_crop_patterns(),
+      .nbi_type_cropland()
+    ),
+    # The national harvested areas the allocation's weights are scaled to when
+    # the land support is derived: 600 ha wheat and 200 ha rice, the crop
+    # pattern's 0.6 / 0.2 of the cell's 1000 ha.
+    harvested_area = tibble::tribble(
+      ~area_code, ~item_prod_code, ~year, ~faostat_area_ha,
+      10L,        15L,             2010L, 600,
+      10L,        27L,             2010L, 200
+    ),
     type_cropland = .nbi_type_cropland(),
     ag_land_support = .nbi_ag_land_support()
   )
@@ -455,8 +467,9 @@ testthat::test_that("agricultural support is derived when not supplied", {
   data$grassland_ha <- .nbi_grassland_ha()
   out <- whep::build_n_inputs(data = data)
   dep <- out[out$fert_type == "deposition", ]
-  # The 1000 physical cropland ha are split by the crop pattern (0.6 wheat /
-  # 0.2 rice -> 0.75 / 0.25), not by the raw harvest fractions, plus 500 ha of
+  # The 1000 physical cropland ha are split by the crop allocation's harvested
+  # hectares (600 wheat / 200 rice -> 0.75 / 0.25), not used as an area
+  # themselves, plus 500 ha of
   # grassland: the same 1500 charged hectares the injected support gives.
   testthat::expect_setequal(dep$item_cbs_code, c(2511L, 2807L, 3000L))
   testthat::expect_equal(sum(dep$n_input_t), 1500)
@@ -473,10 +486,7 @@ testthat::test_that("non-item inputs abort when no support can be derived", {
   # the branch it is named after only where the data is absent, which is never
   # the machines that have it. Since whep#1475 an unset variable falls back to
   # the spatialize-type-cropland pin, so the pin is stubbed as unreachable too.
-  withr::local_envvar(
-    WHEP_TYPE_CROPLAND_PATH = NA,
-    WHEP_CROP_PATTERNS_PATH = NA
-  )
+  withr::local_envvar(WHEP_TYPE_CROPLAND_PATH = NA)
   testthat::local_mocked_bindings(
     whep_read_file = function(...) cli::cli_abort("board is down"),
     .package = "whep"
@@ -648,13 +658,65 @@ testthat::test_that("resolution argument is validated", {
   )
 })
 
-testthat::test_that("recycling stamps the total-residue basis when no soil col", {
+testthat::test_that("recycling is the soil-returned residue by default", {
   # .nbi_npp_input() supplies residue_dm_t but not residue_soil_dm_t, so the
-  # recycling term must fall back to gross residue N and say so.
+  # residue destinies are applied before the N partition: only the residue
+  # left on the field is recycled, never the gross residue.
   out <- .nbi_inputs()
   rec <- out[out$fert_type == "recycling", ]
   testthat::expect_true(nrow(rec) > 0)
+  testthat::expect_true(all(rec$method_recycling_n == "residue_soil_returned"))
+  # By hand: root N plus the soil destiny of the residue, through the same
+  # destiny call with the polity's regions.
+  npp <- .nbi_npp_input() |>
+    dplyr::left_join(
+      dplyr::select(
+        whep:::.sci_crop_regions(),
+        "area_code",
+        "region_krausmann",
+        "region_un_sub"
+      ),
+      by = "area_code"
+    ) |>
+    whep::calculate_residue_destinies() |>
+    whep::calculate_npp_carbon_nitrogen()
+  testthat::expect_equal(
+    sum(rec$n_input_t),
+    npp$root_n_t + npp$residue_soil_n_t
+  )
+  testthat::expect_lt(npp$residue_soil_n_t, npp$residue_n_t)
+})
+
+testthat::test_that("gross residue N is recycled only on explicit request, stamped", {
+  soil <- .nbi_inputs()
+  data <- .nbi_full_data()
+  data$recycling_residue_basis <- "total_residue"
+  gross <- whep::build_n_inputs(data = data)
+  rec <- gross[gross$fert_type == "recycling", ]
   testthat::expect_true(all(rec$method_recycling_n == "total_residue"))
+  npp <- whep::calculate_npp_carbon_nitrogen(.nbi_npp_input())
+  testthat::expect_equal(sum(rec$n_input_t), npp$root_n_t + npp$residue_n_t)
+  testthat::expect_gt(
+    sum(rec$n_input_t),
+    sum(soil$n_input_t[soil$fert_type == "recycling"])
+  )
+  data$recycling_residue_basis <- "gross"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "recycling_residue_basis"
+  )
+})
+
+testthat::test_that("a supplied NPP table without the soil residue is refused under the soil basis", {
+  # The destinies run on `npp_n_input`; a pre-computed NPP result handed in
+  # as the balance's cache cannot be re-split, so it must carry the column.
+  data <- list(
+    .npp_cache = whep::calculate_npp_carbon_nitrogen(.nbi_npp_input())
+  )
+  testthat::expect_error(
+    whep:::.n_inputs_recycling(data),
+    class = "whep_recycling_basis_missing"
+  )
 })
 
 testthat::test_that("recycling stamps the soil-returned basis when supplied", {
@@ -670,7 +732,9 @@ testthat::test_that("recycling stamps the soil-returned basis when supplied", {
 })
 
 testthat::test_that("recycling basis switch changes n_input_t and is stamped", {
-  total_basis <- .nbi_inputs()
+  total_data <- .nbi_full_data()
+  total_data$recycling_residue_basis <- "total_residue"
+  total_basis <- whep::build_n_inputs(data = total_data)
   soil_data <- .nbi_full_data()
   soil_data$npp_n_input <- dplyr::mutate(
     soil_data$npp_n_input,
@@ -2383,14 +2447,23 @@ testthat::test_that("the default manure source reproduces the pre-option output"
     "n_inputs_default_golden.rds"
   ))
   manure <- c("excreta", "manure_solid", "manure_liquid")
+  # The golden recycled the gross residue N; the recycling default is now the
+  # soil-returned residue, so the gross basis is asked for to keep this
+  # test's subject the manure source.
+  data <- .nbi_with_shipped_ef3(.nbi_full_data())
+  data$recycling_residue_basis <- "total_residue"
   # The excreta species mix is added beside the golden columns; every column
   # the golden pins must stay identical.
-  added <- c("method_manure", "excreta_cpp_share", "method_excreta_species")
+  added <- c(
+    "method_manure",
+    "excreta_cpp_share",
+    "method_excreta_species",
+    "method_crop_components"
+  )
   for (resolution in c("grid", "polity")) {
-    out <- suppressMessages(whep::build_n_inputs(
-      data = .nbi_with_shipped_ef3(.nbi_full_data()),
-      resolution = resolution
-    ))
+    out <- suppressMessages(
+      whep::build_n_inputs(data = data, resolution = resolution)
+    )
     testthat::expect_identical(
       dplyr::select(out, -dplyr::all_of(added)),
       golden[[paste0("inputs_", resolution)]]

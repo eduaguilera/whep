@@ -12,8 +12,8 @@
 #
 # Non-item inputs are allocated only over an agricultural land-support table,
 # supplied by the caller or derived natively by build_ag_land_support()
-# (R/ag_land_support.R) from the cell_polity/type_cropland/crop_patterns inputs
-# the gridded pipeline already carries. Deposition is multiplied by agricultural
+# (R/ag_land_support.R) from the cell_polity/type_cropland inputs and the
+# crop allocation the gridded pipeline already carries. Deposition is multiplied by agricultural
 # hectares rather than whole-cell area, so forest/natural deposition never
 # enters the agricultural balance.
 # Human N, SOM mineralization, and manure already assigned upstream to Cropland
@@ -142,9 +142,23 @@
 #'     tibble (`lon`, `lat`, `area_code`, `year`, `item_prod_code`,
 #'     `item_cbs_code`, `product_dm_t`, `residue_dm_t`, `root_dm_t`,
 #'     optionally `residue_soil_dm_t`). The `"recycling"` term's
-#'     `n_input_t` is `root_n_t` plus `residue_soil_n_t` from
-#'     [calculate_npp_carbon_nitrogen()]'s output, or plus `residue_n_t` when
-#'     `residue_soil_n_t` is absent (see `method_recycling_n`).
+#'     `n_input_t` is `root_n_t` plus `residue_soil_n_t`, the residue N left
+#'     on the field, from [calculate_npp_carbon_nitrogen()]'s output. When
+#'     the input does not carry `residue_soil_dm_t`,
+#'     [calculate_residue_destinies()] is applied to it first, with
+#'     `residue_destiny_method`, `residue_destiny_recovery` and
+#'     `residue_bedding_fraction` (see [build_nitrogen_balance()]; the same
+#'     arguments split the residue removal outputs there) and the polity's
+#'     `region_krausmann` and `region_un_sub` taken from `area_code` when the
+#'     input does not carry them. An input that already carries
+#'     `residue_soil_dm_t` is recycled on the caller's destinies, while
+#'     [build_nitrogen_balance()] books its residue removals from
+#'     `residue_destiny_input` with the arguments above: the soil-returned
+#'     and the removed residue add up to the gross residue only when both
+#'     come from the package's own destiny split.
+#'   * `recycling_residue_basis`: `"residue_soil_returned"` (default) or
+#'     `"total_residue"`, which recycles the gross residue N (`residue_n_t`),
+#'     removed residue included. Recorded in `method_recycling_n`.
 #'   * `livestock_intake`: [build_livestock_nutrient_flows()]'s `intake`
 #'     argument (the [redistribute_feed()] realised-intake contract), plus
 #'     `gridded` (its land-surface layer) and `resolution`/`methods`
@@ -182,8 +196,9 @@
 #'     `lat`, `area_code`, `year`, `item_cbs_code`, with `land_use`
 #'     (`"cropland"` or `"grassland"`) and positive `area_ha`. Optional: when
 #'     absent it is derived natively by [build_ag_land_support()] from
-#'     `cell_polity`, `type_cropland` and `crop_patterns` (plus `states` or
-#'     `grassland_ha` for the grassland side). Supply it to override that
+#'     `cell_polity`, `type_cropland`, the crop allocation and
+#'     `harvested_area` (plus `states` or `grassland_ha` for the grassland
+#'     side). Supply it to override that
 #'     derivation with a better land surface. Cropland rows identify crop CBS
 #'     items; all pasture/rangeland rows use CBS 3000.
 #'   * `grassland_source`, `gridded_pasture`, `grassland_ha`, `states`:
@@ -216,11 +231,17 @@
 #'     is never computed here. The `"som_mineralization"` term keeps the
 #'     cropland rows with `son_change_kgn_ha > 0` and takes
 #'     `son_change_kgn_ha` times `area_ha`, divided by 1000, as `n_input_t`.
-#'   * `primary_prod`, `fertilizer`, `crop_patterns`, `type_cropland`,
-#'     `cell_polity`: the synthetic-fertiliser assembly (country total from
-#'     `fertilizer`, the `faostat-fertilizer-nutrients` pin, split to crops
-#'     by the chosen crop-share method, then to cells by
-#'     `crop_patterns`/`type_cropland`). From `fertilizer` it reads the
+#'   * `crop_allocation`: the crop allocation every gridded crop term is
+#'     placed by, the one [build_soil_carbon_inputs()] places the same crops
+#'     by (a list of `weights` and `fallback`; see
+#'     [spatialize_country_n_to_crops()]). Built once from the pinned
+#'     spatialization inputs on `cell_polity` when absent and `years` is
+#'     given; `gridded_crops`, `engine_inputs` and `fodder_patterns` replace
+#'     its pinned inputs.
+#'   * `primary_prod`, `fertilizer`, `cell_polity`: the synthetic-fertiliser
+#'     assembly (country total from `fertilizer`, the
+#'     `faostat-fertilizer-nutrients` pin, split to crops by the chosen
+#'     crop-share method, then to cells by the crop allocation). From `fertilizer` it reads the
 #'     raw FAOSTAT columns `Element` (`"Agricultural Use"`), `Item`
 #'     (`"Nutrient nitrogen N (total)"`), `Year`, `Area Code` and `Value`;
 #'     `Value` becomes the country total `synthetic_n_t`, passed on as the
@@ -229,6 +250,11 @@
 #'   * `synthetic_method`: how the synthetic-N country total is split across
 #'     crops, `"coello"` (default; Coello 2025 rate-weighted, FAOSTAT-
 #'     conserving) or `"area_share"` (harvested-area shares only).
+#'   * `component_policy`: `"error"` (default) or explicitly `"legacy_pool"`,
+#'     passed with `primary_prod` to [spatialize_country_n_to_crops()] for
+#'     synthetic and FAOSTAT-manure component-coverage checks. The latter
+#'     warns and retains the former mixture when a CBS group has an absent
+#'     production component; it does not establish that mixture as correct.
 #'   * `coello_rates`: crop-specific synthetic-N rate table shaped like
 #'     [coello_synthetic_n] (`year`, `area_code`, `item_cbs_code`,
 #'     `kg_n_ha`); defaults to `whep::coello_synthetic_n`. Used only when
@@ -288,6 +314,8 @@
 #'   (`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
 #'   manure booked as solid for want of an engine split) and is `NA` for every
 #'   other `fert_type`.
+#'   `method_crop_components` records the gridded synthetic/FAOSTAT-manure
+#'   component-coverage treatment; other input streams carry `NA`.
 #'   `excreta_cpp_share` is the share of an `"excreta"` row's N deposited by
 #'   cattle, poultry and pigs, the animals of the IPCC 2019 EF3PRP,CPP factor
 #'   (Vol 4, Ch 11, Table 11.1 (Updated), p. 11.13); sheep and other animals
@@ -298,10 +326,10 @@
 #'   only for want of a manure-type share, `"no_excreta_n"` for a row with no
 #'   N). Both are `NA` for every other `fert_type`.
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
-#'   used: `"residue_soil_returned"` when the upstream NPP input supplied
-#'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
-#'   `"total_residue"` when only gross residue N was available; it is `NA` for
-#'   every other `fert_type`. `method_synthetic` records the synthetic
+#'   used: `"residue_soil_returned"` (residue N net of removal for feed,
+#'   bedding and burning) or `"total_residue"` (the gross residue N, only on
+#'   request through `data$recycling_residue_basis`); it is `NA` for every
+#'   other `fert_type`. `method_synthetic` records the synthetic
 #'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
 #'   is `NA` for every other `fert_type`. `method_deposition` records which
 #'   deposition product the `"deposition"` term's field came from, read off
@@ -368,9 +396,13 @@ build_n_inputs <- function(
       .ni_manure_methods()
     )
   }
+  .crop_alloc_check_years(years)
+  .crop_alloc_table_years(data$primary_prod)
+  .crop_alloc_refuse_patterns(data, "build_n_inputs")
   data$.n_input_resolution <- resolution
   data$.polity_validity <- polity_validity
   data$resolution <- .ni_manure_resolution(data, resolution)
+  data$crop_allocation <- .ni_resolve_allocation(data, years, resolution)
   data$ag_land_support <- .ni_resolve_land_support(data, years)
   assembled <- dplyr::bind_rows(
     .n_inputs_bnf(data),
@@ -525,6 +557,7 @@ build_n_inputs <- function(
     "n_input_t",
     "method_recycling_n",
     "method_synthetic",
+    "method_crop_components",
     "method_deposition",
     "method_deposition_scope",
     "method_human_population",
@@ -624,7 +657,7 @@ build_n_inputs <- function(
 # deposition term and the unattributed-input allocation share one table instead
 # of each rebuilding it. A caller-supplied table always wins; otherwise it is
 # derived natively by build_ag_land_support() from the cell_polity /
-# type_cropland / crop_patterns inputs the gridded pipeline already carries.
+# type_cropland inputs and the crop allocation the gridded pipeline carries.
 # Without cell_polity there are no gridded cells to place support on, so NULL is
 # returned and .ni_land_support() reports the missing input if a term needs it.
 .ni_resolve_land_support <- function(data, years) {
@@ -635,14 +668,52 @@ build_n_inputs <- function(
     years = years,
     grassland = data$grassland_source %||% "gridded_pasture",
     polity_validity = .ni_polity_validity(data),
-    data = list(
-      cell_polity = data$cell_polity,
-      type_cropland = data$type_cropland,
-      crop_patterns = data$crop_patterns,
-      gridded_pasture = data$gridded_pasture,
-      states = data$states,
-      grassland_ha = data$grassland_ha
+    data = c(
+      list(
+        cell_polity = data$cell_polity,
+        type_cropland = data$type_cropland,
+        harvested_area = data$harvested_area,
+        primary_prod = data$primary_prod,
+        gridded_pasture = data$gridded_pasture,
+        states = data$states,
+        grassland_ha = data$grassland_ha
+      ),
+      .ni_allocation_data(data)
     )
+  )
+}
+
+# Build the crop allocation once for a gridded run with known years, so the
+# synthetic, FAOSTAT-manure and land-support terms read one table rather than
+# each running the spatialization engine (R/crop_allocation.R). It is built on
+# the cell support's polity share, the share the land support splits cells by.
+.ni_resolve_allocation <- function(data, years, resolution) {
+  if (
+    !is.null(data$crop_allocation) ||
+      resolution != "grid" ||
+      is.null(data$cell_polity) ||
+      is.null(years)
+  ) {
+    return(data$crop_allocation)
+  }
+  .crop_allocation(
+    years,
+    .normalize_carbon_support(data$cell_polity, "cell_polity"),
+    data
+  )
+}
+
+# The inputs of the crop allocation every gridded crop term is placed by
+# (R/crop_allocation.R, whep#1002): the allocation itself when the caller
+# built it once, else what it is built from.
+.ni_allocation_data <- function(data) {
+  list(
+    crop_allocation = data$crop_allocation,
+    gridded_crops = data$gridded_crops,
+    engine_inputs = data$engine_inputs,
+    fodder_patterns = data$fodder_patterns,
+    primary_prod = data$primary_prod,
+    component_policy = data$component_policy
   )
 }
 
@@ -675,6 +746,7 @@ build_n_inputs <- function(
         "fert_type",
         "method_recycling_n",
         "method_synthetic",
+        "method_crop_components",
         "method_deposition",
         "method_deposition_scope",
         "method_human_population",
@@ -719,7 +791,7 @@ build_n_inputs <- function(
   if (is.null(npp)) {
     return(.ni_empty())
   }
-  basis <- .ni_recycling_basis(npp)
+  basis <- .ni_recycling_basis(npp, data)
   dplyr::transmute(
     npp,
     lon = .data$lon,
@@ -728,26 +800,47 @@ build_n_inputs <- function(
     item_cbs_code = .data$item_cbs_code,
     year = .data$year,
     fert_type = "recycling",
-    n_input_t = .data$root_n_t + .data[[basis$column]],
-    method_recycling_n = basis$method
+    n_input_t = .data$root_n_t + .data[[basis]],
+    method_recycling_n = .ni_recycling_residue(data)
   )
 }
 
-# The recycling term's residue-N basis depends on whether the upstream NPP
-# input carried `residue_soil_dm_t` (so calculate_npp_carbon_nitrogen() emitted
-# `residue_soil_n_t`, the residue N actually returned to soil after removal for
-# feed/fuel/burning). When it did not, only gross `residue_n_t` (the FULL
-# residue N) is available and is used instead, overstating the soil return.
-# This basis switch is not a silent fallback: it is stamped in
-# `method_recycling_n` so downstream consumers can tell the two apart.
-.ni_recycling_basis <- function(npp) {
-  if (rlang::has_name(npp, "residue_soil_n_t")) {
-    return(list(
-      column = "residue_soil_n_t",
-      method = "residue_soil_returned"
-    ))
+# Which residue N the recycling term returns to the soil, from
+# `data$recycling_residue_basis`. "residue_soil_returned" (default) is the
+# residue left on the field: the residue that is fed, used as bedding or
+# burned leaves it, and the balance books that residue as an output instead
+# (`.nb_add_residue_destiny()`). "total_residue" recycles the gross residue,
+# removed residue included, and is there only for a caller who asks for it.
+# The value is stamped in `method_recycling_n`.
+.ni_recycling_residue <- function(data) {
+  rlang::arg_match0(
+    data$recycling_residue_basis %||% "residue_soil_returned",
+    c("residue_soil_returned", "total_residue"),
+    arg_nm = "data$recycling_residue_basis"
+  )
+}
+
+# The NPP column of the recycled residue N. The soil-returned residue N is
+# `residue_soil_n_t`, which .n_balance_npp() produces by applying the residue
+# destinies; an NPP result handed in pre-computed (`data$.npp_cache`) without
+# it cannot be split any more, and is refused rather than recycled gross.
+.ni_recycling_basis <- function(npp, data) {
+  if (.ni_recycling_residue(data) == "total_residue") {
+    return("residue_n_t")
   }
-  list(column = "residue_n_t", method = "total_residue")
+  if (!rlang::has_name(npp, "residue_soil_n_t")) {
+    cli::cli_abort(
+      c(
+        "The NPP-N table has no soil-returned residue N
+         ({.field residue_soil_n_t}).",
+        i = "Supply {.code data$npp_n_input}, to which the residue destinies
+             are applied, or ask for the gross residue with
+             {.code data$recycling_residue_basis = \"total_residue\"}."
+      ),
+      class = "whep_recycling_basis_missing"
+    )
+  }
+  "residue_soil_n_t"
 }
 
 # Shared NPP-N computation: build_nitrogen_balance() (Task C7) needs the SAME
@@ -762,6 +855,12 @@ build_n_inputs <- function(
 # build_n_inputs()'s "recycling" term and its own prod_n_t term) compute it
 # ONCE and short-circuit every subsequent call, rather than re-running
 # calculate_npp_carbon_nitrogen() per call site.
+#
+# The recycling term returns only the residue left on the field, so the
+# residue destinies are applied to the NPP input before its N partition when
+# it does not already carry them (`residue_soil_dm_t`), with the same
+# arguments the residue removal outputs are split with
+# (.nb_residue_destinies()).
 .n_balance_npp <- function(data) {
   if (!is.null(data$.npp_cache)) {
     return(data$.npp_cache)
@@ -769,7 +868,12 @@ build_n_inputs <- function(
   if (is.null(data$npp_n_input)) {
     return(NULL)
   }
-  calculate_npp_carbon_nitrogen(data$npp_n_input)
+  npp <- data$npp_n_input
+  soil_returned <- .ni_recycling_residue(data) == "residue_soil_returned"
+  if (soil_returned && !rlang::has_name(npp, "residue_soil_dm_t")) {
+    npp <- .nb_residue_destinies(npp, data)
+  }
+  calculate_npp_carbon_nitrogen(npp)
 }
 
 # item_cbs_code from item_prod_code via the same crosswalk used elsewhere
@@ -814,7 +918,8 @@ build_n_inputs <- function(
 # The bedding straw build_nitrogen_balance() books as leaving the field
 # (bedding_residue_n_t) is mixed into the housed manure and comes back to the
 # land with it (whep#1445). It is read from the same residue-destiny split,
-# .nb_residue_destinies(), so the two terms cannot disagree.
+# .nb_residue_destinies() on `data$residue_destiny_input` with the balance's
+# one argument set, so the two terms cannot disagree.
 #
 # The supply is national (year x territory), even at grid resolution: the
 # straw is booked in the cell where it grew, the manure in the cell where the
@@ -823,6 +928,13 @@ build_n_inputs <- function(
 # proportion to their nitrogen, which keeps the national mass whole; keying it
 # per cell would strand the straw of every cell without housed animals.
 #
+# Under build_nitrogen_balance()'s rainfed/irrigated yield split the bedding
+# each part books as leaving the field is the residue model at the part's
+# yield, so each production item's bedding is scaled by its factor over both
+# parts (`data$.regime_bedding_factors`, .nb_attach_regime_layer()) and the
+# manure brings back the bedding the parts removed. Without those factors
+# (any other call) the bedding is the unsplit split's.
+#
 # No residue-destiny input, or a split that beds nothing (residue_bedding_
 # fraction defaults to 0), means no bedding was booked out either, so no supply
 # is passed and the manure engine runs as it did before bedding existed.
@@ -830,7 +942,8 @@ build_n_inputs <- function(
   if (is.null(data$residue_destiny_input)) {
     return(NULL)
   }
-  destiny <- .nb_residue_destinies(data)
+  destiny <- .nb_residue_destinies(data$residue_destiny_input, data) |>
+    .ni_regime_bedding(data$.regime_bedding_factors)
   if (!any(destiny$residue_bedding_dm_t > 0, na.rm = TRUE)) {
     return(NULL)
   }
@@ -842,6 +955,29 @@ build_n_inputs <- function(
       residue_bedding_dm_t = .data$residue_bedding_dm_t
     ) |>
     build_residue_bedding_supply()
+}
+
+# Each production item's bedding times its factor over the regime parts
+# (.nb_bedding_factors()). The factors are keyed on the regime layer's typed
+# cell coordinates, so the destiny rows are matched on a normalised copy of
+# their key. An item without a factor has no part re-evaluated and is booked
+# wholly rainfed at its unsplit bedding, as the parts' bedding removal books
+# it (.nb_rainfed_parts()), so its factor is 1.
+.ni_regime_bedding <- function(destiny, factors) {
+  if (is.null(factors)) {
+    return(destiny)
+  }
+  item_key <- .nb_residue_item_key()
+  factor <- destiny |>
+    dplyr::select(dplyr::all_of(item_key)) |>
+    .nb_round_cell_coords() |>
+    dplyr::left_join(factors, by = item_key, relationship = "many-to-one") |>
+    dplyr::pull("bedding_factor")
+  dplyr::mutate(
+    destiny,
+    residue_bedding_dm_t = .data$residue_bedding_dm_t *
+      dplyr::coalesce(.env$factor, 1)
+  )
 }
 
 # Map build_livestock_nutrient_flows()'s $applied grain (territory,
@@ -1338,8 +1474,8 @@ build_n_inputs <- function(
       "Non-item nitrogen inputs require agricultural land support.",
       i = "Supply {.field data$ag_land_support}, or the
            {.field data$cell_polity} / {.field data$type_cropland} /
-           {.field data$crop_patterns} inputs [build_ag_land_support()] needs
-           to derive it."
+           {.field data$crop_allocation} inputs [build_ag_land_support()]
+           needs to derive it."
     ))
   }
   .check_columns(
@@ -1605,6 +1741,7 @@ build_n_inputs <- function(
     "fert_type",
     "method_recycling_n",
     "method_synthetic",
+    "method_crop_components",
     "method_deposition_scope",
     "method_human_population",
     "method_human_kgn_cap",
@@ -1806,10 +1943,7 @@ build_n_inputs <- function(
     cell_polity = data$cell_polity,
     resolution = "grid",
     polity_validity = .ni_polity_validity(data),
-    data = list(
-      crop_patterns = data$crop_patterns,
-      type_cropland = data$type_cropland
-    )
+    data = .ni_allocation_data(data)
   ) |>
     dplyr::transmute(
       lon = .data$lon,
@@ -1818,7 +1952,8 @@ build_n_inputs <- function(
       item_cbs_code = .data$item_cbs_code,
       year = .data$year,
       fert_type = "synthetic",
-      n_input_t = .data$n_t
+      n_input_t = .data$n_t,
+      method_crop_components = .data$method_crop_components
     )
 }
 
@@ -1835,6 +1970,7 @@ build_n_inputs <- function(
     n_input_t = double(),
     method_recycling_n = character(),
     method_synthetic = character(),
+    method_crop_components = character(),
     method_deposition = character(),
     method_deposition_scope = character(),
     method_human_population = character(),
@@ -1923,7 +2059,7 @@ build_n_inputs <- function(
     dplyr::mutate(
       method_recycling_n = dplyr::if_else(
         .data$fert_type == "recycling",
-        "total_residue",
+        "residue_soil_returned",
         NA_character_
       ),
       method_synthetic = dplyr::if_else(

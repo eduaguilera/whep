@@ -31,22 +31,31 @@
 #'   per element. `"wide"` pivots the elements into columns, adds the live-animal
 #'   rows that the FAO sheet omits, and checks the supply-use identity. Both are
 #'   the same dataset; `"wide"` is what the IO model and the extensions consume.
-#' @param trade_recovery One of `"pass_through"` (default), `"net_import"`
-#'   or `"none"`, selecting what happens to a traded item the CBS has no row
-#'   for. The trade record is joined onto the CBS, so it can only fill a row
-#'   that already exists; `"none"` keeps that, the behaviour before whep#762,
-#'   and an area whose balance sheet omits an item it imports loses that
-#'   supply outright. The other two first create the missing rows from the
+#' @param trade_recovery One of `"byproduct_residual"` (default),
+#'   `"pass_through"`, `"net_import"` or `"none"`, selecting what happens to a
+#'   traded item the CBS has no row for. The trade record is joined onto the
+#'   CBS, so it can only fill a row that already exists; `"none"` keeps that,
+#'   the behaviour before whep#762, and an area whose balance sheet omits an
+#'   item it imports loses that supply outright. The others first create the
+#'   missing rows from the
 #'   trade record, restricted to tonnes-denominated items (live-animal trade
 #'   is in heads and arrives through [get_livestock_cbs()]) and to areas the
 #'   CBS already covers in that year. A created row has no production and no
 #'   stock change, so its domestic supply is its net import, split over the
 #'   destinies by the item's world-average shares -- the fallback every CBS
-#'   key with no destiny of its own takes. The two differ only on a net
+#'   key with no destiny of its own takes. They differ only on a net
 #'   exporter, whose export exceeds its import and so has nothing to come
 #'   from: `"pass_through"` creates the row with the export capped at the
 #'   import (the rule FABIO applies to the rows it creates from trade), and
-#'   `"net_import"` does not create it. **Recovery moves published values.**
+#'   `"net_import"` does not create it. `"byproduct_residual"` is
+#'   `"pass_through"` except for Meat Meal (2112), a rendering by-product
+#'   WHEP has no production source for once FAOSTAT's balance for it ends in
+#'   2013: its full export is kept, export-only keys included, and the
+#'   balance imputes production as export minus import, the residual rule
+#'   FAOSTAT-era Meat Meal rows already get (whep#1450). Measured on a
+#'   2011-2015 build, that adds 2.29 Mt of Meat Meal production and export at
+#'   2014 (43 areas) and 2.51 Mt at 2015 against `"pass_through"`, and moves no
+#'   other key. **Recovery moves published values.**
 #'   Measured on a 2005-2015 build at 2010, `"net_import"` adds 1,038 keys and
 #'   raises world imports by 8.72 Mt (0.57%), exports by 1.83 Mt and food by
 #'   3.07 Mt (0.07%). Protein supply rises from 28 to 63 g/cap/day in
@@ -311,17 +320,20 @@
 #'   which books all of FABIO's Rest-of-World members on one label.
 #'
 #'   `"member_sum"` grows it on the summed population and agricultural land
-#'   of those members, the territory its rows describe. This holds whatever
-#'   `options(whep.unfold_rest_of_world)` is set to. `"none"` gives it no
-#'   proxy, so its series starts in 1961.
+#'   of those members, the territory its rows describe, and grows its residue
+#'   along the summed crops of those members (see `residue_backcast`). This
+#'   holds whatever `options(whep.unfold_rest_of_world)` is set to. `"none"`
+#'   gives it no proxy, so its series starts in 1961.
 #'
 #'   **The default moves published values**, for area 999 before 1961 only.
-#'   Measured on a real 1955-1965 build, 66 rows are added and no other
-#'   value changes: 83.5 Mt of residue `domestic_supply` over 1955-1960
-#'   (13.0 Mt in 1955, 14.9 Mt in 1960, then 15.3 Mt observed in 1961), of
-#'   which 68.3 Mt is `other_uses` and 15.3 Mt `feed`. That raises world
-#'   residue use by 0.74-0.78% in those years. Under `"none"` the build is
-#'   identical to the one before this argument existed.
+#'   Measured on a real 1955-1965 build with the default `residue_backcast`,
+#'   73 rows differ from `"none"` and no other value changes: 75.0 Mt of
+#'   residue `production` and `domestic_supply` over 1955-1960 (11.7 Mt in
+#'   1955, 13.3 Mt in 1960, then 21.2 Mt in 1961), of which 44.1 Mt is
+#'   `other_uses` and 31.0 Mt `feed`. That raises world residue use by
+#'   0.44-0.46% in those years. The step at 1961 is the members' crops: six
+#'   of the eleven report no production before 1961. Under `"none"` area 999
+#'   carries no rows before 1961.
 #' @param unmatched_processing One of `"other_uses"` (default),
 #'   `"processing"` or `"redistribute"`, selecting where a `processing`
 #'   destiny goes when its item has no pathway in [cb_processing], so no
@@ -378,6 +390,24 @@
 #'   -170 kt to -13 kt under `"cocoon"`. No non-Silk row moves. Years before 2014 come from the aggregated old Commodity Balances,
 #'   which carry no link breakdown, and are unchanged, so under `"cocoon"` the
 #'   2013-2014 seam steps by roughly the raw silk production.
+#' @param silk_duplicate_use One of `"residual"` (default) or `"equal_only"`,
+#'   selecting which silk cocoon uses from 2014 on are read as a second
+#'   booking of the same cocoons (whep#1456). FAOSTAT's own balance of a
+#'   cocoon record ends in a `Residuals` element; where it is minus one of
+#'   the two uses, `Processed` or `Other uses`, FAOSTAT's balance closes on
+#'   the other use alone. `"residual"` drops the use the residual cancels and
+#'   keeps the one that closes the balance. `"equal_only"` drops it only when
+#'   the two uses are equal (whep#1281) and otherwise leaves the record as
+#'   published, so the cancelled use stays in Silk `other_uses` and the
+#'   balance closes through a Silk stock withdrawal.
+#'
+#'   In the pinned `faostat-cbs-new` the two differ for Viet Nam 2014-2015,
+#'   whose 45,073 and 43,620 t processed exceed its 6,761 and 6,543 t of
+#'   production, Indonesia 2015-2018 and Italy 2019 (also more processed than
+#'   supplied), Afghanistan 2015-2018 (`Processed` dropped) and China
+#'   mainland 2022-2023 (18,721 t of `Other uses` dropped on top of
+#'   processing that already equals supply). Only Silk rows of those
+#'   country-years move.
 #' @param tobacco_leaf_use One of `"as_published"` (default) or
 #'   `"one_to_one"`, selecting how the Tobacco balance from 2014 on treats
 #'   leaf manufactured into products (whep#1390). The non-food Commodity
@@ -396,6 +426,93 @@
 #'   product was found, and a cigarette also holds paper and filter. Where the
 #'   products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
 #'   remainder stays as stock change. Only Tobacco rows from 2014 on move.
+#' @param nut_basis One of `"rebased"` (default) or `"as_published"`,
+#'   selecting how the trade of FBS item 2551 `Nuts and products` is taken
+#'   from FAOSTAT's new food balance sheets, 2010 on (whep#1495). Their nut
+#'   trade is not one mass basis: at 2010 world imports are 13.57 Mt against
+#'   7.69 Mt of world exports (1.76x; 1.65x at 2022), and the excess goes on
+#'   into food, 19.47 Mt against 14.29 Mt of nuts the world grew in shell,
+#'   with about the old vintage's protein. Regressed on species-level trade,
+#'   importers convert kernels and prepared nuts to in-shell equivalent with
+#'   factors 2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one
+#'   flow lands on two bases. The old vintage closes (6.45 vs 6.51 Mt).
+#'
+#'   `"rebased"` multiplies each area's import and export by its median
+#'   old/new ratio over 2010-2013, clamped to `[0.2, 1]` -- the old
+#'   vintage's level with the new one's change over time, as the palm-kernel
+#'   fix already joins them -- and takes the net trade removed out of food
+#'   and domestic supply, so every row keeps its supply-use identity and
+#'   production and stock change do not move. A row whose net cut is not
+#'   positive or exceeds its food is left as published. The moved rows are
+#'   labelled `"FAOSTAT_FBS_New_rebased"`, and the ratio is read from the
+#'   pins whatever years are built. `"as_published"` keeps FAOSTAT's figures,
+#'   the behaviour before whep#1495; the old vintage is scaled to whichever
+#'   level is chosen, so 1961-2009 follows it. **The default moves published
+#'   values**, all of them in item 2551. Measured on a real 2009-2016
+#'   build at 2010, world imports fall from 13.85 to 7.16 Mt and exports
+#'   from 7.83 to 6.51 Mt (imports/exports 1.77x to 1.10x; 1.61x to 1.02x
+#'   at 2016), and food from 19.79 to 14.43 Mt against 14.60 Mt of
+#'   production; the 5.37 Mt drop is 0.11% of the 4,692 Mt of all-item food.
+#'   Production and stock change do not move from 2010 on. FBS's own 2551
+#'   protein over the pin's food rises from 45.6 to 62.9 g/kg, against FAO's
+#'   in-shell basket of 64.7 that [build_food_supply()] applies.
+#' @param residue_backcast One of `"own_method"` (default),
+#'   `"production_ratio"` or `"area_rate"`, selecting what crop residue
+#'   (Straw, Other crop residues, Firewood) grows back along before the first
+#'   year of the `crop_residues` pin, 1961 (whep#1508). Each (area, crop,
+#'   residue item) keeps the ratio of its 1961 gross residue to a basis taken
+#'   from the crop's primary production, and is then recovered and split into
+#'   `production`, `feed` and `other_uses` as every 1961+ row is, so
+#'   production equals feed plus other uses in every year. Rows carry the
+#'   source `"historical_residue_<method>"`.
+#'
+#'   `"own_method"` grows each row along the basis its 1961 value was built
+#'   on: residue computed from yield (cereals, and the non-cereals with an
+#'   IPCC Table 11.2 line, whep#1561) along [calculate_crop_residues()]
+#'   applied to the year's production and harvested area, the estimator that
+#'   computes it from 1961 on, and every other row along its crop's
+#'   production, since the pin's remaining residue is a residue:product
+#'   ratio. `"production_ratio"` grows
+#'   every row along production, holding residue per tonne of crop; it puts
+#'   1955-1960 residue computed from yield 1.5-5.7% below the estimator.
+#'   `"area_rate"` grows every row along harvested area, holding residue per
+#'   hectare; it puts it 0.3-2.6% above.
+#'
+#'   **The default moves published values**, for residue items before 1961
+#'   only. Before it, the extension grew residue uses along population and
+#'   agricultural land and gave the residue no production, so the whole use
+#'   was booked as a stock draw. Measured on a real 1955-1965 build, world
+#'   residue production in 1955 / 1960 goes from none to 2,301 / 2,486 Mt
+#'   (`"production_ratio"` 2,209 / 2,454, `"area_rate"` 2,392 / 2,506),
+#'   against 3,038 Mt in 1961, and residue `stock_variation` from
+#'   -2,681 / -2,906 Mt to -375 / -407 Mt under all three. What remains is
+#'   the Soviet Union, Yugoslavia, Czechoslovakia and Belgium-Luxembourg,
+#'   whose crop production does not reach before 1961 either (whep#102):
+#'   their residue keeps the population and land fill, like their crops.
+#'   World `stock_variation` over all items moves from -3,057 / -3,222 Mt to
+#'   -751 / -723 Mt. No 1961-or-later value and no other item moves.
+#' @param bucket_coverage How to handle a balance source reporting only some
+#'   active members of a bucket: `"complete_sources"` (default) excludes that
+#'   source's bucket-year before selection. The existing interpolation of the
+#'   bucket's complete-territory destiny shares, then world-share estimation,
+#'   supplies the balance. `"world_shares"` also excludes partial sources but
+#'   explicitly uses the same-year/item world destiny shares for the affected
+#'   bucket-years instead of their temporal anchors. Affected bucket-years
+#'   are excluded from the donors; this method aborts when no positive
+#'   same-year/item donor profile exists. Both methods retain the structural
+#'   feed allocation for processing residues. The default is provisional:
+#'   FAO (2017), *Guidelines for the Compilation of Food Balance Sheets*
+#'   (140-page UNSIAP edition), sections 3.4.2.1-2, pp. 53-54,
+#'   supports imputation and source flags but does not prescribe this bucket
+#'   policy. Both methods retain production and the published geography.
+#'   `method_cbs_coverage` records the policy on affected bucket-years;
+#'   `"reported_members"` means no partial source was detected. The
+#'   `cbs_coverage_log` attribute records each partial source and member sets.
+#'   `"not_checked"` marks inputs without member metadata, including
+#'   `.fixed_data`. This is a bucket-year coverage check, not an item-level
+#'   completeness guarantee. The world-share estimate clears non-production
+#'   FAOSTAT flags on affected bucket-years: a source status is not an
+#'   observation status for the estimated bucket.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -423,6 +540,12 @@
 #'   [build_primary_production()] does not carry the flag out of the
 #'   production pin.
 #'
+#'   Both formats retain a `residue_feed_kgdm` attribute with the crop-mix
+#'   dry-matter content behind their residue feed, including the selected
+#'   historical back-cast. The feed allocator uses this provenance; formats
+#'   such as CSV that discard attributes cannot preserve it. Custom balances
+#'   without it retain the residue reader and warn on uncovered feed rows.
+#'
 #' @export
 #'
 #' @examples
@@ -446,10 +569,15 @@ build_commodity_balances <- function(
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
+  silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices(),
+  residue_backcast = .cbs_residue_backcast_choices(),
+  bucket_coverage = .cbs_coverage_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
+  bucket_coverage <- rlang::arg_match(bucket_coverage)
   trade_recovery <- rlang::arg_match(trade_recovery)
   trade_zero <- rlang::arg_match(trade_zero)
   share_overflow <- rlang::arg_match(share_overflow)
@@ -461,7 +589,10 @@ build_commodity_balances <- function(
   aggregate_proxy <- rlang::arg_match(aggregate_proxy)
   unmatched_processing <- rlang::arg_match(unmatched_processing)
   silk_basis <- rlang::arg_match(silk_basis)
+  silk_duplicate_use <- rlang::arg_match(silk_duplicate_use)
   tobacco_leaf_use <- rlang::arg_match(tobacco_leaf_use)
+  nut_basis <- rlang::arg_match(nut_basis)
+  residue_backcast <- rlang::arg_match(residue_backcast)
   if (example) {
     return(
       if (format == "wide") {
@@ -478,6 +609,8 @@ build_commodity_balances <- function(
     ))
   }
   scale_log <- NULL
+  coverage_log <- NULL
+  residue_kgdm <- attr(.fixed_data, "residue_feed_kgdm")
   if (is.null(.fixed_data)) {
     raw <- .read_cbs(
       primary_all,
@@ -490,9 +623,15 @@ build_commodity_balances <- function(
       seed_backcast = seed_backcast,
       aggregate_proxy = aggregate_proxy,
       silk_basis = silk_basis,
-      tobacco_leaf_use = tobacco_leaf_use
+      silk_duplicate_use = silk_duplicate_use,
+      tobacco_leaf_use = tobacco_leaf_use,
+      nut_basis = nut_basis,
+      residue_backcast = residue_backcast,
+      bucket_coverage = bucket_coverage
     )
+    coverage_log <- attr(raw, ".cbs_coverage_log")
     scale_log <- attr(raw, ".hist_trade_scale_log")
+    residue_kgdm <- attr(raw, "residue_feed_kgdm")
     fixed <- raw |>
       .fix_cbs(
         trade_recovery = trade_recovery,
@@ -506,6 +645,11 @@ build_commodity_balances <- function(
     if (!is.null(historical_data)) {
       cli::cli_warn(
         "{.arg historical_data} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (bucket_coverage != "complete_sources") {
+      cli::cli_warn(
+        "{.arg bucket_coverage} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     if (trade_recovery != .cbs_trade_recovery_choices()[[1]]) {
@@ -570,9 +714,26 @@ build_commodity_balances <- function(
         "{.arg silk_basis} is ignored when {.arg .fixed_data} is supplied."
       )
     }
+    if (silk_duplicate_use != "residual") {
+      cli::cli_warn(
+        "{.arg silk_duplicate_use} is ignored when {.arg .fixed_data} is \
+         supplied."
+      )
+    }
     if (tobacco_leaf_use != "as_published") {
       cli::cli_warn(
         "{.arg tobacco_leaf_use} is ignored when {.arg .fixed_data} is \
+         supplied."
+      )
+    }
+    if (nut_basis != "rebased") {
+      cli::cli_warn(
+        "{.arg nut_basis} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (residue_backcast != "own_method") {
+      cli::cli_warn(
+        "{.arg residue_backcast} is ignored when {.arg .fixed_data} is \
          supplied."
       )
     }
@@ -585,7 +746,11 @@ build_commodity_balances <- function(
     .report_negative_cbs_values(
       negative_supply = if (is.null(.fixed_data)) negative_supply
     )
+  long <- .cbs_stamp_coverage(long, coverage_log)
   attr(long, "hist_trade_scale_log") <- scale_log
+  # Keep the exact crop mix behind the feed rows, including the backcast
+  # method selected above, for the downstream feed allocator (whep#1556).
+  attr(long, "residue_feed_kgdm") <- residue_kgdm
 
   if (format == "long") {
     return(long)
@@ -609,12 +774,14 @@ build_commodity_balances <- function(
   # The long CBS is mass-only by construction (the whep#865 guards drop every
   # non-mass row), while the livestock rows are head counts. The label says
   # which is which, and each item must carry one of them (whep#1055).
-  cbs_long |>
+  wide <- cbs_long |>
     .pivot_cbs_wide() |>
     .ensure_wide_cbs_destinies() |>
     dplyr::mutate(unit = "tonnes", .after = "item_cbs_code") |>
     dplyr::bind_rows(livestock_cbs) |>
     .abort_if_units_mixed("wide CBS", key_cols = "item_cbs_code")
+  attr(wide, "residue_feed_kgdm") <- attr(cbs_long, "residue_feed_kgdm")
+  wide
 }
 
 # `.pivot_cbs_wide()` fills a missing *observation* with 0, but an element
@@ -663,7 +830,7 @@ build_commodity_balances <- function(
     .add_reporting_polity_columns()
 
   .qc_supply_use_balance(wide)
-  wide
+  .cbs_stamp_coverage(wide, attr(cbs_long, "cbs_coverage_log"))
 }
 
 .format_cbs_output <- function(df) {
@@ -820,7 +987,11 @@ build_commodity_balances <- function(
   seed_backcast = .cbs_seed_backcast_choices(),
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
   silk_basis = .silk_basis_choices(),
-  tobacco_leaf_use = .tobacco_leaf_use_choices()
+  silk_duplicate_use = .silk_duplicate_use_choices(),
+  tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices(),
+  residue_backcast = .cbs_residue_backcast_choices(),
+  bucket_coverage = .cbs_coverage_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -841,12 +1012,17 @@ build_commodity_balances <- function(
     years,
     hist_trade_scale = hist_trade_scale,
     silk_basis = silk_basis,
-    tobacco_leaf_use = tobacco_leaf_use
+    silk_duplicate_use = silk_duplicate_use,
+    tobacco_leaf_use = tobacco_leaf_use,
+    nut_basis = nut_basis,
+    residue_backcast = residue_backcast,
+    aggregate_proxy = aggregate_proxy
   )
 
   # 2. Build first raw CBS (combine sources, select best)
   cli::cli_progress_step("Combining CBS sources")
-  cbs_raw0 <- .cbs_combine_sources(inputs)
+  cbs_raw0 <- .cbs_combine_sources(inputs, bucket_coverage)
+  coverage_log <- attr(cbs_raw0, "coverage_log")
   historical_rows <- .prepare_historical_cbs(
     historical_data,
     years = output_years
@@ -873,7 +1049,9 @@ build_commodity_balances <- function(
 
   # Trim to requested years and attach context for downstream
   cbs_raw <- .filter_years(cbs_raw, output_years)
+  attr(cbs_raw, ".cbs_coverage_log") <- coverage_log
   attr(cbs_raw, ".years") <- output_years
+  attr(cbs_raw, "residue_feed_kgdm") <- inputs$residue_feed_kgdm
   attr(cbs_raw, ".hist_trade_scale_log") <- attr(
     inputs$trade_hist,
     "hist_trade_scale_log"
@@ -951,8 +1129,9 @@ build_commodity_balances <- function(
 #'   attribute (set automatically by `.read_cbs()`).
 #' @param trade_zero One of `"prefer_record"` (default) or `"keep"`. See
 #'   [build_commodity_balances()].
-#' @param trade_recovery One of `"pass_through"` (default), `"net_import"` or
-#'   `"none"`. See [build_commodity_balances()].
+#' @param trade_recovery One of `"byproduct_residual"` (default),
+#'   `"pass_through"`, `"net_import"` or `"none"`. See
+#'   [build_commodity_balances()].
 #' @param export_share_overflow One of `"report"` (default), `"drop"` or
 #'   `"abort"`. See [build_commodity_balances()].
 #' @param unmatched_processing One of `"other_uses"` (default),
@@ -974,6 +1153,7 @@ build_commodity_balances <- function(
 ) {
   years <- attr(df, ".years") %||% 1850:2023
   fao_trade_cbs <- attr(df, ".fao_trade")
+  coverage_log <- attr(df, ".cbs_coverage_log")
   cbs_raw <- df
 
   # Strip attributes to avoid carrying large objects downstream
@@ -1032,7 +1212,7 @@ build_commodity_balances <- function(
 
   # 8. Fill destiny gaps
   cli::cli_progress_step("Filling destiny gaps")
-  cbs_raw5 <- .cbs_fill_destinies(cbs_raw4)
+  cbs_raw5 <- .cbs_fill_destinies(cbs_raw4, coverage_log)
 
   # 9. Second round of processed products
   cli::cli_progress_step("Second round of processed products")
@@ -1280,35 +1460,60 @@ build_processing_coefs <- function(
   years,
   hist_trade_scale = .hist_trade_scale_choices(),
   silk_basis = .silk_basis_choices(),
-  tobacco_leaf_use = .tobacco_leaf_use_choices()
+  silk_duplicate_use = .silk_duplicate_use_choices(),
+  tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices(),
+  residue_backcast = .cbs_residue_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
     hist_trade_scale,
     .hist_trade_scale_choices()
   )
   silk_basis <- rlang::arg_match(silk_basis, .silk_basis_choices())
+  nut_basis <- rlang::arg_match(nut_basis, .nut_basis_choices())
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
-  if (!is.null(cb)) {
+  if (.cbs_reuse_extracts(cb)) {
     fbs_new <- cb$fbs_new
     fbs_old <- cb$fbs_old
     cbs_crops <- cb$cbs_crops
     cbs_animals <- cb$cbs_animals
   } else {
-    fbs_new <- .extract_cb("faostat-fbs-new", years = years)
-    fbs_old <- .extract_cb("faostat-fbs-old", years = years)
-    cbs_crops <- .extract_cb("faostat-cbs-old-crops", years = years)
-    cbs_animals <- .extract_cb("faostat-cbs-old-animal", years = years)
+    fbs_new <- .extract_cb(
+      "faostat-fbs-new",
+      years = years,
+      keep_members = TRUE
+    )
+    fbs_old <- .extract_cb(
+      "faostat-fbs-old",
+      years = years,
+      keep_members = TRUE
+    )
+    cbs_crops <- .extract_cb(
+      "faostat-cbs-old-crops",
+      years = years,
+      keep_members = TRUE
+    )
+    cbs_animals <- .extract_cb(
+      "faostat-cbs-old-animal",
+      years = years,
+      keep_members = TRUE
+    )
   }
+  # Which vintage sets the level of FBS item 2551 (whep#1495).
+  fbs_rebase <- .fbs_rebase_factors(fbs_new, fbs_old, nut_basis)
+  .warn_fbs_rebase_absent(fbs_new, fbs_rebase, nut_basis)
   # "Processed" and "Residuals" are read only for the silk chain and removed
   # again by `.cbs_silk_mass_basis()`, whatever the method (whep#1251,
   # whep#1281).
   cbs_new <- .extract_fao(
     "faostat-cbs-new",
     years = years,
+    keep_members = TRUE,
     keep_elements = c("Processed", "Residuals")
   ) |>
-    .cbs_silk_mass_basis(silk_basis) |>
+    .cbs_silk_mass_basis(silk_basis, duplicate_use = silk_duplicate_use) |>
     .cbs_tobacco_leaf_use(tobacco_leaf_use)
 
   # Trade
@@ -1333,8 +1538,17 @@ build_processing_coefs <- function(
   primary_cbs <- .primary_to_cbs(primary_all)
   primary_cbs_area <- .primary_to_cbs_area(primary_all)
 
-  # Crop residues
-  crop_residues <- .read_crop_residues(years = years)
+  # Crop residues, and the pre-1961 years the pin does not reach grown back
+  # along the crops they come from (whep#1508).
+  residues <- .filter_years(get_primary_residues(), years)
+  crop_residues <- .read_crop_residues(residues = residues)
+  residue_backcast <- .cbs_residue_backcast(
+    residues,
+    primary_all,
+    years,
+    method = residue_backcast,
+    aggregate_proxy = aggregate_proxy
+  )
 
   # Land areas
   land_areas_wide <- .read_land_areas_wide(years = years)
@@ -1352,7 +1566,13 @@ build_processing_coefs <- function(
     primary_cbs = primary_cbs,
     primary_cbs_area = primary_cbs_area,
     crop_residues = crop_residues,
-    land_areas_wide = land_areas_wide
+    residue_feed_kgdm = dplyr::bind_rows(
+      .residue_feed_kgdm(residues),
+      attr(residue_backcast, "residue_feed_kgdm")
+    ),
+    residue_backcast = residue_backcast,
+    land_areas_wide = land_areas_wide,
+    fbs_rebase = fbs_rebase
   )
 }
 
@@ -2541,7 +2761,7 @@ build_processing_coefs <- function(
   dplyr::case_when(
     year < 1961L & stringr::str_starts(source, "historical_") ~ 1L,
     source == "FAOSTAT_prod" ~ 2L,
-    source == "FAOSTAT_FBS_New" ~ 3L,
+    source %in% c("FAOSTAT_FBS_New", "FAOSTAT_FBS_New_rebased") ~ 3L,
     source == "FAOSTAT_FBS_Old_scaled" ~ 4L,
     source == "FAOSTAT_FBS_Old" ~ 5L,
     source == "FAOSTAT_CBS" ~ 6L,
@@ -2758,10 +2978,13 @@ build_processing_coefs <- function(
   invisible(NULL)
 }
 
-.read_crop_residues <- function(years = NULL) {
+.read_crop_residues <- function(years = NULL, residues = NULL) {
   items_prod <- whep::items_prod_full
 
-  res <- get_primary_residues() |>
+  if (is.null(residues)) {
+    residues <- get_primary_residues()
+  }
+  res <- residues |>
     .filter_years(years) |>
     .residue_cbs_elements()
 
@@ -2820,6 +3043,337 @@ build_processing_coefs <- function(
   .apply_bucket_area_labels(dt, labels)
 }
 
+# -- The pre-1961 crop-residue back-cast (whep#1508) ---------------------------
+#
+# The `crop_residues` pin starts in 1961, so before it the balance had residue
+# USES and no residue PRODUCTION. The generic back-cast grew Straw, Other crop
+# residues and Firewood `feed` and `other_uses` along population and
+# agricultural land, nothing grew their production, and the balance closed
+# through `stock_variation`: measured on a real 1955-1965 build, 2.68 Gt of
+# residue in 1955 and 2.91 Gt in 1960 booked as a draw on stocks that never
+# existed.
+#
+# The crop the residue comes from is produced before 1961, so the residue is
+# grown back along it, per area, crop and residue item, and then split into
+# recovered production, feed and other uses by `.residue_cbs_elements()`, the
+# same split every 1961+ row gets. Production therefore equals feed plus other
+# uses in every back-cast year, as it does after 1961.
+#
+# What it grows along is the choice of `build_commodity_balances()`'s
+# `residue_backcast`, which documents what each moves:
+#
+# - `"own_method"` grows each row along the basis its first-year value was
+#   built on. Cereal residue, and since whep#1561 the residue of every
+#   non-cereal IPCC Table 11.2 gives a line for, is recomputed with
+#   `calculate_crop_residues()` from production and harvested area
+#   (`.residue_ratio_corrected()`), so it grows along that estimator applied
+#   to the earlier year's crops, yield response included. Every other row is
+#   the predecessor's product-times-ratio model or a per-product anchor, so
+#   it grows along crop production; an oil
+#   palm row anchored per hectare grows along harvested area. The pin's
+#   harvest-index change factor is not shipped (`get_primary_residues()`), so
+#   for those rows it is held at its 1961 value -- assumed, unverified: older
+#   varieties had lower harvest indices, which would put more residue on each
+#   tonne of crop.
+# - `"production_ratio"` grows every row along its crop's production.
+# - `"area_rate"` grows every row along its crop's harvested area.
+.cbs_residue_backcast_choices <- function() {
+  c("own_method", "production_ratio", "area_rate")
+}
+
+# The back-cast residue as CBS rows on the reporting bucket, with the source
+# label that marks them as WHEP's estimate rather than a reported figure.
+.cbs_residue_backcast <- function(
+  residues,
+  primary_all,
+  years,
+  method = .cbs_residue_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
+) {
+  method <- rlang::arg_match(method, .cbs_residue_backcast_choices())
+  rows <- .backcast_crop_residues(
+    residues,
+    primary_all,
+    years,
+    method = method,
+    aggregate_proxy = aggregate_proxy
+  )
+  if (nrow(rows) == 0L) {
+    return(.empty_historical_cbs())
+  }
+  out <- .read_crop_residues(residues = rows) |>
+    tibble::as_tibble() |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      area = .data$area,
+      area_code = as.integer(.data$area_code),
+      item_cbs = .data$item_cbs,
+      item_cbs_code = as.integer(.data$item_cbs_code),
+      element = .data$element,
+      source = .residue_backcast_source(method),
+      value = .data$value
+    )
+  attr(out, "residue_feed_kgdm") <- .residue_feed_kgdm(rows)
+  out
+}
+
+# Pre-1962 back-cast values outrank every other source in
+# `.cbs_source_rank()` because the label starts with `"historical_"`.
+.residue_backcast_source <- function(method) {
+  paste0("historical_residue_", method)
+}
+
+# Gross residue rows (the `get_primary_residues()` schema) for every year of
+# `years` before the first year `residues` reports. Each (area, crop, residue
+# item) keeps the ratio of its residue to its basis in that first year, spent
+# on the basis of the earlier year. A year in which production reports no such
+# crop gets no residue: there is nothing for it to be the residue of.
+.backcast_crop_residues <- function(
+  residues,
+  primary_all,
+  years,
+  method = .cbs_residue_backcast_choices(),
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
+) {
+  method <- rlang::arg_match(method, .cbs_residue_backcast_choices())
+  residues <- tibble::as_tibble(residues)
+  if (nrow(residues) == 0L) {
+    return(.empty_residue_backcast())
+  }
+  anchor_year <- min(residues$year)
+  target <- as.integer(years[years < anchor_year])
+  if (length(target) == 0L) {
+    return(.empty_residue_backcast())
+  }
+  first <- .residue_backcast_rows(residues, anchor_year, method)
+  proxy <- .residue_backcast_proxy(
+    primary_all,
+    c(target, anchor_year),
+    dplyr::distinct(first, .data$basis, .data$item_cbs_code_crop),
+    aggregate_proxy
+  )
+  anchor <- .residue_backcast_anchor(first, proxy)
+  .report_residue_backcast(anchor)
+  keys <- c("year", "proxy_area_code", "item_cbs_code_crop", "basis")
+  anchor |>
+    dplyr::filter(.data$proxy > 0) |>
+    dplyr::transmute(
+      area_code = .data$area_code,
+      proxy_area_code = .data$proxy_area_code,
+      item_cbs_code_crop = .data$item_cbs_code_crop,
+      item_cbs_code_residue = .data$item_cbs_code_residue,
+      basis = .data$basis,
+      method_residue = .data$method_residue,
+      per_proxy = .data$value / .data$proxy,
+      dm_per_proxy = .data$value_dm / .data$proxy
+    ) |>
+    tidyr::expand_grid(year = target) |>
+    dplyr::inner_join(proxy, by = keys) |>
+    dplyr::transmute(
+      year = .data$year,
+      area_code = .data$area_code,
+      item_cbs_code_crop = .data$item_cbs_code_crop,
+      item_cbs_code_residue = .data$item_cbs_code_residue,
+      value = .data$per_proxy * .data$proxy,
+      value_dm = .data$dm_per_proxy * .data$proxy,
+      method_residue = .data$method_residue
+    ) |>
+    dplyr::filter(.data$value > 0)
+}
+
+.empty_residue_backcast <- function() {
+  tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    item_cbs_code_crop = integer(),
+    item_cbs_code_residue = integer(),
+    value = double(),
+    value_dm = double(),
+    method_residue = character()
+  )
+}
+
+# The first-year residue rows, each stamped with the basis it grows along.
+.residue_backcast_rows <- function(residues, anchor_year, method) {
+  residues |>
+    dplyr::filter(.data$year == anchor_year, !is.na(.data$area_code)) |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      area_code = as.integer(.data$area_code),
+      polity_area_code = as.integer(.data$polity_area_code),
+      item_cbs_code_crop = as.integer(.data$item_cbs_code_crop),
+      item_cbs_code_residue = as.integer(.data$item_cbs_code_residue),
+      value = .data$value,
+      value_dm = .data$value_dm,
+      method_residue = .data$method_residue,
+      basis = .residue_backcast_basis(.data$method_residue, method)
+    )
+}
+
+# What a residue row grows along: `"production"`, `"area"`, or the name of the
+# `calculate_crop_residues()` method its first-year value was computed with.
+.residue_backcast_basis <- function(method_residue, method) {
+  if (method == "production_ratio") {
+    return(rep("production", length(method_residue)))
+  }
+  if (method == "area_rate") {
+    return(rep("area", length(method_residue)))
+  }
+  estimators <- rlang::fn_fmls(calculate_crop_residues)$method |> eval()
+  dplyr::case_when(
+    method_residue %in% estimators ~ method_residue,
+    method_residue == "malaysia_nbs_per_hectare" ~ "area",
+    .default = "production"
+  )
+}
+
+# The first-year rows with the value of their basis in that year, in the
+# territory each is read against.
+#
+# The territory is the residue row's own `area_code`, with two exceptions the
+# production build does not carry as a code. Rest of World (999) is the summed
+# members `.residue_backcast_proxy()` appends under `aggregate_proxy =
+# "member_sum"`, as in `.fill_with_proxies()` (whep#724). And a code production
+# does not report at all is read through the bucket it resolves to in the
+# first year: the pin books all of Sudan on the post-2011 code 276 from 1961,
+# which resolves to the former Sudan, 206, the code production carries.
+.residue_backcast_anchor <- function(first, proxy) {
+  carried <- c(unique(proxy$proxy_area_code), .rest_of_world_code())
+  first |>
+    dplyr::mutate(
+      proxy_area_code = dplyr::if_else(
+        .data$area_code %in% carried,
+        .data$area_code,
+        .data$polity_area_code
+      )
+    ) |>
+    dplyr::left_join(
+      proxy,
+      by = c("year", "proxy_area_code", "item_cbs_code_crop", "basis")
+    )
+}
+
+# Each basis per year, area and CBS crop item, for the crops that need it.
+.residue_backcast_proxy <- function(
+  primary_all,
+  years,
+  needs,
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
+) {
+  aggregate_proxy <- rlang::arg_match(
+    aggregate_proxy,
+    .cbs_aggregate_proxy_choices()
+  )
+  crops <- .residue_backcast_crops(primary_all, years)
+  proxy <- needs |>
+    dplyr::summarise(
+      crop_codes = list(.data$item_cbs_code_crop),
+      .by = "basis"
+    ) |>
+    purrr::pmap(\(basis, crop_codes) {
+      .residue_basis_values(
+        dplyr::filter(crops, .data$item_cbs_code_crop %in% crop_codes),
+        basis
+      )
+    }) |>
+    dplyr::bind_rows(.residue_basis_values(crops[0, ], "production"))
+  if (aggregate_proxy == "member_sum") {
+    members <- .rest_of_world_member_codes()
+    proxy <- dplyr::bind_rows(
+      proxy,
+      proxy |>
+        dplyr::filter(.data$area_code %in% members) |>
+        dplyr::mutate(area_code = .rest_of_world_code())
+    )
+  }
+  proxy |>
+    dplyr::summarise(
+      proxy = sum(.data$proxy, na.rm = TRUE),
+      .by = c("year", "area_code", "item_cbs_code_crop", "basis")
+    ) |>
+    dplyr::rename(proxy_area_code = "area_code")
+}
+
+# Crop production (t) and harvested area (ha) per year, area and production
+# item, with the CBS crop item each maps to.
+.residue_backcast_crops <- function(primary_all, years) {
+  dt <- data.table::as.data.table(primary_all)[
+    unit %in%
+      c("tonnes", "ha") &
+      year %in% years &
+      !is.na(item_cbs_code) &
+      !is.na(value)
+  ]
+  dt <- dt[,
+    .(value = sum(value)),
+    by = .(
+      year = as.integer(year),
+      area_code = as.integer(area_code),
+      item_cbs_code_crop = as.integer(item_cbs_code),
+      item_prod_code = as.character(item_prod_code),
+      unit
+    )
+  ]
+  data.table::dcast(
+    dt,
+    year + area_code + item_cbs_code_crop + item_prod_code ~ unit,
+    value.var = "value",
+    fill = NA_real_
+  ) |>
+    tibble::as_tibble() |>
+    ensure_columns(tibble::tibble(tonnes = double(), ha = double())) |>
+    dplyr::rename(production_t = "tonnes", area_ha = "ha")
+}
+
+# One basis's values per production item. An estimator basis needs both a
+# production and a harvested area, as it does in `.residue_cereal_production()`.
+.residue_basis_values <- function(crops, basis) {
+  keys <- c("year", "area_code", "item_cbs_code_crop")
+  if (basis %in% c("production", "area")) {
+    col <- if (basis == "production") "production_t" else "area_ha"
+    return(
+      crops |>
+        dplyr::select(dplyr::all_of(keys), proxy = dplyr::all_of(col)) |>
+        dplyr::mutate(basis = basis)
+    )
+  }
+  crops |>
+    dplyr::filter(.data$production_t > 0, .data$area_ha > 0) |>
+    dplyr::left_join(
+      dplyr::select(.residue_area_regions(), "area_code", "region_hanpp"),
+      by = "area_code"
+    ) |>
+    calculate_crop_residues(method = basis) |>
+    dplyr::select(dplyr::all_of(keys), proxy = "residue_dm_t") |>
+    dplyr::mutate(basis = basis)
+}
+
+# Say how much first-year residue could not be grown back, because production
+# reports no crop for it to grow along in that year. It is left out of every
+# earlier year rather than given a residue with nothing behind it.
+.report_residue_backcast <- function(anchor) {
+  lost <- anchor[is.na(anchor$proxy) | anchor$proxy <= 0, ]
+  if (nrow(lost) == 0L) {
+    return(invisible(NULL))
+  }
+  n_rows <- nrow(lost)
+  tonnes <- .cbs_tonnes(sum(lost$value))
+  share <- round(100 * sum(lost$value) / sum(anchor$value), 2)
+  first_year <- min(anchor$year)
+  areas <- sort(unique(lost$area_code))
+  cli::cli_inform(
+    c(
+      "i" = "{n_rows} first-year crop-residue row{?s} find{?s/} no crop
+        production or area to grow back along, so
+        {cli::qty(n_rows)}{?it is/they are} not back-cast before
+        {first_year}: {tonnes}, {share}% of that year's residue.",
+      " " = "Areas: {.val {areas}}."
+    ),
+    class = "whep_residue_backcast"
+  )
+  invisible(NULL)
+}
+
 .read_land_areas_wide <- function(years = NULL) {
   land_areas <- .read_land_areas(years = years)
   varnames_cropland <- c(
@@ -2867,7 +3421,11 @@ build_processing_coefs <- function(
 
 # -- Source combination --------------------------------------------------------
 
-.cbs_combine_sources <- function(inputs) {
+.cbs_combine_sources <- function(
+  inputs,
+  bucket_coverage = .cbs_coverage_choices()
+) {
+  inputs <- .cbs_coverage_inputs(inputs, bucket_coverage)
   items <- whep::items_full
   cbs_trade <- whep::cbs_trade_codes
 
@@ -2888,6 +3446,9 @@ build_processing_coefs <- function(
     items
   )
 
+  # FBS 2551 trade on the old vintage's level (whep#1495)
+  inputs$fbs_new <- .rebase_fbs_trade(inputs$fbs_new, inputs$fbs_rebase)
+
   # Combine all sources
   cbs_raw_all <- .assemble_cbs_sources(
     inputs,
@@ -2898,7 +3459,12 @@ build_processing_coefs <- function(
   )
 
   # Select best value among sources
-  .select_best_source(cbs_raw_all)
+  out <- .select_best_source(
+    cbs_raw_all,
+    rebased = attr(inputs$fbs_new, "rebased_keys")
+  )
+  attr(out, "coverage_log") <- attr(inputs, "coverage_log")
+  out
 }
 
 .fix_palm_kernels <- function(inputs) {
@@ -3278,7 +3844,7 @@ build_processing_coefs <- function(
   dt
 }
 
-.select_best_source <- function(cbs_raw_all) {
+.select_best_source <- function(cbs_raw_all, rebased = NULL) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
   # Key on the integer `area_code`, not the `area` name: sources disagree on
   # the name for the same code (plain name vs periodized polity name, e.g.
@@ -3508,6 +4074,7 @@ build_processing_coefs <- function(
     value := 0
   ]
 
+  wide <- .label_fbs_rebased(wide, rebased)
   wide[area_lookup, area := i.area, on = "area_code"]
   wide <- .add_best_source_flag(wide, dt_raw, key_cols, primary_sources)
 
@@ -3555,13 +4122,18 @@ build_processing_coefs <- function(
     )
   ]
   flags <- .fold_flags_by(flags, c(key_cols, "source_group"))
-  # The scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
-  # FBS_Old's flag; every other label is the group name already.
+  # A scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
+  # FBS_Old's flag, and a rebased FBS_New value keeps FBS_New's; every other
+  # label is the group name already.
   wide[,
     source_group := data.table::fifelse(
       source == "FAOSTAT_FBS_Old_scaled",
       "FAOSTAT_FBS_Old",
-      source
+      data.table::fifelse(
+        source == "FAOSTAT_FBS_New_rebased",
+        "FAOSTAT_FBS_New",
+        source
+      )
     )
   ]
   wide[flags, fao_flag := i.fao_flag, on = c(key_cols, "source_group")]
@@ -3678,6 +4250,13 @@ build_processing_coefs <- function(
   aggregate_proxy = .cbs_aggregate_proxy_choices()
 ) {
   items <- whep::items_full
+
+  # The back-cast crop residue enters as an observation, so the destiny fills
+  # below leave it alone: its uses are derived from its production, as after
+  # 1961, instead of being grown along population and land (whep#1508).
+  if (NROW(inputs$residue_backcast) > 0L) {
+    cbs_raw0 <- dplyr::bind_rows(cbs_raw0, inputs$residue_backcast)
+  }
 
   cbs_hist <- cbs_raw0 |>
     dplyr::filter(
@@ -4687,10 +5266,7 @@ build_processing_coefs <- function(
 # that steps up at 1961) and over world-total growth; `aggregate_proxy =
 # "none"` keeps the unfilled alternative selectable.
 .rest_of_world_proxy <- function(df, iso3_col) {
-  crosswalk <- data.table::as.data.table(polity_area_crosswalk)
-  members <- unique(
-    crosswalk$area_code[.rest_of_world_members(crosswalk, "all")]
-  )
+  members <- .rest_of_world_member_codes()
   dt <- .proxy_area_key(df, iso3_col)[area_code %in% members]
   dt[, area_code := .rest_of_world_code()]
   dt[, polity_area_code := .rest_of_world_code()]
@@ -4699,6 +5275,13 @@ build_processing_coefs <- function(
 
 .rest_of_world_code <- function() {
   999L
+}
+
+# The area codes of FABIO's Rest-of-World members, read with the "all"
+# predicate whatever fold mode is running (see `.rest_of_world_proxy()`).
+.rest_of_world_member_codes <- function() {
+  crosswalk <- data.table::as.data.table(polity_area_crosswalk)
+  unique(crosswalk$area_code[.rest_of_world_members(crosswalk, "all")])
 }
 
 .cbs_aggregate_proxy_choices <- function() {
@@ -5278,8 +5861,8 @@ build_processing_coefs <- function(
 # tonnes-denominated items and 2.56 Mt of net imports short (whep#762).
 #
 # These helpers emit the missing `import`/`export` rows so the join has
-# something to land on. They run under `trade_recovery = "net_import"`, the
-# default since whep#762, and are deliberately narrower than "every key the
+# something to land on. They run under every `trade_recovery` but `"none"`,
+# and are deliberately narrower than "every key the
 # trade record carries". Each restriction below is what makes
 # the created row balanceable rather than a fabrication:
 #
@@ -5297,14 +5880,16 @@ build_processing_coefs <- function(
 #   balancing cascade closes the identity by inventing production, and
 #   `check_supply_use_balance()` then passes on fabricated tonnage. So a net
 #   exporter is either passed through with its export capped at its import
-#   (`"pass_through"`, the default) or not created (`"net_import"`); see
+#   (`"pass_through"`) or not created (`"net_import"`); see
 #   `.cbs_recovery_net_exports()`. Measured on a 2005-2015 build at 2010,
-#   there are 107 such pairs: 3.20 Mt of exports against 1.04 Mt of imports.
-#   2.33 Mt of those exports is Meat Meal (2112) in 38 rendering countries, a
-#   product WHEP gives no production at all, so what is missing there is a
-#   production item, not a trade rule (whep#1450); the rest is mostly
-#   Singapore's re-exports of cocoa, maize, beer and coffee. No food supply
-#   depends on the choice, because the domestic supply is zero either way.
+#   there were 107 such pairs: 3.20 Mt of exports against 1.04 Mt of imports.
+#   2.33 Mt of those exports was Meat Meal (2112) in 38 rendering countries,
+#   before its FAOSTAT balance for 1961-2013 was restored (whep#1450); the
+#   rest is mostly Singapore's re-exports of cocoa, maize, beer and coffee.
+#   No food supply depends on the choice, because the domestic supply is zero
+#   either way. The one exception is a by-product WHEP has no other source of
+#   production for: `"byproduct_residual"`, the default, keeps its export and
+#   lets the balance impute the production behind it.
 # * **Only (year, area) buckets the CBS already covers**, so the `area` label
 #   comes from the CBS rows themselves instead of a year-free lookup that
 #   would relabel a merged bucket -- one `area_code`, one `area` (whep#563).
@@ -5390,13 +5975,13 @@ build_processing_coefs <- function(
       empty[, c("import", "export")],
       defaults = list(import = 0, export = 0)
     ) |>
-    dplyr::filter(.data$import > 0) |>
     .label_recovered_rows(cbs)
 }
 
 # What a candidate whose export is not below its import becomes, by method.
-# Every candidate here already has a positive import: a key that only exports
-# has no supply to create a row from under any method.
+# A key that only exports has no supply to create a row from, so it is dropped
+# under every method -- except a residual by-product under
+# `"byproduct_residual"`, below.
 #
 # * `"pass_through"` keeps the row and caps its export at its import, so the
 #   row passes its imports straight on: domestic supply 0, nothing produced,
@@ -5406,24 +5991,68 @@ build_processing_coefs <- function(
 #   wool, silk): "reduce exports where they exceed total supply", with supply
 #   = production + imports (fineprint-global/fabio, branch
 #   data-2010-current, `R/03_1a_build_cbs.R`, lines 498-500 at 66a9298d).
+# * `"byproduct_residual"` is `"pass_through"`, except for the items in
+#   `.cbs_residual_byproducts()`: their full export is kept, export-only keys
+#   included, and production stays missing, so `.reestimate_domestic_supply()`
+#   imputes it as export - import, the residual it already gives those items
+#   wherever FAOSTAT's balance carries a row without a production (whep#1450).
 # * `"net_import"` keeps only net importers (whep#864): the net exporter's
 #   import and export are both dropped.
 #
-# A net importer is the same under both.
+# A net importer is the same under all three.
 .cbs_recovery_net_exports <- function(candidates, method) {
   if (method == "net_import") {
     return(dplyr::filter(candidates, .data$import > .data$export))
   }
+  candidates <- candidates |>
+    dplyr::mutate(
+      residual = method == "byproduct_residual" &
+        .data$item_cbs_code %in% .cbs_residual_byproducts()
+    ) |>
+    dplyr::filter(.data$import > 0 | .data$residual)
   excess <- pmax(candidates$export - candidates$import, 0)
-  if (any(excess > 0)) {
-    capped <- sum(excess > 0)
+  .report_recovery_excess(excess, candidates$residual)
+  candidates |>
+    dplyr::mutate(
+      export = dplyr::if_else(
+        .data$residual,
+        .data$export,
+        pmin(.data$export, .data$import)
+      )
+    ) |>
+    dplyr::select(-"residual")
+}
+
+# Name the tonnage each branch of `.cbs_recovery_net_exports()` decided on:
+# the export cut for want of supply, and the export kept as imputed production.
+.report_recovery_excess <- function(excess, residual) {
+  capped <- sum(excess > 0 & !residual)
+  if (capped > 0L) {
     cli::cli_alert_info(
       "Capped {capped} recovered export{?s} at {cli::qty(capped)}{?its/their} \
-       import, dropping {round(sum(excess))} t of export with no supply in \
-       the balance (whep#762)."
+       import, dropping {round(sum(excess[!residual]))} t of export with no \
+       supply in the balance (whep#762)."
     )
   }
-  dplyr::mutate(candidates, export = pmin(.data$export, .data$import))
+  kept <- sum(excess > 0 & residual)
+  if (kept > 0L) {
+    cli::cli_alert_info(
+      "Kept {kept} by-product export{?s} beyond {cli::qty(kept)}{?its/their} \
+       import, {round(sum(excess[residual]))} t the balance books as \
+       production (whep#1450)."
+    )
+  }
+  invisible(excess)
+}
+
+# Items whose production WHEP has no source for once FAOSTAT's balance for them
+# ends, so the trade record is the only evidence of it. Meat Meal (2112) is a
+# rendering by-product of slaughter: FAOSTAT's old commodity balances carry it
+# for 1961-2013 (as 2749, remapped in `.fix_item_codes()`), the Food Balances
+# from 2014 do not, and nothing in WHEP's processing produces it. An area that
+# exports more of it than it imports must have rendered the difference.
+.cbs_residual_byproducts <- function() {
+  2112
 }
 
 # Trade rows whose `(area_code, year)` the area vocabulary does not report
@@ -5593,15 +6222,17 @@ build_processing_coefs <- function(
 }
 
 # The answers to "an area trades an item its CBS has no row for", default
-# first. `"pass_through"` creates the row, capping a net exporter's export at
-# its import; `"net_import"` creates it for net importers only (whep#864);
-# `"none"` drops the trade, the behaviour before whep#762, and stays
-# selectable for sensitivity work and to reproduce an earlier build. One helper, so the default cannot drift between
+# first. `"byproduct_residual"` is `"pass_through"` that keeps a residual
+# by-product's net export as production (whep#1450); `"pass_through"` creates
+# the row, capping a net exporter's export at its import; `"net_import"`
+# creates it for net importers only (whep#864); `"none"` drops the trade, the
+# behaviour before whep#762, and stays selectable for sensitivity work and to
+# reproduce an earlier build. One helper, so the default cannot drift between
 # `build_commodity_balances()`, `get_wide_cbs()`, `get_processing_coefs()` and
 # `build_io_model()`: a caller of one and a caller of another must get the
 # same CBS unless they ask otherwise.
 .cbs_trade_recovery_choices <- function() {
-  c("pass_through", "net_import", "none")
+  c("byproduct_residual", "pass_through", "net_import", "none")
 }
 
 # -- Tier-1 trade fill: what a CBS zero does to a positive trade record --------
@@ -5970,7 +6601,7 @@ build_processing_coefs <- function(
 
 # -- Fill destiny gaps ---------------------------------------------------------
 
-.cbs_fill_destinies <- function(cbs_raw4) {
+.cbs_fill_destinies <- function(cbs_raw4, coverage_log = NULL) {
   destiny_list <- c(
     "food",
     "feed",
@@ -5989,7 +6620,8 @@ build_processing_coefs <- function(
     .compute_destiny_shares()
 
   cli::cli_progress_step("Interpolating destiny shares")
-  destiny_filled <- .interpolate_destiny_shares(balance, destiny)
+  destiny_filled <- .interpolate_destiny_shares(balance, destiny) |>
+    .cbs_world_coverage(balance, coverage_log)
 
   cli::cli_progress_step("Assembling destiny output")
   .assemble_cbs_destinies(balance, destiny_filled)
