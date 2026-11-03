@@ -456,18 +456,38 @@ plot_input_output_four_panel <- function(example = FALSE) {
     dplyr::mutate(Type = "Production")
 }
 
+# Manure (Livestock -> Cropland/semi_natural_agroecosystems) is a real,
+# recycled livestock output, not unaccounted surplus -- the N_lv_out
+# definition in the N surplus indicator already includes it. Kept separate
+# from .livestock_production()/.livestock_production_split() (which cover
+# only food/export/feed destinies) so both callers can add it to their own
+# output total before computing Surplus as the residual.
+.livestock_manure_output <- function(df) {
+  df |>
+    dplyr::filter(
+      Origin == "Livestock",
+      Destiny %in% c("Cropland", "semi_natural_agroecosystems")
+    ) |>
+    dplyr::group_by(Year) |>
+    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(Type = "Manure")
+}
+
 .plot_livestock_example <- function(df) {
   inputs <- .livestock_feed_inputs(df)
-  production <- .livestock_production(df)
-  surplus <- .surplus_from_totals(inputs, production, positive_only = FALSE)
+  outputs <- dplyr::bind_rows(
+    .livestock_production(df),
+    .livestock_manure_output(df)
+  )
+  surplus <- .surplus_from_totals(inputs, outputs, positive_only = FALSE)
 
   feed_types <- c("Feed_ruminants", "Feed_monogastric")
   plot_df <- .stack_plot_df(
     inputs,
-    production,
+    outputs,
     surplus,
     negative_types = feed_types,
-    type_levels = c(feed_types, "Surplus", "Production")
+    type_levels = c(feed_types, "Surplus", "Manure", "Production")
   )
 
   .stacked_area_plot(
@@ -476,11 +496,19 @@ plot_input_output_four_panel <- function(example = FALSE) {
       "Feed_ruminants" = "darkolivegreen3",
       "Feed_monogastric" = "#1b9e77",
       "Surplus" = "slategray",
-      "Production" = "orange3"
+      "Production" = "orange3",
+      "Manure" = "darkorange3"
     ),
-    breaks = c("Surplus", "Production", "Feed_monogastric", "Feed_ruminants"),
+    breaks = c(
+      "Surplus",
+      "Manure",
+      "Production",
+      "Feed_monogastric",
+      "Feed_ruminants"
+    ),
     labels = c(
       "Surplus",
+      "Manure",
       "Production",
       "Feed monogastric",
       "Feed ruminants"
@@ -489,7 +517,7 @@ plot_input_output_four_panel <- function(example = FALSE) {
   )
 }
 
-.plot_livestock_real <- function(df, per_ha) {
+.plot_livestock_real <- function(df, per_ha, year_break_by = 20) {
   lu_area <- .national_area(
     if (per_ha) whep_read_file("n_balance_ygpit_all") else NULL,
     per_ha
@@ -498,13 +526,16 @@ plot_input_output_four_panel <- function(example = FALSE) {
 
   item_to_type <- .livestock_prod_type_map(whep_read_file("stock_prod_ygps"))
   inputs <- .livestock_feed_by_origin(df)
-  production <- .livestock_production_split(df, item_to_type)
-  surplus <- .surplus_from_totals(inputs, production, positive_only = FALSE)
+  outputs <- dplyr::bind_rows(
+    .livestock_production_split(df, item_to_type),
+    .livestock_manure_output(df)
+  )
+  surplus <- .surplus_from_totals(inputs, outputs, positive_only = FALSE)
 
   feed_types <- c("Grass_local", "Crops_local", "Imports")
   plot_df <- .stack_plot_df(
     inputs,
-    production,
+    outputs,
     surplus,
     negative_types = feed_types,
     type_levels = c(
@@ -512,8 +543,9 @@ plot_input_output_four_panel <- function(example = FALSE) {
       "Crops_local",
       "Grass_local",
       "Surplus",
-      "Production_rum",
-      "Production_mono"
+      "Manure",
+      "Production_mono",
+      "Production_rum"
     ),
     per_ha = per_ha,
     lu_area = lu_area
@@ -527,26 +559,30 @@ plot_input_output_four_panel <- function(example = FALSE) {
       "Imports" = "steelblue3",
       "Surplus" = "slategray",
       "Production_rum" = "orange3",
-      "Production_mono" = "darkorange3"
+      "Production_mono" = "goldenrod3",
+      "Manure" = "darkorange3"
     ),
     breaks = c(
       "Surplus",
-      "Production_rum",
+      "Manure",
       "Production_mono",
+      "Production_rum",
       "Grass_local",
       "Crops_local",
       "Imports"
     ),
     labels = c(
       "Surplus",
-      "Production ruminants",
+      "Manure",
       "Production monogastric",
+      "Production ruminants",
       "Grass local",
       "Crops local",
       "Imports"
     ),
     annotate_label = "Livestock system",
-    y_lab = if (per_ha) "kg N/ha" else "Gg N"
+    y_lab = if (per_ha) "kg N/ha" else "Gg N",
+    year_break_by = year_break_by
   )
 }
 
@@ -757,12 +793,13 @@ plot_input_output_four_panel <- function(example = FALSE) {
   breaks = NULL,
   labels = NULL,
   annotate_label = NULL,
-  y_lab = "Gg N"
+  y_lab = "Gg N",
+  year_break_by = 20
 ) {
   year_breaks <- seq(
-    floor(min(plot_df$Year) / 20) * 20,
-    ceiling(max(plot_df$Year) / 20) * 20,
-    by = 20
+    floor(min(plot_df$Year) / year_break_by) * year_break_by,
+    ceiling(max(plot_df$Year) / year_break_by) * year_break_by,
+    by = year_break_by
   )
 
   plot <- ggplot2::ggplot(

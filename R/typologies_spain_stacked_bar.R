@@ -185,8 +185,11 @@ typology_stacked_bars <- function(
   list(total = df_total, pct = df_pct, p_total = p_total, p_pct = p_pct)
 }
 
-typology_area_stacked_bars <- function(out_dir = NULL) {
-  indicators <- create_typo_ts_plot()
+typology_area_stacked_bars <- function(out_dir = NULL, n_prov_destiny = NULL) {
+  if (is.null(n_prov_destiny)) {
+    n_prov_destiny <- create_n_prov_destiny()
+  }
+  indicators <- create_typo_ts_plot(n_prov_destiny = n_prov_destiny)
   npp_ygpit <- whep_read_file("npp_ygpit")
 
   typologies_df <- indicators |>
@@ -242,6 +245,15 @@ typology_area_stacked_bars <- function(out_dir = NULL) {
     )
   }
   print(p_pct)
+  if (!is.null(out_dir)) {
+    ggplot2::ggsave(
+      file.path(out_dir, "stacked_typologies_area_pct_new.png"),
+      plot = p_pct,
+      width = 12,
+      height = 6,
+      dpi = 300
+    )
+  }
 
   list(df = df, p_total = p_total, p_pct = p_pct)
 }

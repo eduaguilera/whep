@@ -516,6 +516,37 @@ test_that("plot_input_output_livestock splits feed origin and production", {
   ))
 })
 
+test_that("plot_input_output_livestock counts manure as output, not surplus", {
+  testthat::local_mocked_bindings(
+    create_n_nat_destiny = function(example = FALSE) {
+      tibble::tribble(
+        ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+        2000, "Spain", "Wheat", NA, "Cropland", "Cropland", "livestock_rum", 1000,
+        2000, "Spain", "Bovine Meat", NA, "Livestock", "Livestock", "population_food", 300,
+        2000, "Spain", "Manure", NA, "Livestock", "Livestock", "Cropland", 200
+      )
+    },
+    whep_read_file = function(alias) {
+      tibble::tribble(
+        ~item_cbs, ~Livestock_cat,
+        "Bovine Meat", "Cattle_meat"
+      )
+    }
+  )
+
+  g <- whep::plot_input_output_livestock()
+  pick <- function(t) {
+    dplyr::pull(dplyr::filter(g$data, Type == t), MgN)
+  }
+
+  # Manure (Livestock -> Cropland) must appear as its own output, not be
+  # folded into Surplus: before the fix, Surplus was feed(1000) -
+  # production(300) = 700 Gg*1e-3; with manure counted as output it is
+  # feed(1000) - (production(300) + manure(200)) = 500, i.e. 0.5 Gg.
+  expect_equal(pick("Manure"), 0.2)
+  expect_equal(pick("Surplus"), 0.5)
+})
+
 test_that(".livestock_feed_by_origin buckets feed by N origin", {
   fixture <- tibble::tribble(
     ~Year, ~Origin, ~Destiny, ~MgN,

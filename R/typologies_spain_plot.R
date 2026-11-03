@@ -124,13 +124,22 @@ create_typo_ts_plot <- function(
             c("Cropland", "semi_natural_agroecosystems", "Outside") &
             destiny %in% c("livestock_mono", "livestock_rum")
         ]),
-      Manure_share = sum(mg_n[origin == "Livestock"]) /
+      Manure_share = sum(mg_n[
+        origin == "Livestock" &
+          destiny %in% c("Cropland", "semi_natural_agroecosystems")
+      ]) /
         sum(mg_n[
-          origin %in% c("Livestock", "Synthetic", "Fixation", "Deposition")
+          origin %in%
+            c("Livestock", "Synthetic", "Fixation", "Deposition") &
+            destiny %in% c("Cropland", "semi_natural_agroecosystems")
         ]),
-      synthetic_share = sum(mg_n[origin == "Synthetic"]) /
+      synthetic_share = sum(mg_n[
+        origin == "Synthetic" & destiny == "Cropland"
+      ]) /
         sum(mg_n[
-          origin %in% c("Synthetic", "Livestock", "Fixation", "Deposition")
+          origin %in%
+            c("Synthetic", "Livestock", "Fixation", "Deposition", "People") &
+            destiny == "Cropland"
         ]),
       .groups = "drop"
     ) |>

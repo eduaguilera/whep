@@ -1056,7 +1056,7 @@ plot_loss_decomp_rolling_panel <- function(
     p_mechanism,
     title = paste0(
       window,
-      "-year rolling mean drivers of Spain's territorial N losses"
+      "-year rolling mean drivers of Spain's territorial N surplus and losses"
     )
   )
 }
@@ -1110,14 +1110,14 @@ plot_loss_decomp_periods <- function(decomp = NULL) {
     by_compartment = .plot_period_bars(
       decomp$by_compartment,
       compartment,
-      "Drivers of Spain's territorial N losses by period and compartment",
+      "Drivers of Spain's territorial N surplus and losses by period and compartment",
       colors = .compartment_typology_colors(),
       labels = .compartment_display_labels()
     ),
     by_mechanism = .plot_period_bars(
       decomp$by_mechanism,
       mechanism,
-      "Drivers of Spain's territorial N losses by period and mechanism",
+      "Drivers of Spain's territorial N surplus and losses by period and mechanism",
       colors = .mechanism_colors()
     )
   )
@@ -1195,7 +1195,7 @@ plot_loss_decomp_periods_panel <- function(decomp = NULL) {
   .n_losses_two_panel(
     p_compartment,
     p_mechanism,
-    title = "Drivers of Spain's territorial N losses by period",
+    title = "Drivers of Spain's territorial N surplus and losses by period",
     caption = .period_caption()
   )
 }
@@ -1691,7 +1691,7 @@ plot_compart_factor_roll_panel <- function(
     panels$urban,
     title = paste0(
       window,
-      "-year rolling mean drivers of Spain's territorial N losses"
+      "-year rolling mean drivers of Spain's territorial N surplus and losses"
     )
   )
 }
@@ -2680,7 +2680,7 @@ plot_compart_factor_periods <- function(
   title,
   colors = NULL,
   labels = ggplot2::waiver(),
-  y_label = "Contribution to territorial N losses (Gg N/yr)",
+  y_label = "Contribution to territorial N surplus and losses (Gg N/yr)",
   caption = NULL
 ) {
   plot <- ggplot2::ggplot(
@@ -2713,7 +2713,7 @@ plot_compart_factor_periods <- function(
   title,
   colors,
   labels = ggplot2::waiver(),
-  y_label = "Contribution to territorial N losses (Gg N/yr)",
+  y_label = "Contribution to territorial N surplus and losses (Gg N/yr)",
   caption = .period_caption()
 ) {
   ggplot2::ggplot(
