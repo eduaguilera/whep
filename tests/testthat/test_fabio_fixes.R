@@ -488,7 +488,7 @@ testthat::test_that("build_io_model with endogenize_losses = TRUE", {
   )
 })
 
-testthat::test_that("build_io_model with endogenize_losses = FALSE ignores losses", {
+testthat::test_that("build_io_model with endogenize_losses = FALSE keeps losses in Y", {
   f <- losses_fixture()
   result <- build_io_model(
     f$su,
@@ -499,8 +499,10 @@ testthat::test_that("build_io_model with endogenize_losses = FALSE ignores losse
 
   fd_labs <- result$fd_labels[[1]]
 
-  # losses should NOT be a final demand column when endogenize = FALSE
-  testthat::expect_false("losses" %in% fd_labs$fd_col)
+  # Losses stay a final demand category, as in FABIO's default tables
+  # (fineprint-global/fabio@66a9298, R/00_6_labels.R): dropping them from Y
+  # used to make them vanish from the model altogether (whep#412).
+  testthat::expect_true("losses" %in% fd_labs$fd_col)
 })
 
 

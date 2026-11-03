@@ -605,3 +605,40 @@ testthat::test_that("build_io_model does not read import when trade is given", {
   testthat::expect_equal(without_import$X, with_import$X)
   testthat::expect_equal(without_import$Y, with_import$Y)
 })
+
+test_that("losses and tourist uses enter FD without inventing stock origin", {
+  f <- io_two_country_fixture()
+  f$cbs$losses <- 7
+  f$cbs$tourist_consumption <- 5
+  f$cbs$residuals <- -12
+  with_discrepancy <- whep::build_io_model(f$su, f$btd, f$cbs)
+  expect_equal(nrow(with_discrepancy), 1L)
+  expect_equal(length(with_discrepancy$X[[1]]), 4L)
+  expect_true(sum(abs(with_discrepancy$Y[[1]])) > 0)
+  expect_true(all(
+    c("losses", "tourist_consumption") %in%
+      whep:::.detect_fd_columns(f$cbs)
+  ))
+  f$cbs$residuals <- 0
+  without_discrepancy <- whep::build_io_model(f$su, f$btd, f$cbs)
+  expect_equal(with_discrepancy$Z, without_discrepancy$Z)
+  expect_equal(with_discrepancy$Y, without_discrepancy$Y)
+  expect_equal(with_discrepancy$X, without_discrepancy$X)
+})
+
+test_that("unknown stocks remain explicit while IO uses known flows", {
+  f <- io_two_country_fixture()
+  f$cbs$stock_withdrawal[[1]] <- NA_real_
+  f$cbs$stock_addition[[1]] <- NA_real_
+  expect_warning(
+    actual <- whep::build_io_model(f$su, f$btd, f$cbs),
+    class = "whep_io_stock_coverage"
+  )
+  expect_true(all(is.finite(actual$X[[1]])))
+  expect_true(all(is.finite(actual$Y[[1]])))
+  expect_equal(actual$method_stock_coverage, "known_flows")
+  expect_error(
+    whep::build_io_model(f$su, f$btd, f$cbs, stock_coverage = "abort"),
+    class = "whep_io_stock_coverage"
+  )
+})

@@ -1,0 +1,19 @@
+{
+  "source": "https://bulks-faostat.fao.org/production/FoodBalanceSheets_E_All_Data_(Normalized).zip",
+  "archive_sha256": "26200855ed5da3d0805e34219124e241d0e0bc6959d0995ebc77a10dd84cbaf1",
+  "publisher_vintage": "2025-10-28",
+  "selection": {
+    "Area Code": 203,
+    "Item Code": [
+      2563,
+      2763
+    ],
+    "Year": [
+      2015,
+      2020
+    ]
+  },
+  "rows": 61,
+  "sha256": "7868b1771361ded7191789bb65b8f99ea6f093f3641db29ef7265b48447d1a98",
+  "interpretation": "Publisher observations retain agency-imputed flags. They do not establish true physical stocks or independent scientific validation."
+}

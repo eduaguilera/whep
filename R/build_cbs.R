@@ -575,19 +575,75 @@
 #'   completeness guarantee. The world-share estimate clears non-production
 #'   FAOSTAT flags on affected bucket-years: a source status is not an
 #'   observation status for the estimated bucket.
+#' @param method_cbs_account How the published balance books FAOSTAT's
+#'   stock change, losses, residuals and tourist consumption. The
+#'   calibration never sees the last three; they are parked before source
+#'   selection and restored afterwards.
+#'   - `"source"` (default) publishes each as the source reported it, keyed
+#'   on the dated reporting polity: a supplied stock change, zero included,
+#'   is kept; one no source reports is `NA` (`source = "unobserved_stock"`),
+#'   never a zero. `domestic_supply` is total physical domestic use: the
+#'   calibrated destinies plus `losses` and `tourist_consumption`.
+#'   FAOSTAT's `residuals` are statistical, not a use. The rest of the gap is
+#'   `balance_discrepancy`, so on every key
+#'   `production + import - export - stock_variation = domestic_supply +
+#'   residuals + balance_discrepancy`, an `NA` stock counting as none.
+#'   FABIO's balance formula also leaves `residuals` out of `domestic_use`
+#'   (fineprint-global/fabio commit 66a9298, `R/03_1a_build_cbs.R`), but
+#'   its later rebalancing (`R/03_1b_balance_cbs.R`) folds residuals into its
+#'   `balancing` term and reallocates a negative one into stock, other uses,
+#'   processing and food. That shifts a statistical quantity into the uses,
+#'   so it is not done here; the residual stays visible instead.
+#'   - `"balance_residual"` is the earlier contract: `stock_variation` is
+#'   whatever closes the calibrated balance, so losses, residuals and any
+#'   statistical gap read as inventory change, and none of the three is
+#'   published.
+#'
+#'   Measured on 2015-2020 (all areas, all years summed): `"source"`
+#'   publishes 3,570 Mt of `losses`, 33.6 Mt of `tourist_consumption`,
+#'   -181 Mt of `residuals` (1,188 Mt in absolute value) and -233 Mt of
+#'   `balance_discrepancy` (1,728 Mt). Net `stock_variation` falls from
+#'   3,764 Mt to 543 Mt, and 56,903 of 133,957 keys carry an unobserved one.
+#'   `domestic_supply` rises from 130,312 Mt to 133,913 Mt (+2.8%), the
+#'   losses and tourist use it now includes. Spain's olives at 2015 publish
+#'   FAOSTAT's zero stock change and its -3,113 kt residual where the old
+#'   contract booked a -2,709 kt stock draw.
+#'
+#'   Independently of this choice, the older FAOSTAT balances (the FBS before
+#'   2014 and both old commodity balances) sign stock change as a withdrawal
+#'   (FAO 2001, *Food Balance Sheets: A Handbook*, ch. II, "Changes in
+#'   Stocks"), the current ones as an addition. Measured on the pins, the
+#'   balance closes under those conventions on 99.8% to 100% of the old
+#'   rows with a nonzero stock and 99.7% of the current FBS ones. Old stocks
+#'   are now negated on read. The production imputed for a row that reports
+#'   none therefore adds the stock change instead of subtracting it. That
+#'   moves 2,945 production keys at 2015-2020 (49.4 Mt in absolute value, net
+#'   -35 Mt of 132,479 Mt). For example, Indonesia's 2015 wheat goes from
+#'   1,984 kt to none, and Malaysia's 2020 palm kernel oil from 760 kt to
+#'   2,178 kt.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
-#'   to `.qc_cbs()`. Default `NULL`.
+#'   to `.qc_cbs()`. Its `source_accounts` attribute, or else its own
+#'   `stock_variation`, `losses`, `residuals` and `tourist_consumption` rows,
+#'   are the account observations `method_cbs_account` restores. Default
+#'   `NULL`.
 #'
 #' @returns For `format = "long"`, a tibble with columns: `year`, legacy numeric
 #'   `area_code`, numeric `polity_area_code`, `reporting_polity_code`,
 #'   `reporting_polity_name`, `reporting_polity_has_geometry`,
 #'   `item_cbs_code`, `element` (e.g. `"production"`, `"import"`, `"food"`),
-#'   `value`, `source`, and `fao_flag`. For `format = "wide"`, the elements
+#'   `value`, `source`, `fao_flag` and `method_cbs_account`. The elements
+#'   include `losses`, `residuals`, `tourist_consumption` and
+#'   `balance_discrepancy` under `method_cbs_account = "source"`; see that
+#'   argument for the identity they close. For `format = "wide"`, the elements
 #'   become one column each, `stock_variation` is split into the non-negative
-#'   `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total use
-#'   excluding `export`. A `unit` column says each row's denomination:
+#'   `stock_addition` and `stock_withdrawal` (both `NA` where the stock change
+#'   is unobserved), and `domestic_supply` is total physical use excluding
+#'   `export`. The `source_accounts` attribute holds the selected account
+#'   observations; `input_accounts` the raw ones, in each source's own code,
+#'   unit, sign and pin version; and `unmatched_source_accounts` any
+#'   observation on a key the balance does not carry. A `unit` column says each row's denomination:
 #'   `"tonnes"`, or `"heads"` for the live-animal rows (see [get_wide_cbs()]).
 #'
 #'   `fao_flag` is FAOSTAT's own observation-status code for the value, taken
@@ -636,9 +692,11 @@ build_commodity_balances <- function(
   fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
   bucket_coverage = .cbs_coverage_choices(),
+  method_cbs_account = c("source", "balance_residual"),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
+  method_cbs_account <- rlang::arg_match(method_cbs_account)
   bucket_coverage <- rlang::arg_match(bucket_coverage)
   trade_recovery <- rlang::arg_match(trade_recovery)
   trade_zero <- rlang::arg_match(trade_zero)
@@ -673,6 +731,11 @@ build_commodity_balances <- function(
   scale_log <- NULL
   coverage_log <- NULL
   residue_kgdm <- attr(.fixed_data, "residue_feed_kgdm")
+  # Supplied balances carry their ledger as an attribute; without one, their
+  # own account rows are the observations.
+  source_accounts <- attr(.fixed_data, "source_accounts") %||%
+    .cbs_account_rows(.fixed_data)
+  input_accounts <- attr(.fixed_data, "input_accounts")
   if (is.null(.fixed_data)) {
     raw <- .read_cbs(
       primary_all,
@@ -694,6 +757,8 @@ build_commodity_balances <- function(
     coverage_log <- attr(raw, ".cbs_coverage_log")
     scale_log <- attr(raw, ".hist_trade_scale_log")
     residue_kgdm <- attr(raw, "residue_feed_kgdm")
+    source_accounts <- attr(raw, "source_accounts")
+    input_accounts <- attr(raw, "input_accounts")
     fixed <- raw |>
       .fix_cbs(
         trade_recovery = trade_recovery,
@@ -800,7 +865,7 @@ build_commodity_balances <- function(
          supplied."
       )
     }
-    fixed <- .fixed_data
+    fixed <- data.table::copy(.fixed_data)
   }
   long <- fixed |>
     dplyr::mutate(value = .round_reproducible(.data$value)) |>
@@ -809,11 +874,15 @@ build_commodity_balances <- function(
     .report_negative_cbs_values(
       negative_supply = if (is.null(.fixed_data)) negative_supply
     )
+  source_accounts <- .cbs_account_ledger(source_accounts)
+  long <- .cbs_restore_accounts(long, source_accounts, method_cbs_account)
   long <- .cbs_stamp_coverage(long, coverage_log)
   attr(long, "hist_trade_scale_log") <- scale_log
   # Keep the exact crop mix behind the feed rows, including the backcast
   # method selected above, for the downstream feed allocator (whep#1556).
   attr(long, "residue_feed_kgdm") <- residue_kgdm
+  attr(long, "source_accounts") <- source_accounts
+  attr(long, "input_accounts") <- input_accounts
 
   if (format == "long") {
     return(long)
@@ -844,6 +913,8 @@ build_commodity_balances <- function(
     dplyr::bind_rows(livestock_cbs) |>
     .abort_if_units_mixed("wide CBS", key_cols = "item_cbs_code")
   attr(wide, "residue_feed_kgdm") <- attr(cbs_long, "residue_feed_kgdm")
+  attr(wide, "source_accounts") <- attr(cbs_long, "source_accounts")
+  attr(wide, "input_accounts") <- attr(cbs_long, "input_accounts")
   wide
 }
 
@@ -1086,6 +1157,7 @@ build_commodity_balances <- function(
   cli::cli_progress_step("Combining CBS sources")
   cbs_raw0 <- .cbs_combine_sources(inputs, bucket_coverage)
   coverage_log <- attr(cbs_raw0, "coverage_log")
+  source_accounts <- data.table::copy(attr(cbs_raw0, "source_accounts"))
   historical_rows <- .prepare_historical_cbs(
     historical_data,
     years = output_years
@@ -1094,8 +1166,15 @@ build_commodity_balances <- function(
     cli::cli_alert_info(
       "Adding {nrow(historical_rows)} harmonized historical CBS row{?s}"
     )
+    # Historical account rows join the ledger and, like the FAOSTAT ones,
+    # stay out of the calibration.
+    source_accounts <- dplyr::bind_rows(
+      source_accounts,
+      dplyr::filter(historical_rows, element %in% .cbs_account_elements())
+    )
     cbs_raw0 <- dplyr::bind_rows(cbs_raw0, historical_rows) |>
-      .collapse_cbs_observations()
+      .collapse_cbs_observations() |>
+      dplyr::filter(!element %in% .cbs_account_only_elements())
   }
 
   # 3. Historical extension
@@ -1113,6 +1192,10 @@ build_commodity_balances <- function(
   # Trim to requested years and attach context for downstream
   cbs_raw <- .filter_years(cbs_raw, output_years)
   attr(cbs_raw, ".cbs_coverage_log") <- coverage_log
+  attr(cbs_raw, "source_accounts") <- source_accounts
+  attr(cbs_raw, "input_accounts") <- dplyr::bind_rows(
+    lapply(inputs, attr, which = "source_accounts")
+  )
   attr(cbs_raw, ".years") <- output_years
   attr(cbs_raw, "residue_feed_kgdm") <- inputs$residue_feed_kgdm
   attr(cbs_raw, ".hist_trade_scale_log") <- attr(
@@ -1579,9 +1662,12 @@ build_processing_coefs <- function(
     years = years,
     keep_members = TRUE,
     keep_elements = c("Processed", "Residuals")
-  ) |>
+  )
+  cbs_new_accounts <- attr(cbs_new, "source_accounts")
+  cbs_new <- cbs_new |>
     .cbs_silk_mass_basis(silk_basis, duplicate_use = silk_duplicate_use) |>
     .cbs_tobacco_leaf_use(tobacco_leaf_use)
+  attr(cbs_new, "source_accounts") <- cbs_new_accounts
 
   # Trade
   fao_trade <- .read_fao_trade(years = years) |>
@@ -3523,10 +3609,17 @@ build_processing_coefs <- function(
     items
   )
 
+  # Losses, residuals and tourist use are parked in the source ledger and
+  # restored after calibration by .cbs_restore_accounts(); the calibration
+  # itself never sees them, so admitting them moves no calibrated quantity.
+  source_accounts <- .cbs_account_observations(cbs_raw_all)
+  cbs_raw_all <- cbs_raw_all[!element %in% .cbs_account_only_elements()]
+
   # Select best value among sources, with FBS trade on the old vintage's
   # level (whep#1495, whep#1550)
   out <- .select_best_source(cbs_raw_all, rebase = inputs$fbs_rebase)
   attr(out, "coverage_log") <- attr(inputs, "coverage_log")
+  attr(out, "source_accounts") <- source_accounts
   out
 }
 
@@ -6546,10 +6639,10 @@ build_processing_coefs <- function(
       # .reestimate_domestic_supply() can impute it from the
       # domestic-supply residual. Do not replace_na(production) before
       # that call or the imputation branch becomes dead code (#142).
-      stock_variation = tidyr::replace_na(
-        stock_variation,
-        0
-      )
+      # A working zero for the calibration only: the source stock
+      # observations are parked before this stage and restored by
+      # .cbs_restore_accounts(), which publishes an unobserved one as NA.
+      stock_variation = tidyr::replace_na(stock_variation, 0)
     ) |>
     dplyr::select(
       -fao_trade_import,
@@ -6639,15 +6732,23 @@ build_processing_coefs <- function(
           )
         )
       ),
+      # Stock variation is an addition here, in every source: the old FAO
+      # domains are sign-normalised on read (.normalise_fao_stock_sign()).
+      # So production + import - export - stock_variation = domestic_supply
+      # gives production = domestic_supply - import + export +
+      # stock_variation (whep#412).
       prod_calc = domestic_supply -
         import +
-        export -
+        export +
         stock_variation,
       production = dplyr::if_else(
         is.na(production),
         pmax(prod_calc, 0),
         production
       ),
+      # The working balance closes on stock. A supplied stock change is not
+      # lost to it: .cbs_restore_accounts() puts the source observation back
+      # on the published balance (whep#412).
       stock_variation = production + import - export - ds3,
       domestic_supply = ds3
     ) |>

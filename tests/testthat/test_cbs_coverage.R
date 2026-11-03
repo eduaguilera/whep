@@ -290,6 +290,11 @@ testthat::test_that("old cached extracts are refreshed before source selection",
     )
     data
   })
+  extracts <- purrr::map(extracts, \(data) {
+    attr(data, "source_accounts") <- tibble::tibble()
+    attr(data, "stock_convention") <- "addition_positive"
+    data
+  })
   testthat::expect_true(whep:::.cbs_reuse_extracts(extracts))
 })
 

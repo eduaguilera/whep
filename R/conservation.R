@@ -167,12 +167,23 @@ summarise_conservation <- function(report) {
 #' Verify that total supply equals total use for every row of a
 #' wide commodity balance sheet, the fundamental accounting
 #' identity behind the input-output model. Supply is
-#' `production + import + stock_withdrawal`; use is
+#' `production + import + stock_withdrawal`; physical use is
 #' `export + food + feed + seed + processing + processing_primary +
-#' other_uses + stock_addition`. `processing_primary` is treated as
-#' `0` when the column is absent, since it is only nonzero for the
-#' handful of primary items whose entire domestic supply is destined
-#' for processing (see [get_wide_cbs()]).
+#' other_uses + stock_addition + losses + tourist_consumption`.
+#' `processing_primary` is treated as `0` when the column is absent, since
+#' it is only nonzero for the handful of primary items whose entire domestic
+#' supply is destined for processing (see [get_wide_cbs()]).
+#'
+#' Two identities are reported, because they answer different questions.
+#' The physical one (`balanced`) asks whether the physical flows close; it is
+#' `NA` where the stock change is unobserved. The accounting one
+#' (`accounting_balanced`) adds FAOSTAT's statistical `residuals` and WHEP's
+#' `balance_discrepancy`, and counts an unobserved stock change as none, so
+#' it holds by construction on a [build_commodity_balances()] output: it
+#' proves the ledger is complete, not that the physical account is right.
+#' `losses`, `tourist_consumption`, `residuals` and `balance_discrepancy`
+#' are taken as `0` when the column is absent, as in a balance built before
+#' those elements existed.
 #'
 #' @param cbs Wide commodity balance sheet, e.g. from
 #'   [get_wide_cbs()].
@@ -181,10 +192,13 @@ summarise_conservation <- function(report) {
 #'
 #' @return A tibble with the key columns present in `cbs` plus:
 #'   - `supply`: Total supply.
-#'   - `use`: Total use.
+#'   - `use`: Total physical use.
 #'   - `abs_diff`: `abs(supply - use)`.
 #'   - `rel_diff`: `abs_diff / supply` (`NA` when supply is zero).
 #'   - `balanced`: `TRUE` when `abs_diff <= tol`.
+#'   - `residuals`, `balance_discrepancy`: the statistical terms.
+#'   - `accounting_diff`: supply minus use, residuals and discrepancy.
+#'   - `accounting_balanced`: `TRUE` when `abs(accounting_diff) <= tol`.
 #'   Rows are ordered by descending absolute difference.
 #'
 #' @export
@@ -205,33 +219,60 @@ check_supply_use_balance <- function(cbs, tol = 1e-6) {
   )
   .require_cols(cbs, c(supply_cols, use_cols), "cbs")
   .validate_tol(tol, "tol")
-
-  if (!"processing_primary" %in% names(cbs)) {
-    cbs$processing_primary <- 0
-  }
+  accounts <- c(
+    "processing_primary",
+    "losses",
+    "tourist_consumption",
+    "residuals",
+    "balance_discrepancy"
+  )
 
   cbs |>
+    ensure_columns(
+      tibble::as_tibble(rlang::rep_named(accounts, list(double()))),
+      defaults = rlang::rep_named(accounts, list(0))
+    ) |>
     dplyr::mutate(
-      supply = production + import + stock_withdrawal,
-      use = export +
+      flow_use = export +
         food +
         feed +
         seed +
         processing +
         processing_primary +
         other_uses +
-        stock_addition,
+        losses +
+        tourist_consumption,
+      supply = production + import + stock_withdrawal,
+      use = flow_use + stock_addition,
       abs_diff = abs(supply - use),
       rel_diff = .safe_rel(abs_diff, supply),
-      balanced = abs_diff <= tol
+      balanced = abs_diff <= tol,
+      accounting_diff = production +
+        import +
+        dplyr::coalesce(stock_withdrawal, 0) -
+        flow_use -
+        dplyr::coalesce(stock_addition, 0) -
+        residuals -
+        balance_discrepancy,
+      accounting_balanced = abs(accounting_diff) <= tol
     ) |>
     dplyr::select(
-      dplyr::any_of(c("year", "area_code", "item_cbs_code")),
+      dplyr::any_of(c(
+        "year",
+        "reporting_polity_code",
+        "area_code",
+        "item_cbs_code",
+        "unit"
+      )),
       supply,
       use,
       abs_diff,
       rel_diff,
-      balanced
+      balanced,
+      residuals,
+      balance_discrepancy,
+      accounting_diff,
+      accounting_balanced
     ) |>
     dplyr::arrange(dplyr::desc(abs_diff))
 }

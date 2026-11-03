@@ -17,10 +17,13 @@ row to count as balanced.}
 A tibble with the key columns present in \code{cbs} plus:
 \itemize{
 \item \code{supply}: Total supply.
-\item \code{use}: Total use.
+\item \code{use}: Total physical use.
 \item \code{abs_diff}: \code{abs(supply - use)}.
 \item \code{rel_diff}: \code{abs_diff / supply} (\code{NA} when supply is zero).
 \item \code{balanced}: \code{TRUE} when \code{abs_diff <= tol}.
+\item \code{residuals}, \code{balance_discrepancy}: the statistical terms.
+\item \code{accounting_diff}: supply minus use, residuals and discrepancy.
+\item \code{accounting_balanced}: \code{TRUE} when \code{abs(accounting_diff) <= tol}.
 Rows are ordered by descending absolute difference.
 }
 }
@@ -28,11 +31,22 @@ Rows are ordered by descending absolute difference.
 Verify that total supply equals total use for every row of a
 wide commodity balance sheet, the fundamental accounting
 identity behind the input-output model. Supply is
-\code{production + import + stock_withdrawal}; use is
-\code{export + food + feed + seed + processing + processing_primary + other_uses + stock_addition}. \code{processing_primary} is treated as
-\code{0} when the column is absent, since it is only nonzero for the
-handful of primary items whose entire domestic supply is destined
-for processing (see \code{\link[=get_wide_cbs]{get_wide_cbs()}}).
+\code{production + import + stock_withdrawal}; physical use is
+\code{export + food + feed + seed + processing + processing_primary + other_uses + stock_addition + losses + tourist_consumption}.
+\code{processing_primary} is treated as \code{0} when the column is absent, since
+it is only nonzero for the handful of primary items whose entire domestic
+supply is destined for processing (see \code{\link[=get_wide_cbs]{get_wide_cbs()}}).
+
+Two identities are reported, because they answer different questions.
+The physical one (\code{balanced}) asks whether the physical flows close; it is
+\code{NA} where the stock change is unobserved. The accounting one
+(\code{accounting_balanced}) adds FAOSTAT's statistical \code{residuals} and WHEP's
+\code{balance_discrepancy}, and counts an unobserved stock change as none, so
+it holds by construction on a \code{\link[=build_commodity_balances]{build_commodity_balances()}} output: it
+proves the ledger is complete, not that the physical account is right.
+\code{losses}, \code{tourist_consumption}, \code{residuals} and \code{balance_discrepancy}
+are taken as \code{0} when the column is absent, as in a balance built before
+those elements existed.
 }
 \examples{
 get_wide_cbs(example = TRUE) |>

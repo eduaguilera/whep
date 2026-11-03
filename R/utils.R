@@ -2836,6 +2836,22 @@ utils::globalVariables(
     # branches appending at once merge into valid R; `c()` drops it.
     # cbs_coverage.R — bucket source-policy stamp (whep#1481).
     "method_cbs_coverage",
+    # cbs_source_accounts.R, conservation.R (whep#412) -- source accounts
+    "accounting_balanced",
+    "accounting_diff",
+    "balance_discrepancy",
+    "flow_use",
+    "losses",
+    "method_cbs_account",
+    "residuals",
+    "source_alias",
+    "source_element",
+    "source_item_code",
+    "source_rank",
+    "source_stock_convention",
+    "source_unit",
+    "tourist_consumption",
+    "version",
     NULL
   )
 )
