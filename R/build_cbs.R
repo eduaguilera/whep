@@ -426,36 +426,98 @@
 #'   product was found, and a cigarette also holds paper and filter. Where the
 #'   products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
 #'   remainder stays as stock change. Only Tobacco rows from 2014 on move.
-#' @param nut_basis One of `"rebased"` (default) or `"as_published"`,
-#'   selecting how the trade of FBS item 2551 `Nuts and products` is taken
-#'   from FAOSTAT's new food balance sheets, 2010 on (whep#1495). Their nut
-#'   trade is not one mass basis: at 2010 world imports are 13.57 Mt against
-#'   7.69 Mt of world exports (1.76x; 1.65x at 2022), and the excess goes on
-#'   into food, 19.47 Mt against 14.29 Mt of nuts the world grew in shell,
-#'   with about the old vintage's protein. Regressed on species-level trade,
-#'   importers convert kernels and prepared nuts to in-shell equivalent with
-#'   factors 2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one
-#'   flow lands on two bases. The old vintage closes (6.45 vs 6.51 Mt).
+#' @param fbs_trade_basis One of `"rebased"` (default), `"rebased_with_milk"`,
+#'   `"nuts_only"` or `"as_published"`, selecting how the trade of the FBS
+#'   items whose import side FAOSTAT's new food balance sheets put on a
+#'   different mass basis than the export side is taken, 2010 on (whep#1495,
+#'   whep#1550). Regressions on product-level trade suggest different
+#'   primary-equivalent factors on the import and export sides
+#'   (preserved olives 3.15 vs 0.98, canned pineapples 3.1 vs about 0, peeled
+#'   tomatoes 5.9 vs 1.3, cheese 31.0 vs 7.7, dry whey 30.6 vs 2.3), so one
+#'   flow lands on two bases and world imports exceed world exports at 2010:
+#'   nuts (2551) 1.76x, pineapples (2618) 1.75x, olives (2563) 2.53x,
+#'   tomatoes (2601) 1.29x, lemons and limes (2612) 1.25x, milk excluding
+#'   butter (2848) 1.93x. The old vintage converts both sides alike and
+#'   closes (0.87x to 1.07x), as does product-level trade (2010 world cheese
+#'   imports 4.73 Mt against 4.96 Mt of exports, dry whey 1.86 against 2.04
+#'   Mt).
 #'
-#'   `"rebased"` multiplies each area's import and export by its median
-#'   old/new ratio over 2010-2013, clamped to `[0.2, 1]` -- the old
-#'   vintage's level with the new one's change over time, as the palm-kernel
-#'   fix already joins them -- and takes the net trade removed out of food
-#'   and domestic supply, so every row keeps its supply-use identity and
-#'   production and stock change do not move. A row whose net cut is not
-#'   positive or exceeds its food is left as published. The moved rows are
-#'   labelled `"FAOSTAT_FBS_New_rebased"`, and the ratio is read from the
-#'   pins whatever years are built. `"as_published"` keeps FAOSTAT's figures,
-#'   the behaviour before whep#1495; the old vintage is scaled to whichever
-#'   level is chosen, so 1961-2009 follows it. **The default moves published
-#'   values**, all of them in item 2551. Measured on a real 2009-2016
-#'   build at 2010, world imports fall from 13.85 to 7.16 Mt and exports
-#'   from 7.83 to 6.51 Mt (imports/exports 1.77x to 1.10x; 1.61x to 1.02x
-#'   at 2016), and food from 19.79 to 14.43 Mt against 14.60 Mt of
-#'   production; the 5.37 Mt drop is 0.11% of the 4,692 Mt of all-item food.
-#'   Production and stock change do not move from 2010 on. FBS's own 2551
-#'   protein over the pin's food rises from 45.6 to 62.9 g/kg, against FAO's
-#'   in-shell basket of 64.7 that [build_food_supply()] applies.
+#'   `"rebased"` multiplies each area's import and export of nuts,
+#'   pineapples, olives, tomatoes and lemons by its median old/new ratio over
+#'   2010-2013 -- the old vintage's level with the new one's change over
+#'   time, as the palm-kernel fix already joins them -- and takes the net
+#'   trade removed out of domestic supply and food. The ratio is clamped to
+#'   `[0.2, 1]`, bounds that are methodological assumptions, not sourced
+#'   values. A row whose net cut is not positive, or is not smaller than its
+#'   food, is left as published. The old vintage is scaled to the published
+#'   new one and the same correction is then applied to the scaled years, so
+#'   1961-2009 follows the corrected level. At this selected-row rebase
+#'   stage, each row keeps its incoming supply gap; production, stock change
+#'   and other destinations are not directly changed. Later processing and
+#'   gapfilling can change final outputs, as quantified below. Moved rows use
+#'   `"FAOSTAT_FBS_New_rebased"` or `"FAOSTAT_FBS_Old_rebased"`, and the
+#'   ratios are read from the pins whatever years are built.
+#'
+#'   This nonmilk default is a provisional model, not an observed allocation
+#'   or proof of the old vintage's level. National accounts support its
+#'   direction but also show counter-evidence. US pineapple food in the
+#'   frozen 2010 build changes from 6.710 to 2.034006 Mt; USDA ERS's Fruit
+#'   and Tree Nuts Supply and Availability workbook (tables G-43 and G-45,
+#'   retrieved 2026-11-03) implies 1.793194 Mt fresh-weight availability.
+#'   ERS discontinues domestic production in these tables. Adding all
+#'   0.170 Mt of WHEP domestic production gives 1.963194 Mt: an analyst's
+#'   generous sensitivity, not an observation or confidence bound.
+#'   German tomato food changes from 3.282 to 1.564497 Mt in calendar 2011,
+#'   against BLE table 4040500-0000's 2.049547 Mt for April 2011-March 2012
+#'   (fresh and processed products in fresh weight). The correction moves
+#'   toward that benchmark but undershoots it; the different annual periods
+#'   prevent an exact matched-year error claim. These are compiled food
+#'   availability accounts, not intake measurements, and can share national
+#'   production/customs inputs with FAO. They do not establish country-level
+#'   conversion factors, the old anchor or the bounds as measured truth.
+#'   Sources: USDA ERS, *Fruit and Tree Nuts Yearbook Tables*, Supply and
+#'   Availability, G-43 row 33 and G-45 C33:
+#'   <https://www.ers.usda.gov/data-products/fruit-and-tree-nuts-data>.
+#'   BLE/BZL, *Verbrauch von Gemüse nach Arten*, data status 2026-07-27,
+#'   table 4040500-0000, C25 and
+#'   Vorbemerkung A10:
+#'   <https://www.bmel-statistik.de/fileadmin/daten/4040500-0000.xlsx>.
+#'
+#'   Milk stays as published unless `"rebased_with_milk"` is asked for
+#'   (whep#1583). Converting each country's product trade with one factor
+#'   per product on both sides closes the world, but puts 2010 imports
+#'   anywhere from 61 to 128 Mt depending on the milk-equivalent basis
+#'   (published 188.6 Mt, old vintage 94.3 Mt). Where the excess went is not
+#'   observed: a cross-country regression associates about 30 Mt with
+#'   imported whey entering feed, and nothing locates the rest.
+#'   `"rebased_with_milk"` adds milk, taking its cut out of feed first, down
+#'   to the area's old-vintage feed level, then out of food. That order is
+#'   provisional. `"nuts_only"` rebases item 2551 alone; `"as_published"`
+#'   keeps FAOSTAT's figures for every item, the behaviour before whep#1495.
+#'
+#'   **The default moves published values**, in the four fruit and vegetable
+#'   items and, before 2010, in nuts. Measured on a real 2009-2011 build at
+#'   2010, against `"nuts_only"`: imports/exports 2.54x to 1.06x for olives,
+#'   1.77x to 0.94x for pineapples, 1.32x to 0.89x for tomatoes, 1.27x to
+#'   1.04x for lemons; their food falls from 4.26 to 2.71, 27.57 to 18.64,
+#'   142.58 to 133.79 and 13.26 to 12.53 Mt. All-item food falls from
+#'   4,686.80 to 4,666.80 Mt (-0.43%) at 2010 and from 4,532.36 to 4,513.39
+#'   Mt (-0.42%) at 2009. Milk rows do not change in this frozen comparison.
+#'   Final feed increases by about 0.000215 Mt in 2010 and 0.000719 Mt over
+#'   2009-2011 (0.000717 Mt is tomato feed). Olive-oil production
+#'   increases by 2.743 kt over those years
+#'   (2.557 kt in area 299), with processing and other-use spillovers too.
+#'   Thus final production/feed invariance is not claimed. The repaired
+#'   `"nuts_only"` is not the previous main ordering: rebasing after the
+#'   vintage scaling also moves 2009 nuts against the rebase it replaces:
+#'   food 13.72 to 13.29 Mt, and production and stock
+#'   change back to their unrebased values in that comparison. FBS protein
+#'   is derived from related standardized quantities, not an independent
+#'   validation of the allocation. Its value over the rebased food moves
+#'   to the old vintage's density (pineapples 1.9 to 2.8
+#'   g/kg, old 2.7). `"rebased_with_milk"` further takes 2010 milk imports
+#'   from 191.36 to 100.13 Mt (exports 97.76 to 86.64 Mt), milk food from
+#'   520.32 to 477.95 Mt and milk feed from 79.68 to 41.85 Mt.
 #' @param residue_backcast One of `"own_method"` (default),
 #'   `"production_ratio"` or `"area_rate"`, selecting what crop residue
 #'   (Straw, Other crop residues, Firewood) grows back along before the first
@@ -627,7 +689,7 @@ build_commodity_balances <- function(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
-  nut_basis = .nut_basis_choices(),
+  fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
   bucket_coverage = .cbs_coverage_choices(),
   method_cbs_account = c("source", "balance_residual"),
@@ -649,7 +711,7 @@ build_commodity_balances <- function(
   silk_basis <- rlang::arg_match(silk_basis)
   silk_duplicate_use <- rlang::arg_match(silk_duplicate_use)
   tobacco_leaf_use <- rlang::arg_match(tobacco_leaf_use)
-  nut_basis <- rlang::arg_match(nut_basis)
+  fbs_trade_basis <- rlang::arg_match(fbs_trade_basis)
   residue_backcast <- rlang::arg_match(residue_backcast)
   if (example) {
     return(
@@ -688,7 +750,7 @@ build_commodity_balances <- function(
       silk_basis = silk_basis,
       silk_duplicate_use = silk_duplicate_use,
       tobacco_leaf_use = tobacco_leaf_use,
-      nut_basis = nut_basis,
+      fbs_trade_basis = fbs_trade_basis,
       residue_backcast = residue_backcast,
       bucket_coverage = bucket_coverage
     )
@@ -791,9 +853,10 @@ build_commodity_balances <- function(
          supplied."
       )
     }
-    if (nut_basis != "rebased") {
+    if (fbs_trade_basis != "rebased") {
       cli::cli_warn(
-        "{.arg nut_basis} is ignored when {.arg .fixed_data} is supplied."
+        "{.arg fbs_trade_basis} is ignored when {.arg .fixed_data} is \
+         supplied."
       )
     }
     if (residue_backcast != "own_method") {
@@ -1060,7 +1123,7 @@ build_commodity_balances <- function(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
-  nut_basis = .nut_basis_choices(),
+  fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
   bucket_coverage = .cbs_coverage_choices()
 ) {
@@ -1085,7 +1148,7 @@ build_commodity_balances <- function(
     silk_basis = silk_basis,
     silk_duplicate_use = silk_duplicate_use,
     tobacco_leaf_use = tobacco_leaf_use,
-    nut_basis = nut_basis,
+    fbs_trade_basis = fbs_trade_basis,
     residue_backcast = residue_backcast,
     aggregate_proxy = aggregate_proxy
   )
@@ -1545,7 +1608,7 @@ build_processing_coefs <- function(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
-  nut_basis = .nut_basis_choices(),
+  fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
   aggregate_proxy = .cbs_aggregate_proxy_choices()
 ) {
@@ -1554,7 +1617,10 @@ build_processing_coefs <- function(
     .hist_trade_scale_choices()
   )
   silk_basis <- rlang::arg_match(silk_basis, .silk_basis_choices())
-  nut_basis <- rlang::arg_match(nut_basis, .nut_basis_choices())
+  fbs_trade_basis <- rlang::arg_match(
+    fbs_trade_basis,
+    .fbs_trade_basis_choices()
+  )
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
   if (.cbs_reuse_extracts(cb)) {
@@ -1584,9 +1650,10 @@ build_processing_coefs <- function(
       keep_members = TRUE
     )
   }
-  # Which vintage sets the level of FBS item 2551 (whep#1495).
-  fbs_rebase <- .fbs_rebase_factors(fbs_new, fbs_old, nut_basis)
-  .warn_fbs_rebase_absent(fbs_new, fbs_rebase, nut_basis)
+  # Which vintage sets the trade level of the items FBS_New books on two
+  # bases (whep#1495, whep#1550).
+  fbs_rebase <- .fbs_rebase_factors(fbs_new, fbs_old, fbs_trade_basis)
+  .warn_fbs_rebase_absent(fbs_new, fbs_rebase, fbs_trade_basis)
   # "Processed" and "Residuals" are read only for the silk chain and removed
   # again by `.cbs_silk_mass_basis()`, whatever the method (whep#1251,
   # whep#1281).
@@ -2848,7 +2915,7 @@ build_processing_coefs <- function(
     year < 1961L & stringr::str_starts(source, "historical_") ~ 1L,
     source == "FAOSTAT_prod" ~ 2L,
     source %in% c("FAOSTAT_FBS_New", "FAOSTAT_FBS_New_rebased") ~ 3L,
-    source == "FAOSTAT_FBS_Old_scaled" ~ 4L,
+    source %in% c("FAOSTAT_FBS_Old_scaled", "FAOSTAT_FBS_Old_rebased") ~ 4L,
     source == "FAOSTAT_FBS_Old" ~ 5L,
     source == "FAOSTAT_CBS" ~ 6L,
     source == "FAOSTAT_trade" ~ 7L,
@@ -3532,9 +3599,6 @@ build_processing_coefs <- function(
     items
   )
 
-  # FBS 2551 trade on the old vintage's level (whep#1495)
-  inputs$fbs_new <- .rebase_fbs_trade(inputs$fbs_new, inputs$fbs_rebase)
-
   # Combine all sources
   cbs_raw_all <- .assemble_cbs_sources(
     inputs,
@@ -3550,11 +3614,9 @@ build_processing_coefs <- function(
   source_accounts <- .cbs_account_observations(cbs_raw_all)
   cbs_raw_all <- cbs_raw_all[!element %in% .cbs_account_only_elements()]
 
-  # Select best value among sources
-  out <- .select_best_source(
-    cbs_raw_all,
-    rebased = attr(inputs$fbs_new, "rebased_keys")
-  )
+  # Select best value among sources, with FBS trade on the old vintage's
+  # level (whep#1495, whep#1550)
+  out <- .select_best_source(cbs_raw_all, rebase = inputs$fbs_rebase)
   attr(out, "coverage_log") <- attr(inputs, "coverage_log")
   attr(out, "source_accounts") <- source_accounts
   out
@@ -3937,7 +3999,7 @@ build_processing_coefs <- function(
   dt
 }
 
-.select_best_source <- function(cbs_raw_all, rebased = NULL) {
+.select_best_source <- function(cbs_raw_all, rebase = NULL) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
   # Key on the integer `area_code`, not the `area` name: sources disagree on
   # the name for the same code (plain name vs periodized polity name, e.g.
@@ -4167,7 +4229,7 @@ build_processing_coefs <- function(
     value := 0
   ]
 
-  wide <- .label_fbs_rebased(wide, rebased)
+  wide <- .rebase_selected_fbs(wide, rebase)
   wide[area_lookup, area := i.area, on = "area_code"]
   wide <- .add_best_source_flag(wide, dt_raw, key_cols, primary_sources)
 
@@ -4215,18 +4277,16 @@ build_processing_coefs <- function(
     )
   ]
   flags <- .fold_flags_by(flags, c(key_cols, "source_group"))
-  # A scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
-  # FBS_Old's flag, and a rebased FBS_New value keeps FBS_New's; every other
-  # label is the group name already.
+  # A scaled or rebased FBS_Old value is FBS_Old's number times a ratio, so
+  # it keeps FBS_Old's flag, and a rebased FBS_New value keeps FBS_New's;
+  # every other label is the group name already.
   wide[,
-    source_group := data.table::fifelse(
-      source == "FAOSTAT_FBS_Old_scaled",
-      "FAOSTAT_FBS_Old",
-      data.table::fifelse(
-        source == "FAOSTAT_FBS_New_rebased",
-        "FAOSTAT_FBS_New",
-        source
-      )
+    source_group := data.table::fcase(
+      source %in% c("FAOSTAT_FBS_Old_scaled", "FAOSTAT_FBS_Old_rebased") ,
+      "FAOSTAT_FBS_Old"                                                  ,
+      source == "FAOSTAT_FBS_New_rebased"                                ,
+      "FAOSTAT_FBS_New"                                                  ,
+      default = source
     )
   ]
   wide[flags, fao_flag := i.fao_flag, on = c(key_cols, "source_group")]

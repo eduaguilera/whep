@@ -2797,6 +2797,14 @@ utils::globalVariables(
     "r_export",
     "r_import",
     "rebase_old_new",
+    # fbs_vintage_rebase.R (whep#1550) -- rebase destinies beyond food
+    "in_food",
+    "in_feed",
+    "room_food",
+    "room_feed",
+    "cut_feed",
+    "cut_food",
+    "r_feed",
     # livestock_manure.R (whep#601) -- the 2019 Tier 1 N excretion table
     "ipcc_n_excretion_tier1",
     # grafs_plot_df.R: resolved source-geography joins and support coverage.

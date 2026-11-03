@@ -1,0 +1,8 @@
+ncols	4
+nrows	2
+xllcorner	0
+yllcorner	50
+cellsize	0.5
+nodata_value	-1
+0.1 0.2 -1 0.4
+0 0.5 0.6 -1

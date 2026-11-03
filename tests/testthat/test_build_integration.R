@@ -171,13 +171,13 @@ test_that("fixed CBS data reports an unused coverage method", {
   expect_equal(unique(out$method_cbs_coverage), "not_checked")
 })
 
-test_that("build_commodity_balances warns that nut_basis is unused", {
+test_that("build_commodity_balances warns that fbs_trade_basis is unused", {
   expect_warning(
     whep::build_commodity_balances(
-      nut_basis = "as_published",
+      fbs_trade_basis = "as_published",
       .fixed_data = cbs_fixed_fixture()
     ),
-    "nut_basis"
+    "fbs_trade_basis"
   )
 })
 
@@ -238,6 +238,7 @@ test_that("build_commodity_balances sources are from known set", {
     "FAOSTAT_FBS_New_rebased",
     "FAOSTAT_FBS_Old",
     "FAOSTAT_FBS_Old_scaled",
+    "FAOSTAT_FBS_Old_rebased",
     "FAOSTAT_CBS",
     "FAOSTAT_trade",
     "mean",
