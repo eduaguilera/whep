@@ -307,6 +307,7 @@ circ_nue_traj_plot <- function() {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "livestock_rum",
           "livestock_mono",
           "export"
@@ -438,6 +439,7 @@ circ_nue_crop_ts_plot <- function(out_dir = NULL) {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "livestock_rum",
           "livestock_mono",
           "export"
@@ -777,6 +779,7 @@ yield_nue_trajectory_plot <- function(out_dir = NULL) {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "livestock_rum",
           "livestock_mono",
           "export"
@@ -882,6 +885,7 @@ intens_traj_plot <- function(out_dir = NULL) {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "livestock_rum",
           "livestock_mono",
           "export"
@@ -988,7 +992,13 @@ intens_ts_plot <- function(out_dir = NULL) {
     dplyr::filter(
       origin %in%
         c("Cropland", "semi_natural_agroecosystems", "Livestock"),
-      destiny %in% c("population_food", "population_other_uses", "export")
+      destiny %in%
+        c(
+          "population_food",
+          "population_food_inedible",
+          "population_other_uses",
+          "export"
+        )
     ) |>
     dplyr::group_by(year) |>
     dplyr::summarise(
@@ -1053,6 +1063,7 @@ nue_fertilizer_timeseries_plot <- function(out_dir = NULL) {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "livestock_rum",
           "livestock_mono",
           "export"
@@ -1193,6 +1204,7 @@ nue_fertilizer_trajectory_plot <- function(out_dir = NULL) {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "livestock_rum",
           "livestock_mono",
           "export"
@@ -1293,6 +1305,7 @@ nrr_cropland_timeseries_plot <- function(out_dir = NULL) {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "livestock_rum",
           "livestock_mono",
           "export"
@@ -1413,6 +1426,7 @@ production_diversity_plot <- function() {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -1488,6 +1502,7 @@ intens_spec_sec_axis <- function(out_dir = NULL) {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -1638,6 +1653,7 @@ n_indicators_ts_plot <- function() {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -1655,6 +1671,7 @@ n_indicators_ts_plot <- function() {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono"
@@ -1743,6 +1760,7 @@ spatial_diversity <- function() {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -1803,6 +1821,7 @@ spec_hhi_prod_plot <- function() {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -1878,6 +1897,7 @@ system_shares_plot <- function() {
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -1961,6 +1981,7 @@ ext_dep_plot_national <- function() {
             "livestock_mono",
             "livestock_rum",
             "population_food",
+            "population_food_inedible",
             "population_other_uses"
           ) &
           origin %in% c("Cropland", "semi_natural_agroecosystems", "Outside"))
@@ -1982,6 +2003,7 @@ ext_dep_plot_national <- function() {
               "livestock_mono",
               "livestock_rum",
               "population_food",
+              "population_food_inedible",
               "population_other_uses"
             ) ~
           "external",
@@ -2000,6 +2022,7 @@ ext_dep_plot_national <- function() {
               "livestock_mono",
               "livestock_rum",
               "population_food",
+              "population_food_inedible",
               "population_other_uses"
             ) ~
           "internal",
@@ -2255,6 +2278,7 @@ n_productivity_maps <- function(
             "livestock_mono",
             "livestock_rum",
             "population_food",
+            "population_food_inedible",
             "population_other_uses"
           ) &
           origin %in%
@@ -2272,6 +2296,7 @@ n_productivity_maps <- function(
               "livestock_mono",
               "livestock_rum",
               "population_food",
+              "population_food_inedible",
               "population_other_uses"
             ) ~
           "external",
@@ -2286,6 +2311,7 @@ n_productivity_maps <- function(
               "livestock_mono",
               "livestock_rum",
               "population_food",
+              "population_food_inedible",
               "population_other_uses"
             ) ~
           "internal",
@@ -2373,7 +2399,13 @@ n_productivity_maps <- function(
     dplyr::filter(
       origin %in%
         c("Cropland", "semi_natural_agroecosystems", "Livestock"),
-      destiny %in% c("population_food", "population_other_uses", "export")
+      destiny %in%
+        c(
+          "population_food",
+          "population_food_inedible",
+          "population_other_uses",
+          "export"
+        )
     ) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(

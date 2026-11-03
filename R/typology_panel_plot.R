@@ -9,8 +9,11 @@
 #'   If `NULL`, computed automatically (slow).
 #' @param n_prov_destiny Nitrogen flows tibble from [create_n_prov_destiny()].
 #'   If `NULL`, loaded automatically.
-#' @param area_df Cropland area per year and province, with columns `year`,
-#'   `province_name` and `area_ha`. If `NULL`, read from the `npp_ygpit` pin.
+#' @param area_df Total agricultural area per year and province (cropland
+#'   plus the semi-natural land uses dehesa, high/low forest,
+#'   pasture-shrubland and other -- see `.semi_natural_landuse_cats()`), with
+#'   columns `year`, `province_name` and `area_ha`. If `NULL`, read from the
+#'   `npp_ygpit` pin.
 #' @param typo_df Typology assignment per year and province, with columns
 #'   `year`, `province_name` and `Typology_base`. If `NULL`, derived from
 #'   `create_typo_ts_plot()`.
@@ -87,7 +90,7 @@ plot_typology_indicators_panel <- function(
   area_df <- area_df %||% .panel_area_df()
   typo_df <- typo_df %||% .panel_typology_df()
   colors <- .finn_typology_colors()
-  periods <- c(1860, 1920, 1960, 2010)
+  periods <- c(1860, 1925, 1960, 2013)
 
   p_ext <- .panel_ext_dep(flows, area_df, typo_df, colors, periods)
   p_fci <- .panel_fci(finn_data, typo_df, colors, periods)
@@ -103,7 +106,7 @@ plot_typology_indicators_panel <- function(
 #' @description Creates a four-panel figure comparing external N dependency,
 #'   Finn Cycling Index, pollution (soil + livestock surplus per ha), and
 #'   intensification (synthetic + feed imports per ha) across four reference
-#'   periods (1860-1870, 1920-1930, 1960-1970, 2010-2020), analogous to the
+#'   periods (1860-1870, 1925-1935, 1960-1970, 2013-2023), analogous to the
 #'   periods panel from [plot_finn_circularity()]. Each panel facets by
 #'   typology and adds a "Spain (national)" facet computed from the national
 #'   GRAFS dataset ([create_n_nat_destiny()]), shown as a single black point
@@ -116,9 +119,10 @@ plot_typology_indicators_panel <- function(
 #' @param n_nat_destiny National nitrogen flows tibble from
 #'   [create_n_nat_destiny()]. If `NULL`, computed automatically (slow).
 #' @param panel_data Named list overriding the two frames otherwise read from
-#'   pins: `area_df` (`year`, `province_name`, `area_ha`) and `typo_df`
-#'   (`year`, `province_name`, `Typology_base`). Missing elements are loaded
-#'   automatically.
+#'   pins: `area_df` -- total agricultural area (cropland plus semi-natural
+#'   land uses), with columns `year`, `province_name`, `area_ha` -- and
+#'   `typo_df` (`year`, `province_name`, `Typology_base`). Missing elements
+#'   are loaded automatically.
 #'
 #' @return A patchwork ggplot object.
 #' @export
@@ -128,8 +132,8 @@ plot_typology_indicators_panel <- function(
 #'   requireNamespace("ggplot2", quietly = TRUE) &&
 #'     requireNamespace("patchwork", quietly = TRUE)
 #' ) {
-#'   # The four reference periods are 1860-1870, 1920-1930, 1960-1970 and
-#'   # 2010-2020, so an example needs at least one year inside two of them.
+#'   # The four reference periods are 1860-1870, 1925-1935, 1960-1970 and
+#'   # 2013-2023, so an example needs at least one year inside two of them.
 #'   flows <- tibble::tribble(
 #'     ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
 #'     1865, "A", "Cropland", "Synthetic", "Cropland", 900,
@@ -229,9 +233,18 @@ plot_typology_periods_panel <- function(
 
 # --- Private helpers: data preparation ---------------------------------------
 
+# Total agricultural area (cropland plus semi-natural land uses) per year
+# and province -- matches the denominator of the N-productivity indicator
+# (.calc_n_productivity_prov(), intens_ts_plot()) rather than cropland alone,
+# so a province where semi-natural agroecosystems dominate does not get its
+# per-hectare N surplus/intensification inflated by a small cropland-only
+# denominator. The filter is explicit (rather than summing every LandUse row
+# unfiltered) so a future npp_ygpit vintage that adds a non-agricultural
+# LandUse category does not silently widen this denominator.
 .panel_area_df <- function() {
   whep_read_file("npp_ygpit") |>
     dplyr::rename_with(tolower) |>
+    dplyr::filter(landuse %in% c("Cropland", .semi_natural_landuse_cats())) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       area_ha = sum(area_ygpit_ha, na.rm = TRUE),
@@ -468,7 +481,8 @@ plot_typology_periods_panel <- function(
 .wrap_two_by_two <- function(panels) {
   panels |>
     purrr::map(~ .x + ggplot2::theme(legend.position = "bottom")) |>
-    patchwork::wrap_plots(nrow = 2, guides = "collect")
+    patchwork::wrap_plots(nrow = 2, guides = "collect") +
+    patchwork::plot_annotation(caption = .typology_facet_caption())
 }
 
 .panel_periods_cross <- function(p_tl, p_tr, p_bl, p_br) {
@@ -493,12 +507,23 @@ plot_typology_periods_panel <- function(
     design = design,
     widths = c(1, 1, 1, 0.015, 1, 1, 1),
     heights = c(1, 1, 1, 0.015, 1, 1, 1)
-  )
+  ) +
+    patchwork::plot_annotation(caption = .typology_facet_caption())
+}
+
+# Each facet is the province-year's dominant typology, from the
+# .classify_typology_base() decision tree in typologies_spain.R.
+.typology_facet_caption <- function() {
+  "Facets show each province-year's dominant typology."
 }
 
 
 # --- Private helpers: indicator computation ----------------------------------
 
+# population_food_inedible is the remainder .split_food_inedible_loss()
+# (n_prov_destiny.R) split out of population_food; it left the producing
+# system exactly like the edible fraction did, so every destiny list below
+# that includes population_food includes it too.
 .ext_dep_values <- function(flows) {
   ext <- flows |>
     dplyr::filter(
@@ -511,6 +536,7 @@ plot_typology_periods_panel <- function(
               "livestock_rum",
               "livestock_mono",
               "population_food",
+              "population_food_inedible",
               "population_other_uses"
             ))
     ) |>
@@ -529,6 +555,7 @@ plot_typology_periods_panel <- function(
               "livestock_rum",
               "livestock_mono",
               "population_food",
+              "population_food_inedible",
               "population_other_uses"
             ))
     ) |>
@@ -613,6 +640,7 @@ plot_typology_periods_panel <- function(
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -638,6 +666,7 @@ plot_typology_periods_panel <- function(
           "Cropland",
           "semi_natural_agroecosystems",
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "export"
         )
