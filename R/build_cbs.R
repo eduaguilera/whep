@@ -448,8 +448,8 @@
 #'   one's change over time, as the palm-kernel fix already joins them -- and
 #'   takes the net trade removed out of domestic supply and food, so every
 #'   row keeps its supply-use identity and production and stock change do not
-#'   move. A row whose net cut is not positive, or exceeds its food, is left
-#'   as published. The moved rows are labelled `"FAOSTAT_FBS_New_rebased"`,
+#'   move. A row whose net cut is not positive, or is not smaller than its
+#'   food, is left as published. The moved rows are labelled `"FAOSTAT_FBS_New_rebased"`,
 #'   and the ratios are read from the pins whatever years are built.
 #'
 #'   Milk stays as published unless `"rebased_with_milk"` is asked for
@@ -2788,7 +2788,7 @@ build_processing_coefs <- function(
     year < 1961L & stringr::str_starts(source, "historical_") ~ 1L,
     source == "FAOSTAT_prod" ~ 2L,
     source %in% c("FAOSTAT_FBS_New", "FAOSTAT_FBS_New_rebased") ~ 3L,
-    source == "FAOSTAT_FBS_Old_scaled" ~ 4L,
+    source %in% c("FAOSTAT_FBS_Old_scaled", "FAOSTAT_FBS_Old_rebased") ~ 4L,
     source == "FAOSTAT_FBS_Old" ~ 5L,
     source == "FAOSTAT_CBS" ~ 6L,
     source == "FAOSTAT_trade" ~ 7L,
@@ -3472,9 +3472,6 @@ build_processing_coefs <- function(
     items
   )
 
-  # FBS trade on the old vintage's level (whep#1495, whep#1550)
-  inputs$fbs_new <- .rebase_fbs_trade(inputs$fbs_new, inputs$fbs_rebase)
-
   # Combine all sources
   cbs_raw_all <- .assemble_cbs_sources(
     inputs,
@@ -3484,11 +3481,9 @@ build_processing_coefs <- function(
     items
   )
 
-  # Select best value among sources
-  out <- .select_best_source(
-    cbs_raw_all,
-    rebased = attr(inputs$fbs_new, "rebased_keys")
-  )
+  # Select best value among sources, with FBS trade on the old vintage's
+  # level (whep#1495, whep#1550)
+  out <- .select_best_source(cbs_raw_all, rebase = inputs$fbs_rebase)
   attr(out, "coverage_log") <- attr(inputs, "coverage_log")
   out
 }
@@ -3870,7 +3865,7 @@ build_processing_coefs <- function(
   dt
 }
 
-.select_best_source <- function(cbs_raw_all, rebased = NULL) {
+.select_best_source <- function(cbs_raw_all, rebase = NULL) {
   # Pivot sources into columns — avoids grouped summarise + nth overhead.
   # Key on the integer `area_code`, not the `area` name: sources disagree on
   # the name for the same code (plain name vs periodized polity name, e.g.
@@ -4100,7 +4095,7 @@ build_processing_coefs <- function(
     value := 0
   ]
 
-  wide <- .label_fbs_rebased(wide, rebased)
+  wide <- .rebase_selected_fbs(wide, rebase)
   wide[area_lookup, area := i.area, on = "area_code"]
   wide <- .add_best_source_flag(wide, dt_raw, key_cols, primary_sources)
 
@@ -4148,18 +4143,16 @@ build_processing_coefs <- function(
     )
   ]
   flags <- .fold_flags_by(flags, c(key_cols, "source_group"))
-  # A scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
-  # FBS_Old's flag, and a rebased FBS_New value keeps FBS_New's; every other
-  # label is the group name already.
+  # A scaled or rebased FBS_Old value is FBS_Old's number times a ratio, so
+  # it keeps FBS_Old's flag, and a rebased FBS_New value keeps FBS_New's;
+  # every other label is the group name already.
   wide[,
-    source_group := data.table::fifelse(
-      source == "FAOSTAT_FBS_Old_scaled",
-      "FAOSTAT_FBS_Old",
-      data.table::fifelse(
-        source == "FAOSTAT_FBS_New_rebased",
-        "FAOSTAT_FBS_New",
-        source
-      )
+    source_group := data.table::fcase(
+      source %in% c("FAOSTAT_FBS_Old_scaled", "FAOSTAT_FBS_Old_rebased") ,
+      "FAOSTAT_FBS_Old"                                                  ,
+      source == "FAOSTAT_FBS_New_rebased"                                ,
+      "FAOSTAT_FBS_New"                                                  ,
+      default = source
     )
   ]
   wide[flags, fao_flag := i.fao_flag, on = c(key_cols, "source_group")]

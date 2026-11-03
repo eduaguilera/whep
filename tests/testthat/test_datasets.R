@@ -327,6 +327,7 @@ test_that("source_flags.csv covers all source labels used in code", {
     "FAOSTAT_FBS_Old",
     "FAOSTAT_FBS_Old_scaled",
     "FAOSTAT_FBS_New_rebased",
+    "FAOSTAT_FBS_Old_rebased",
     "FAOSTAT_CBS",
     "FAOSTAT_trade",
     "fishstat_trade"

@@ -33,20 +33,32 @@
 # * import and export are multiplied by the area's median old/new ratio over
 #   the 2010-2013 overlap -- the old vintage's level, the new vintage's change
 #   over time, which is how the palm-kernel fix already joins the two vintages
-#   (`.fix_palm_kernels()`). The ratio is clamped to the forward scaling's
-#   lower bound and to 1: the defect only inflates, so the correction only
-#   removes mass;
+#   (`.fix_palm_kernels()`). The ratio is clamped to [0.2, 1]: 0.2 is the
+#   forward scaling's lower bound and 1 keeps the correction to removing mass,
+#   since the defect only inflates. Both bounds are methodological
+#   assumptions, not sourced values. At 2010 the floor binds on 394 kt of
+#   pineapple and 296 kt of nut imports, and the ceiling leaves 2,387 kt of
+#   tomato and 628 kt of lemon imports uncut;
 # * the net trade it removes (import cut minus export cut) comes out of food
 #   and domestic supply, where the excess went. Production, stock variation
 #   and the other destinies are not touched, so the row's own supply-use
 #   identity holds exactly as published;
-# * a row whose net cut is not positive, or exceeds its food, is left as
-#   published: there the old vintage is not a credible anchor (Viet Nam's
-#   cashew imports are 274 kt in the new vintage and about 20 kt in the old,
-#   while its trading partners' exports back the new one).
+# * a row whose net cut is not positive, or is not smaller than its food, is
+#   left as published: there the old vintage is not a credible anchor (Viet
+#   Nam's cashew imports are 274 kt in the new vintage and about 20 kt in the
+#   old, while its trading partners' exports back the new one).
 #
-# The old vintage is then scaled to the corrected new one by the forward
-# scaling, as for every other item, so 1961-2009 follows.
+# The old vintage is scaled to the published new one by the forward scaling,
+# as for every other item, and the same correction is then applied to the
+# scaled 1961-2009 rows, so they follow the corrected level and keep the
+# supply gap the scaling gives them (`.rebase_selected_fbs()`, whep#1623).
+#
+# Food takes the whole net cut, and in many rows most of the food: at 2010
+# the median rebased row loses 70% of its food for olives, 61% for
+# pineapples, 50% for nuts and 36% for tomatoes (at most 87%, Austria's
+# pineapples). Row by row that lands on the old vintage's food (median
+# rebased/old 0.96 to 1.05, against 1.16 to 3.5 as published), which is the
+# anchor, so it shows consistency, not independent evidence.
 #
 # Measured on the pins at 2010, world imports fall from 13.57 to 6.88 Mt
 # against exports of 6.37 Mt (1.08x; 1.01x at 2016) and food from 19.47 to
@@ -92,41 +104,42 @@
 # * lemons: concentrated juice 22.2 vs 11.3 (11.6 vs 10.7).
 #
 # Milk (2848) is rebased only when asked for, by `"rebased_with_milk"`
-# (whep#1583). Its import side is the inflated one, at the old vintage's level
-# product by product, measured on the pins at 2010, areas below 5000 with 351
-# excluded:
+# (whep#1583). Its new-vintage imports are inflated relative to its exports.
+# Measured on the pins at 2010, areas below 5000 with 351 excluded:
 #
 # * product trade closes: FAOSTAT world imports of whole-cow-milk cheese are
 #   4.73 Mt against 4.96 Mt of exports, of dry whey 1.86 against 2.04 Mt
 #   (World rows), and UN Comtrade's mirror sums agree (HS 0406 0.94x, HS 0404
-#   1.05x). IDF puts 2010 world dairy trade at 51.9 Mt (World Dairy Situation
-#   2011, via IDFA), where the new vintage's World row imports 193.7 Mt;
+#   1.05x). These may share national customs returns, so the agreement is a
+#   cross-check, not independent data. IDF puts 2010 world dairy trade at
+#   51.9 Mt (World Dairy Situation 2011, via IDFA), where the new vintage's
+#   World row imports 193.7 Mt;
 # * converting each country's product trade (`faostat-trade-totals`) with one
-#   factor per product on both sides gives world imports of 93.6 Mt against
-#   103.6 Mt of exports, and per country about the old vintage's imports:
-#   Netherlands 4.2 Mt (old 4.9, published 16.9), Russia 3.6 (3.6, 16.2),
-#   China 2.8 (3.7, 12.9), United Kingdom 5.7 (5.7, 10.6). The factors are
-#   the medians of FAO's Technical Conversion Factors (1992-1996) over the
-#   countries printing one: cheese 12%, dry whole milk 13%, evaporated and
-#   condensed milk 35-37% (8.3, 7.7 and 2.8 t of milk per t). Whey is left
-#   out as cheese's co-product (FAO 2017, Guidelines for the Compilation of
-#   Food Balance Sheets, pp. 65 and 105), and cream and butter as the trade
-#   of FBS items 2743 and 2740, which take it at 1.00. Ice cream (11.6),
-#   dairy n.e.c. (4.0) and skim milk powder (0) take the new vintage's own
-#   pooled 2010-2013 export-side factors: assumed, unverified.
+#   factor per product on both sides closes the world (imports about 0.9x
+#   exports, as product trade does), but the level depends on the basis.
+#   World imports are 61 Mt on USDA ERS milk-fat equivalents, 86 to 110 Mt on
+#   its skim-solids equivalents (without and with whey), 92 to 119 Mt on
+#   FAO's Technical Conversion Factor medians (skim milk powder at 0, or at
+#   FAO 2001's 104% milk to skim milk and 9% skim milk to powder) and 128 Mt
+#   on the larger of the two ERS bases. Published imports are 188.6 Mt and
+#   the old vintage's 94.3 Mt. So matched factors remove most of the excess,
+#   but they do not single out the old vintage's level.
 #
-# Where the excess went is only partly known, so the default does not take it
-# out of anything:
+# Where the excess went is not observed; two model inferences, so the default
+# does not take it out of anything:
 #
-# * about 30 Mt is imported whey booked as milk fed to animals: over 164
-#   countries, the new vintage's feed above the old one's rises by 12.7 t per
-#   t of whey imported (se 3.0), the import side's own whey factor;
-# * the other ~74 Mt (cheese and milk powders) does not show in feed, and
-#   FBS's own protein over food barely moves with it (median 35.9 g/kg where
-#   it is under 2% of food, 32.9 where it is over 30%), so it is not mostly
-#   in food either. The new vintage's processing element (205 Mt world, 0.1
-#   Mt in the old: milk made into butter) keeps food from being compared
-#   across the vintages.
+# * a cross-country regression (164 countries) of new-minus-old feed on
+#   product imports gives 12.7 t of feed per t of dry whey imported (se 3.0),
+#   close to the import side's fitted whey factor (about 13). That is
+#   consistent with imported whey entering feed as milk, about 30 Mt at the
+#   point estimate, but it is an association, not a traced booking;
+# * cheese and powder imports show no such relation with feed, and FBS's own
+#   protein over food falls only mildly where their excess is large (median
+#   35.9 g/kg where it is under 2% of food, 32.9 where it is over 30%). FBS
+#   nutrients are compiled from the same standardised quantities, so this
+#   does not show the excess is absent from food. The processing element
+#   (205 Mt world, 0.1 Mt in the old vintage: milk made into butter) keeps
+#   food from being compared across the vintages.
 #
 # `"rebased_with_milk"` puts milk trade on the old vintage's level and takes
 # the net cut out of feed first, down to the old vintage's feed level (the
@@ -272,24 +285,44 @@
   !is.null(df) && all(years %in% df$year)
 }
 
-# Apply the factors to the new vintage. Returns it with the corrected values
-# and, as the `rebased_keys` attribute, the (year, area_code, item_cbs_code,
-# element) keys whose value moved, so their selected rows can be labelled.
-.rebase_fbs_trade <- function(fbs_new, factors) {
+# Apply the factors to the rows `.select_best_source()` selected, after the
+# old vintage has been scaled to the published new one. Only values taken from
+# the new vintage, or from the old one scaled to it, move; they are labelled
+# `"FAOSTAT_FBS_New_rebased"` and `"FAOSTAT_FBS_Old_rebased"`.
+#
+# Rebasing after the scaling, not before it, is what keeps the scaled years
+# whole (whep#1623). The scaling ratio is a median per element over
+# 2010-2013, and the rebase moves some overlap years of an area and not
+# others (a cut larger than the row's food leaves it as published). Ratios
+# taken from such a mix scale import, export and food inconsistently, and the
+# supply gap that opens is booked by `.fix_cbs()` as production the area
+# never grew: Netherlands pineapples, 0 to 112 kt at 2009. Applied to the
+# scaled row instead, the cut takes the same amount from net trade and from
+# food, so every row keeps the supply gap the published scaling gives it,
+# and no production, stock change or other destiny moves in any year.
+.rebase_selected_fbs <- function(wide, factors) {
   if (is.null(factors) || nrow(factors) == 0L) {
-    return(fbs_new)
+    return(wide)
   }
-  # A copy: the frame can be the `.cb_extracts` attribute of the caller's
-  # `primary_all`, which a by-reference update would rewrite.
-  dt <- data.table::copy(data.table::as.data.table(fbs_new))
-  moved <- .fbs_rebase_corrections(dt, factors)
-  dt[, `:=`(
+  sources <- c("FAOSTAT_FBS_New", "FAOSTAT_FBS_Old_scaled")
+  moved <- .fbs_rebase_corrections(wide[source %in% sources], factors)
+  if (nrow(moved) == 0L) {
+    return(wide)
+  }
+  wide[, `:=`(
     area_int = as.integer(area_code),
     item_int = as.integer(item_cbs_code)
   )]
-  dt[
+  wide[
     moved,
-    value := i.value,
+    `:=`(
+      value = i.value,
+      source = data.table::fifelse(
+        source == "FAOSTAT_FBS_New",
+        "FAOSTAT_FBS_New_rebased",
+        "FAOSTAT_FBS_Old_rebased"
+      )
+    ),
     on = c(
       year = "year",
       area_int = "area_code",
@@ -297,9 +330,8 @@
       element = "element"
     )
   ]
-  dt[, c("area_int", "item_int") := NULL]
-  data.table::setattr(dt, "rebased_keys", moved[, !"value"])
-  dt
+  wide[, c("area_int", "item_int") := NULL]
+  wide[]
 }
 
 # The corrected long rows: one per (year, area, item, element) that moves.
@@ -347,7 +379,7 @@
 # Cut the trade and take the net cut out of domestic supply and the item's
 # destinies: first feed, down to the old vintage's level (`r_feed`), where
 # feed is one of them, then food. A row whose net cut is not positive, or
-# exceeds what those destinies can give, is kept as published.
+# is not smaller than what those destinies can give, is kept as published.
 .fbs_rebase_balance <- function(wide) {
   wide <- ensure_columns(
     tibble::as_tibble(wide),
@@ -370,7 +402,10 @@
   # moves exactly as under whep#1495.
   wide[, cut_food := net_cut - cut_feed]
   wide[, room_food := in_food * data.table::fcoalesce(food, 0)]
-  wide[, ok := net_cut > 0 & cut_food <= room_food]
+  # Strictly less: a cut that took all the food would leave a zero that
+  # `.fix_cbs()` reads as missing and refills from net trade, moving the
+  # row's stock change.
+  wide[, ok := net_cut > 0 & cut_food < room_food]
   wide[
     (ok),
     `:=`(
@@ -403,33 +438,6 @@
     wide[, (col) := as.numeric(item_cbs_code %in% takes)]
   }
   wide
-}
-
-# Label the selected rows whose value is a rebased new-vintage value.
-.label_fbs_rebased <- function(wide, rebased) {
-  if (is.null(rebased) || nrow(rebased) == 0L) {
-    return(wide)
-  }
-  wide[, `:=`(
-    area_int = as.integer(area_code),
-    item_int = as.integer(item_cbs_code)
-  )]
-  wide[
-    rebased,
-    is_rebased := TRUE,
-    on = c(
-      year = "year",
-      area_int = "area_code",
-      item_int = "item_cbs_code",
-      element = "element"
-    )
-  ]
-  wide[
-    is_rebased %in% TRUE & source == "FAOSTAT_FBS_New",
-    source := "FAOSTAT_FBS_New_rebased"
-  ]
-  wide[, c("area_int", "item_int", "is_rebased") := NULL]
-  wide[]
 }
 
 # Warn when a rebase was asked for and an item it covers reaches the build
