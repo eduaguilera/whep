@@ -2754,6 +2754,8 @@ utils::globalVariables(
     "rebase_old_new",
     # livestock_manure.R (whep#601) -- the 2019 Tier 1 N excretion table
     "ipcc_n_excretion_tier1",
+    # polity_source_targets.R -- source-specific territorial interval join.
+    "source_area_code",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     # cbs_coverage.R — bucket source-policy stamp (whep#1481).

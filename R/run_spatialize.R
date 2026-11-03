@@ -77,6 +77,11 @@
 #'   - `double_claim`: which clashes the depth read's double-claim gate
 #'     refuses, `"co_presence"` (default) or `"measured"`, forwarded to
 #'     [read_level_country_grid()]. The default is the fail-closed rule.
+#'   - `geographic_key` (default `"reporting_area"`): use `"polity"` for
+#'     inputs written by [prepare_polity_crop_inputs()]. Native mode requires
+#'     landuse alone, level/output level zero, `area_key = "grid"`,
+#'     year-aware polycell geography and a prepared input directory. Its
+#'     manifest and file checksums are verified before reading inputs.
 #'   - `output_level` (integer, default `0L`): grain of the crop output.
 #'     `0L` sums granted-depth rows back onto the container, so
 #'     `(lon, lat, area_code, item_prod_code, year)` stays unique and the
@@ -130,6 +135,12 @@
 #' }
 #'
 #' @section Inputs read from `input_dir`:
+#' Native polity mode reads `polity_country_areas.parquet` and
+#' `polity_country_grid.parquet` in place of the reporting-area files below.
+#' It requires `polity_input_manifest.json`, copies that manifest beside the
+#' outputs and records it in `run_metadata.yaml`. Source metadata is retained
+#' on crop output; CFT aggregates refer to that crop-level provenance.
+#'
 #' Landuse (`components` contains `"landuse"`):
 #' \itemize{
 #'   \item `country_areas.parquet`
@@ -302,6 +313,10 @@ run_spatialize <- function(
   resolved <- .resolve_paths(paths, preset, overrides)
   input_dir <- resolved$input_dir
   out_dir <- resolved$out_dir
+  .check_polity_run_dir(config, input_dir)
+  if (identical(config$geographic_key, "polity") && !is.null(years)) {
+    .check_polity_input_years(years)
+  }
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   .warn_if_out_dir_occupied(out_dir)
 
@@ -310,6 +325,7 @@ run_spatialize <- function(
   }
   output_paths <- list()
   admin <- NULL
+  polity_inputs <- NULL
 
   if ("landuse" %in% components) {
     step <- .run_landuse_step(
@@ -324,6 +340,7 @@ run_spatialize <- function(
     resolved_years <- step$years
     output_paths <- c(output_paths, step$paths)
     admin <- step$admin
+    polity_inputs <- step$polity_inputs
   }
 
   if ("livestock" %in% components) {
@@ -348,7 +365,8 @@ run_spatialize <- function(
     config,
     overrides,
     input_dir,
-    admin
+    admin,
+    polity_inputs
   )
   if (config$level > 0L) {
     output_paths$admin_coverage <- .write_admin_coverage(
@@ -424,8 +442,16 @@ run_spatialize <- function(
   # `level_polity_code` and `.level_fold_output()` returns it identically, so
   # the default path is bit-for-bit what it was.
   result_crops <- .level_fold_output(result_crops, config$output_level)
+  if (!is.null(lu_inputs$manifest)) {
+    result_crops <- .attach_polity_input_source(
+      result_crops,
+      lu_inputs$country_areas
+    )
+    .write_polity_run_manifest(lu_inputs$manifest, out_dir)
+  }
   list(
     years = resolved_years,
+    polity_inputs = lu_inputs$manifest,
     paths = .write_landuse_outputs(
       result_crops,
       lu_inputs$cft_mapping,
@@ -483,6 +509,7 @@ run_spatialize <- function(
       aggregate_to_cft = TRUE,
       max_iterations = 1000L,
       area_key = "grid",
+      geographic_key = "reporting_area",
       country_grid = "polycell",
       grid_vintage = "year_aware",
       level = 0L,
@@ -499,6 +526,7 @@ run_spatialize <- function(
       aggregate_to_cft = TRUE,
       max_iterations = 1000L,
       area_key = "grid",
+      geographic_key = "reporting_area",
       country_grid = "polycell",
       grid_vintage = "year_aware",
       level = 0L,
@@ -520,6 +548,7 @@ run_spatialize <- function(
     "max_iterations",
     "cft_target",
     "area_key",
+    "geographic_key",
     "country_grid",
     "grid_vintage",
     "level",
@@ -656,6 +685,12 @@ run_spatialize <- function(
     config$output_level,
     "overrides$output_level"
   )
+  config$geographic_key <- rlang::arg_match0(
+    config$geographic_key %||% "reporting_area",
+    c("reporting_area", "polity"),
+    arg_nm = "overrides$geographic_key"
+  )
+  .check_polity_run_mode(config, components)
   if (config$output_level > config$level) {
     cli::cli_abort(c(
       "{.code output_level = {config$output_level}} is finer than
@@ -837,6 +872,9 @@ run_spatialize <- function(
 }
 
 .load_landuse_inputs <- function(input_dir, config) {
+  if (identical(config$geographic_key, "polity")) {
+    return(.load_polity_crop_inputs(input_dir, config))
+  }
   cft_mapping <- .read_packaged_cft_mapping()
   mapped_items <- cft_mapping$item_prod_code
 
@@ -1217,6 +1255,12 @@ run_spatialize <- function(
   crop_path <- file.path(out_dir, "gridded_landuse_crops.parquet")
   write_parquet_checked(.stamp_grid_vintage(result_crops, config), crop_path)
   paths$landuse_crops <- crop_path
+  if (identical(config$geographic_key, "polity")) {
+    paths$polity_input_manifest <- file.path(
+      out_dir,
+      "polity_input_manifest.json"
+    )
+  }
 
   if (isTRUE(config$aggregate_to_cft)) {
     # Pick the aggregation column: cft_name (granular WHEP) or
@@ -1227,28 +1271,14 @@ run_spatialize <- function(
         "cft_mapping is missing the {.field {agg_col}} column."
       )
     }
-    .assert_unique_cft_mapping(cft_mapping)
-    group_cols <- unique(c(
-      .compartment_id_cols(result_crops),
-      "lon",
-      "lat",
-      "year",
-      "cft_name"
-    ))
-    cft_result <- result_crops |>
-      dplyr::inner_join(
-        dplyr::select(
-          cft_mapping,
-          item_prod_code,
-          cft_name = dplyr::all_of(agg_col)
-        ),
-        by = "item_prod_code"
-      ) |>
-      dplyr::summarise(
-        rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
-        irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
-        .by = dplyr::all_of(group_cols)
+    cft_result <- .aggregate_to_cft(
+      result_crops,
+      dplyr::select(
+        cft_mapping,
+        item_prod_code,
+        cft_name = dplyr::all_of(agg_col)
       )
+    )
     cft_path <- file.path(out_dir, "gridded_landuse.parquet")
     write_parquet_checked(.stamp_grid_vintage(cft_result, config), cft_path)
     paths$landuse_cft <- cft_path
@@ -1273,6 +1303,13 @@ run_spatialize <- function(
 # is a run-level provenance column, not a per-row measurement, and the CFT
 # aggregation neither groups on it nor needs to.
 .stamp_grid_vintage <- function(out, config) {
+  if (identical(config$geographic_key, "polity")) {
+    out <- dplyr::mutate(
+      out,
+      geographic_key = "polity",
+      territorial_basis = "source_reported"
+    )
+  }
   dplyr::mutate(
     out,
     method_grid_vintage = .grid_vintage_method(
@@ -1292,7 +1329,8 @@ run_spatialize <- function(
   config,
   overrides,
   input_dir,
-  admin = NULL
+  admin = NULL,
+  polity_inputs = NULL
 ) {
   meta <- list(
     preset = preset,
@@ -1321,6 +1359,9 @@ run_spatialize <- function(
     # and it says so rather than leaving the key absent.
     admin_constraint = admin$summary %||% "none"
   )
+  if (!is.null(polity_inputs)) {
+    meta$polity_inputs <- polity_inputs
+  }
   yaml::write_yaml(meta, file.path(out_dir, "run_metadata.yaml"))
 }
 
