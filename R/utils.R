@@ -2809,6 +2809,19 @@ utils::globalVariables(
     "residue_mgn",
     # polity_source_targets.R -- source-specific territorial interval join.
     "source_area_code",
+    # reporting_support.R -- source footprints and physical domain audit.
+    "domain_area_ha",
+    "domain_land_area_ha",
+    "domain_water_ha",
+    "domain_ice_free_ha",
+    "domain_water_excess_ha",
+    "water_fraction_ice_free",
+    "reporting_land_ha",
+    "unrepresented_land_ha",
+    "measured_land_area_ha",
+    "measured_reporting_land_ha",
+    "area_adjustment_ha",
+    "overlap_ha",
     # typologies_uaa_sensitivity.R -- duplicate source aliases.
     "uaa_source_labels",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
