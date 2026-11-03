@@ -147,3 +147,87 @@ test_that("periods panel checks its plotting packages up front", {
   )
   expect_equal(record$pkg, c("ggplot2", "patchwork"))
 })
+
+
+# .panel_area_df -----------------------------------------------------------
+
+test_that(".panel_area_df sums total agricultural area, not cropland only", {
+  # A province where semi-natural land dominates: if the denominator were
+  # cropland-only (100 ha), a per-hectare indicator would be inflated
+  # relative to using the full agricultural area (100 + 50 + 20 + 10 + 15 +
+  # 5 = 200 ha, matching .calc_n_productivity_prov()'s agri_area_ha).
+  npp_ygpit <- tibble::tribble(
+    ~Year, ~Province_name, ~LandUse, ~Area_ygpit_ha,
+    2000, "A", "Cropland", 100,
+    2000, "A", "Dehesa", 50,
+    2000, "A", "Forest_high", 20,
+    2000, "A", "Forest_low", 10,
+    2000, "A", "Pasture_Shrubland", 15,
+    2000, "A", "Other", 5
+  )
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) npp_ygpit
+  )
+
+  out <- whep:::.panel_area_df()
+
+  expect_equal(out$area_ha, 200)
+})
+
+test_that(".panel_area_df excludes a non-agricultural LandUse category", {
+  # A future npp_ygpit vintage might add a LandUse the N-productivity
+  # indicator does not recognise as agricultural (e.g. "Urban"); the
+  # denominator must not silently absorb it.
+  npp_ygpit <- tibble::tribble(
+    ~Year, ~Province_name, ~LandUse, ~Area_ygpit_ha,
+    2000, "A", "Cropland", 100,
+    2000, "A", "Urban", 900
+  )
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) npp_ygpit
+  )
+
+  out <- whep:::.panel_area_df()
+
+  expect_equal(out$area_ha, 100)
+})
+
+
+# .ext_dep_values / .pollution_values -------------------------------------
+
+test_that(".ext_dep_values counts population_food_inedible on both sides", {
+  # population_food_inedible is the remainder .split_food_inedible_loss()
+  # (n_prov_destiny.R) split out of population_food; it must count on
+  # whichever side (external/internal) its origin belongs to.
+  flows <- tibble::tribble(
+    ~year, ~province_name, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Outside", "population_food", 10,
+    2000, "A", "Outside", "population_food_inedible", 5,
+    2000, "A", "Cropland", "population_food", 20,
+    2000, "A", "Cropland", "population_food_inedible", 10
+  )
+
+  out <- whep:::.ext_dep_values(flows)
+
+  # ext_mg = 15 (10 + 5), int_mg = 30 (20 + 10); value = 15 / 45.
+  expect_equal(out$value, 15 / 45)
+})
+
+test_that(".pollution_values counts population_food_inedible in soil_out and lv_out", {
+  flows <- tibble::tribble(
+    ~year, ~province_name, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Cropland", "population_food", 20,
+    2000, "A", "Cropland", "population_food_inedible", 5,
+    2000, "A", "Livestock", "population_food", 8,
+    2000, "A", "Livestock", "population_food_inedible", 2
+  )
+  area_df <- tibble::tribble(
+    ~year, ~province_name, ~area_ha,
+    2000, "A", 100
+  )
+
+  out <- whep:::.pollution_values(flows, area_df)
+
+  expect_equal(out$soil_out, 25)
+  expect_equal(out$lv_out, 10)
+})
