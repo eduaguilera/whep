@@ -1499,6 +1499,11 @@ build_gridded_landuse <- function(
   n_crops <- length(target_rf)
 
   for (iter in seq_len(max_iterations)) {
+    # Judge convergence on the target-preserving allocation that is returned.
+    # Testing the temporarily clipped totals can stop at a feasible-looking
+    # deficit, then reintroduce a large breach in the final target restoration.
+    rainfed_vec <- .restore_crop_targets(rainfed_vec, crop_group, target_rf)
+    irrigated_vec <- .restore_crop_targets(irrigated_vec, crop_group, target_ir)
     total_rf <- .sum_by_group(cell_group, rainfed_vec, n_cells)
     total_ir <- .sum_by_group(cell_group, irrigated_vec, n_cells)
     rf_excess <- pmax(total_rf - rf_capacity, 0)
@@ -1541,8 +1546,10 @@ build_gridded_landuse <- function(
         is.finite(ir_capacity[cell_group])
     )
     if (length(ir_idx) > 0L) {
+      # logit(1) = Inf and logistic(Inf) = 1: a full cell is valid.
+      # Clipping below 1 imposes a deficit that target restoration amplifies.
       frac <- pmax(
-        pmin(irrigated_vec[ir_idx] / ir_capacity[cell_group[ir_idx]], 1 - 1e-6),
+        pmin(irrigated_vec[ir_idx] / ir_capacity[cell_group[ir_idx]], 1),
         1e-6
       )
       irrigated_vec[ir_idx] <- .logistic(
@@ -1576,7 +1583,7 @@ build_gridded_landuse <- function(
     )
     if (length(rf_idx) > 0L) {
       frac <- pmax(
-        pmin(rainfed_vec[rf_idx] / rf_capacity[cell_group[rf_idx]], 1 - 1e-6),
+        pmin(rainfed_vec[rf_idx] / rf_capacity[cell_group[rf_idx]], 1),
         1e-6
       )
       rainfed_vec[rf_idx] <- .logistic(
@@ -1586,23 +1593,22 @@ build_gridded_landuse <- function(
     }
   }
 
-  current_rf <- .sum_by_group(crop_group, rainfed_vec, n_crops)
-  current_ir <- .sum_by_group(crop_group, irrigated_vec, n_crops)
-  rf_scale <- rep(1, n_crops)
-  ir_scale <- rep(1, n_crops)
-  scale_rf <- current_rf > 0 & target_rf > 0
-  scale_ir <- current_ir > 0 & target_ir > 0
-  rf_scale[scale_rf] <- target_rf[scale_rf] / current_rf[scale_rf]
-  ir_scale[scale_ir] <- target_ir[scale_ir] / current_ir[scale_ir]
-
   work[, `:=`(
-    rainfed_ha = rainfed_vec * rf_scale[crop_group],
-    irrigated_ha = irrigated_vec * ir_scale[crop_group],
+    rainfed_ha = .restore_crop_targets(rainfed_vec, crop_group, target_rf),
+    irrigated_ha = .restore_crop_targets(irrigated_vec, crop_group, target_ir),
     .cell_group = NULL,
     .crop_group = NULL
   )]
 
   work
+}
+
+.restore_crop_targets <- function(values, group, target) {
+  current <- .sum_by_group(group, values, length(target))
+  scale <- rep(1, length(target))
+  positive <- current > 0 & target > 0
+  scale[positive] <- target[positive] / current[positive]
+  values * scale[group]
 }
 
 #' Sum numeric values by precomputed positive integer group.
