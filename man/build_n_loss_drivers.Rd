@@ -50,7 +50,8 @@ and \code{lpjml_runoff} (annual \code{\link[=read_lpjml_hydrology]{read_lpjml_hy
 
 \item{methods}{Named list choosing which leaching drivers are built and
 how: \code{leaching}, the \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} method (\code{"ipcc_fracleach"},
-the default, \code{"meisinger_drainage"} or \code{"image_gnm"}); \code{som_source},
+the default, \code{"fracleach_surplus"}, \code{"meisinger_drainage"} or
+\code{"image_gnm"}); \code{som_source},
 \code{"carbon_balance"} (default) or \code{"hwsd"} (HWSD's observed topsoil
 carbon); \code{som_factor}, \code{"pribyl_2010"} (default, 2) or \code{"conventional"}
 (1.724); \code{root_depth}, \code{"by_regime"} (default), \code{"midpoint"}, \code{"upper"},
@@ -114,6 +115,7 @@ supplies:\tabular{lll}{
    \code{n2o_indirect}: \code{"ipcc2019"} \tab \code{moisture_regime} \tab yes \cr
    \code{n2o_indirect}: \code{"ipcc2019_atl_med"} \tab \code{climate}, \code{irrig_type} \tab yes \cr
    \code{leaching}: \code{"ipcc_fracleach"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \cr
+   \code{leaching}: \code{"fracleach_surplus"} \tab same as \code{"ipcc_fracleach"} \tab yes \cr
    \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's, see below \tab yes \cr
    \code{leaching}: \code{"image_gnm"} \tab IMAGE-GNM's, see below \tab yes \cr
 }

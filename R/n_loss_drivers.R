@@ -62,6 +62,7 @@
 #' | `n2o_indirect`: `"ipcc2019"` | `moisture_regime` | yes |
 #' | `n2o_indirect`: `"ipcc2019_atl_med"` | `climate`, `irrig_type` | yes |
 #' | `leaching`: `"ipcc_fracleach"` | `moisture_regime`, `water_regime` | yes |
+#' | `leaching`: `"fracleach_surplus"` | same as `"ipcc_fracleach"` | yes |
 #' | `leaching`: `"meisinger_drainage"` | Meisinger's, see below | yes |
 #' | `leaching`: `"image_gnm"` | IMAGE-GNM's, see below | yes |
 #'
@@ -190,7 +191,8 @@
 #'   [build_soil_carbon_inputs()] result) and `regime_areas`.
 #' @param methods Named list choosing which leaching drivers are built and
 #'   how: `leaching`, the [calculate_n_leaching()] method (`"ipcc_fracleach"`,
-#'   the default, `"meisinger_drainage"` or `"image_gnm"`); `som_source`,
+#'   the default, `"fracleach_surplus"`, `"meisinger_drainage"` or
+#'   `"image_gnm"`); `som_source`,
 #'   `"carbon_balance"` (default) or `"hwsd"` (HWSD's observed topsoil
 #'   carbon); `som_factor`, `"pribyl_2010"` (default, 2) or `"conventional"`
 #'   (1.724); `root_depth`, `"by_regime"` (default), `"midpoint"`, `"upper"`,

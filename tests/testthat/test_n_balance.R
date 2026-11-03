@@ -2325,6 +2325,31 @@ testthat::test_that("a grid balance without drivers builds them and says so", {
   ))
 })
 
+testthat::test_that("built surplus drivers preserve the surplus basis", {
+  out <- suppressMessages(whep::build_nitrogen_balance(
+    methods = .nb_ipcc_methods(leaching = "fracleach_surplus"),
+    data = .nb_built_driver_data()
+  ))
+  ipcc <- .nb_built_balance()
+  wet <- out$moisture_regime == "wet"
+  testthat::expect_true(any(wet & out$surplus_t > 0))
+  testthat::expect_true(all(out$method_drivers == "whep_built"))
+  testthat::expect_identical(
+    out$method_leaching[wet],
+    rep("fracleach_surplus_wet", sum(wet))
+  )
+  # IPCC 2019 Table 11.1's wet fraction is 0.24. This alternative applies
+  # it to the surplus, not the N-added basis of ipcc_fracleach.
+  testthat::expect_equal(out$no3_n_t[wet], 0.24 * out$surplus_t[wet])
+  testthat::expect_true(any(ipcc$no3_n_t[wet] > out$no3_n_t[wet]))
+  testthat::expect_identical(out$surplus_t, ipcc$surplus_t)
+  testthat::expect_identical(out$moisture_regime, ipcc$moisture_regime)
+  testthat::expect_equal(
+    out$no3_n_t + out$denitrification_n_t + out$retained_profile_n_t,
+    out$surplus_t
+  )
+})
+
 testthat::test_that("built drivers give the balance the supplied drivers' result", {
   # The tables the build makes, supplied back, give the same balance.
   data <- .nb_built_driver_data()

@@ -47,7 +47,12 @@
   list(
     leaching = rlang::arg_match(
       leaching,
-      c("ipcc_fracleach", "meisinger_drainage", "image_gnm")
+      c(
+        "ipcc_fracleach",
+        "fracleach_surplus",
+        "meisinger_drainage",
+        "image_gnm"
+      )
     ),
     som_source = rlang::arg_match(som_source, c("carbon_balance", "hwsd")),
     som_factor = rlang::arg_match(som_factor, c("pribyl_2010", "conventional")),
@@ -70,7 +75,8 @@
   )
   switch(
     leaching,
-    ipcc_fracleach = base,
+    ipcc_fracleach = ,
+    fracleach_surplus = base,
     meisinger_drainage = c(
       base,
       "climate",
@@ -118,7 +124,7 @@
 # The leaching drivers of `opts$leaching` on the classified rows (one per
 # balance key, with the normalised join columns of .nld_check_rows()).
 .nld_leaching_drivers <- function(drivers, opts, data, spec) {
-  if (opts$leaching == "ipcc_fracleach") {
+  if (opts$leaching %in% c("ipcc_fracleach", "fracleach_surplus")) {
     return(drivers)
   }
   .nld_check_no_item_n(drivers)
