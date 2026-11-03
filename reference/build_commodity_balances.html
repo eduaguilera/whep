@@ -86,6 +86,7 @@ destiny filling, and final balancing.</p></li>
 <span>  fbs_trade_basis <span class="op">=</span> <span class="fu">.fbs_trade_basis_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  residue_backcast <span class="op">=</span> <span class="fu">.cbs_residue_backcast_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  bucket_coverage <span class="op">=</span> <span class="fu">.cbs_coverage_choices</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  method_cbs_account <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"source"</span>, <span class="st">"balance_residual"</span><span class="op">)</span>,</span>
 <span>  .fixed_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -706,11 +707,59 @@ FAOSTAT flags on affected bucket-years: a source status is not an
 observation status for the estimated bucket.</p></dd>
 
 
+<dt id="arg-method-cbs-account">method_cbs_account<a class="anchor" aria-label="anchor" href="#arg-method-cbs-account"></a></dt>
+<dd><p>How the published balance books FAOSTAT's
+stock change, losses, residuals and tourist consumption. The
+calibration never sees the last three; they are parked before source
+selection and restored afterwards.</p><ul><li><p><code>"source"</code> (default) publishes each as the source reported it, keyed
+on the dated reporting polity: a supplied stock change, zero included,
+is kept; one no source reports is <code>NA</code> (<code>source = "unobserved_stock"</code>),
+never a zero. <code>domestic_supply</code> is total physical domestic use: the
+calibrated destinies plus <code>losses</code> and <code>tourist_consumption</code>.
+FAOSTAT's <code>residuals</code> are statistical, not a use. The rest of the gap is
+<code>balance_discrepancy</code>, so on every key
+<code>production + import - export - stock_variation = domestic_supply +   residuals + balance_discrepancy</code>, an <code>NA</code> stock counting as none.
+FABIO's balance formula also leaves <code>residuals</code> out of <code>domestic_use</code>
+(fineprint-global/fabio commit 66a9298, <code>R/03_1a_build_cbs.R</code>), but
+its later rebalancing (<code>R/03_1b_balance_cbs.R</code>) folds residuals into its
+<code>balancing</code> term and reallocates a negative one into stock, other uses,
+processing and food. That shifts a statistical quantity into the uses,
+so it is not done here; the residual stays visible instead.</p></li>
+<li><p><code>"balance_residual"</code> is the earlier contract: <code>stock_variation</code> is
+whatever closes the calibrated balance, so losses, residuals and any
+statistical gap read as inventory change, and none of the three is
+published.</p></li>
+</ul><p>Measured on 2015-2020 (all areas, all years summed): <code>"source"</code>
+publishes 3,570 Mt of <code>losses</code>, 33.6 Mt of <code>tourist_consumption</code>,
+-181 Mt of <code>residuals</code> (1,188 Mt in absolute value) and -233 Mt of
+<code>balance_discrepancy</code> (1,728 Mt). Net <code>stock_variation</code> falls from
+3,764 Mt to 543 Mt, and 56,903 of 133,957 keys carry an unobserved one.
+<code>domestic_supply</code> rises from 130,312 Mt to 133,913 Mt (+2.8%), the
+losses and tourist use it now includes. Spain's olives at 2015 publish
+FAOSTAT's zero stock change and its -3,113 kt residual where the old
+contract booked a -2,709 kt stock draw.</p>
+<p>Independently of this choice, the older FAOSTAT balances (the FBS before
+2014 and both old commodity balances) sign stock change as a withdrawal
+(FAO 2001, <em>Food Balance Sheets: A Handbook</em>, ch. II, "Changes in
+Stocks"), the current ones as an addition. Measured on the pins, the
+balance closes under those conventions on 99.8% to 100% of the old
+rows with a nonzero stock and 99.7% of the current FBS ones. Old stocks
+are now negated on read. The production imputed for a row that reports
+none therefore adds the stock change instead of subtracting it. That
+moves 2,945 production keys at 2015-2020 (49.4 Mt in absolute value, net
+-35 Mt of 132,479 Mt). For example, Indonesia's 2015 wheat goes from
+1,984 kt to none, and Malaysia's 2020 palm kernel oil from 760 kt to
+2,178 kt.</p></dd>
+
+
 <dt id="arg--fixed-data">.fixed_data<a class="anchor" aria-label="anchor" href="#arg--fixed-data"></a></dt>
 <dd><p>Optional tibble with the same structure as the
 output of the internal <code>.read_cbs() |&gt; .fix_cbs()</code> steps. When
 supplied, <code>primary_all</code> is ignored and the pipeline skips directly
-to <code>.qc_cbs()</code>. Default <code>NULL</code>.</p></dd>
+to <code>.qc_cbs()</code>. Its <code>source_accounts</code> attribute, or else its own
+<code>stock_variation</code>, <code>losses</code>, <code>residuals</code> and <code>tourist_consumption</code> rows,
+are the account observations <code>method_cbs_account</code> restores. Default
+<code>NULL</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -719,10 +768,17 @@ to <code>.qc_cbs()</code>. Default <code>NULL</code>.</p></dd>
 <code>area_code</code>, numeric <code>polity_area_code</code>, <code>reporting_polity_code</code>,
 <code>reporting_polity_name</code>, <code>reporting_polity_has_geometry</code>,
 <code>item_cbs_code</code>, <code>element</code> (e.g. <code>"production"</code>, <code>"import"</code>, <code>"food"</code>),
-<code>value</code>, <code>source</code>, and <code>fao_flag</code>. For <code>format = "wide"</code>, the elements
+<code>value</code>, <code>source</code>, <code>fao_flag</code> and <code>method_cbs_account</code>. The elements
+include <code>losses</code>, <code>residuals</code>, <code>tourist_consumption</code> and
+<code>balance_discrepancy</code> under <code>method_cbs_account = "source"</code>; see that
+argument for the identity they close. For <code>format = "wide"</code>, the elements
 become one column each, <code>stock_variation</code> is split into the non-negative
-<code>stock_addition</code> and <code>stock_withdrawal</code>, and <code>domestic_supply</code> is total use
-excluding <code>export</code>. A <code>unit</code> column says each row's denomination:
+<code>stock_addition</code> and <code>stock_withdrawal</code> (both <code>NA</code> where the stock change
+is unobserved), and <code>domestic_supply</code> is total physical use excluding
+<code>export</code>. The <code>source_accounts</code> attribute holds the selected account
+observations; <code>input_accounts</code> the raw ones, in each source's own code,
+unit, sign and pin version; and <code>unmatched_source_accounts</code> any
+observation on a key the balance does not carry. A <code>unit</code> column says each row's denomination:
 <code>"tonnes"</code>, or <code>"heads"</code> for the live-animal rows (see <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>).</p>
 <p><code>fao_flag</code> is FAOSTAT's own observation-status code for the value, taken
 from the source that <code>source</code> names (<code>"A"</code> official, <code>"E"</code> estimated,

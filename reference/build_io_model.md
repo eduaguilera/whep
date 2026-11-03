@@ -20,7 +20,8 @@ build_io_model(
   endogenize_losses = FALSE,
   method = c("mass", "value"),
   prices = NULL,
-  trade_recovery = .cbs_trade_recovery_choices()
+  trade_recovery = .cbs_trade_recovery_choices(),
+  stock_coverage = c("known_flows", "abort")
 )
 ```
 
@@ -67,13 +68,13 @@ build_io_model(
 
 - endogenize_losses:
 
-  Logical. If `TRUE` and `cbs` contains a `losses` column, losses are
-  moved from final demand to the diagonal of `Z` (self-use), following
-  the FABIO convention. The `losses` column is removed from Y and
-  `fd_labels`.
-  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
-  emits no `losses` column, so `TRUE` with such a `cbs` warns and builds
-  the same model as `FALSE`. Defaults to `FALSE`.
+  Logical. Losses and tourist consumption are final demand categories
+  whenever `cbs` carries them, as in FABIO's final demand labels; the
+  statistical `residuals` and `balance_discrepancy` never are. If
+  `TRUE`, losses are moved from final demand to the diagonal of `Z`
+  (self-use), following the FABIO convention, and the `losses` column is
+  removed from Y and `fd_labels`. A `cbs` with no `losses` column warns
+  and builds the same model as `FALSE`. Defaults to `FALSE`.
 
 - method:
 
@@ -103,6 +104,15 @@ build_io_model(
   under another is the caller's to avoid; pass the same value
   everywhere.
 
+- stock_coverage:
+
+  What to do with CBS rows whose stock change is unobserved (`NA`
+  `stock_addition`/`stock_withdrawal`), which is every key FAOSTAT does
+  not report one for. `"known_flows"` (default) books no inventory for
+  them and warns, as FABIO does; `"abort"` refuses. The choice is
+  returned in the `method_stock_coverage` column and the rows in the
+  `unknown_stock_accounts` attribute.
+
 ## Value
 
 A tibble with one row per year and list-columns:
@@ -112,6 +122,8 @@ A tibble with one row per year and list-columns:
 - `Y`: Final demand matrix.
 
 - `X`: Total output vector.
+
+- `method_stock_coverage`: the `stock_coverage` choice.
 
 - `labels`: Tibble mapping row/column indices to `area_code`,
   `item_cbs_code`, and reporting polity metadata.
@@ -135,7 +147,7 @@ build_io_model(su, btd, cbs)
 #>   Year range: Inf--Inf.
 #>   Final demand columns: food, other_uses, and stock_addition.
 #> ✔ IO model complete.
-#> # A tibble: 0 × 6
-#> # ℹ 6 variables: year <int>, Z <list>, Y <list>, X <list>, labels <list>,
-#> #   fd_labels <list>
+#> # A tibble: 0 × 7
+#> # ℹ 7 variables: year <int>, Z <list>, Y <list>, X <list>, labels <list>,
+#> #   fd_labels <list>, method_stock_coverage <chr>
 ```

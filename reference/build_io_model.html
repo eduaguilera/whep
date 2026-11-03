@@ -73,7 +73,8 @@ intermediate flow from sector <code>i</code> to sector <code>j</code>.</p>
 <span>  endogenize_losses <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mass"</span>, <span class="st">"value"</span><span class="op">)</span>,</span>
 <span>  prices <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  trade_recovery <span class="op">=</span> <span class="fu">.cbs_trade_recovery_choices</span><span class="op">(</span><span class="op">)</span></span>
+<span>  trade_recovery <span class="op">=</span> <span class="fu">.cbs_trade_recovery_choices</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  stock_coverage <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"known_flows"</span>, <span class="st">"abort"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -115,13 +116,14 @@ a subset of available years.</p></dd>
 
 
 <dt id="arg-endogenize-losses">endogenize_losses<a class="anchor" aria-label="anchor" href="#arg-endogenize-losses"></a></dt>
-<dd><p>Logical. If <code>TRUE</code> and <code>cbs</code>
-contains a <code>losses</code> column, losses are moved from final
-demand to the diagonal of <code>Z</code> (self-use), following the
-FABIO convention. The <code>losses</code> column is removed from Y
-and <code>fd_labels</code>. <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> emits no <code>losses</code> column, so <code>TRUE</code>
-with such a <code>cbs</code> warns and builds the same model as <code>FALSE</code>. Defaults
-to <code>FALSE</code>.</p></dd>
+<dd><p>Logical. Losses and tourist consumption are
+final demand categories whenever <code>cbs</code> carries them, as in FABIO's
+final demand labels; the statistical <code>residuals</code> and
+<code>balance_discrepancy</code> never are. If <code>TRUE</code>,
+losses are moved from final demand to the diagonal of <code>Z</code> (self-use),
+following the FABIO convention, and the <code>losses</code> column is removed from
+Y and <code>fd_labels</code>. A <code>cbs</code> with no <code>losses</code> column warns and builds the
+same model as <code>FALSE</code>. Defaults to <code>FALSE</code>.</p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
@@ -149,12 +151,22 @@ method does. It has no effect on an input supplied directly, so a <code>cbs</cod
 built with one method and the rest left to build under another is the
 caller's to avoid; pass the same value everywhere.</p></dd>
 
+
+<dt id="arg-stock-coverage">stock_coverage<a class="anchor" aria-label="anchor" href="#arg-stock-coverage"></a></dt>
+<dd><p>What to do with CBS rows whose stock change is
+unobserved (<code>NA</code> <code>stock_addition</code>/<code>stock_withdrawal</code>), which is every
+key FAOSTAT does not report one for. <code>"known_flows"</code> (default) books no
+inventory for them and warns, as FABIO does; <code>"abort"</code> refuses. The
+choice is returned in the <code>method_stock_coverage</code> column and the rows in
+the <code>unknown_stock_accounts</code> attribute.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with one row per year and list-columns:</p><ul><li><p><code>Z</code>: Inter-industry flow matrix (product-by-product).</p></li>
 <li><p><code>Y</code>: Final demand matrix.</p></li>
 <li><p><code>X</code>: Total output vector.</p></li>
+<li><p><code>method_stock_coverage</code>: the <code>stock_coverage</code> choice.</p></li>
 <li><p><code>labels</code>: Tibble mapping row/column indices to
 <code>area_code</code>, <code>item_cbs_code</code>, and reporting polity metadata.</p></li>
 <li><p><code>fd_labels</code>: Tibble mapping each Y column to its
@@ -176,9 +188,9 @@ category, e.g. <code>"food"</code>), and reporting polity metadata. Pass to
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   Year range: Inf--Inf.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   Final demand columns: <span style="color: #00BB00;">food</span>, <span style="color: #00BB00;">other_uses</span>, and <span style="color: #00BB00;">stock_addition</span>.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> IO model complete.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 0 × 6</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 variables: year &lt;int&gt;, Z &lt;list&gt;, Y &lt;list&gt;, X &lt;list&gt;, labels &lt;list&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fd_labels &lt;list&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 0 × 7</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 variables: year &lt;int&gt;, Z &lt;list&gt;, Y &lt;list&gt;, X &lt;list&gt;, labels &lt;list&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fd_labels &lt;list&gt;, method_stock_coverage &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

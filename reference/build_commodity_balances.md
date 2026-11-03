@@ -37,6 +37,7 @@ build_commodity_balances(
   fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
   bucket_coverage = .cbs_coverage_choices(),
+  method_cbs_account = c("source", "balance_residual"),
   .fixed_data = NULL
 )
 ```
@@ -704,12 +705,66 @@ build_commodity_balances(
   affected bucket-years: a source status is not an observation status
   for the estimated bucket.
 
+- method_cbs_account:
+
+  How the published balance books FAOSTAT's stock change, losses,
+  residuals and tourist consumption. The calibration never sees the last
+  three; they are parked before source selection and restored
+  afterwards.
+
+  - `"source"` (default) publishes each as the source reported it, keyed
+    on the dated reporting polity: a supplied stock change, zero
+    included, is kept; one no source reports is `NA`
+    (`source = "unobserved_stock"`), never a zero. `domestic_supply` is
+    total physical domestic use: the calibrated destinies plus `losses`
+    and `tourist_consumption`. FAOSTAT's `residuals` are statistical,
+    not a use. The rest of the gap is `balance_discrepancy`, so on every
+    key
+    `production + import - export - stock_variation = domestic_supply + residuals + balance_discrepancy`,
+    an `NA` stock counting as none. FABIO's balance formula also leaves
+    `residuals` out of `domestic_use` (fineprint-global/fabio commit
+    66a9298, `R/03_1a_build_cbs.R`), but its later rebalancing
+    (`R/03_1b_balance_cbs.R`) folds residuals into its `balancing` term
+    and reallocates a negative one into stock, other uses, processing
+    and food. That shifts a statistical quantity into the uses, so it is
+    not done here; the residual stays visible instead.
+
+  - `"balance_residual"` is the earlier contract: `stock_variation` is
+    whatever closes the calibrated balance, so losses, residuals and any
+    statistical gap read as inventory change, and none of the three is
+    published.
+
+  Measured on 2015-2020 (all areas, all years summed): `"source"`
+  publishes 3,570 Mt of `losses`, 33.6 Mt of `tourist_consumption`, -181
+  Mt of `residuals` (1,188 Mt in absolute value) and -233 Mt of
+  `balance_discrepancy` (1,728 Mt). Net `stock_variation` falls from
+  3,764 Mt to 543 Mt, and 56,903 of 133,957 keys carry an unobserved
+  one. `domestic_supply` rises from 130,312 Mt to 133,913 Mt (+2.8%),
+  the losses and tourist use it now includes. Spain's olives at 2015
+  publish FAOSTAT's zero stock change and its -3,113 kt residual where
+  the old contract booked a -2,709 kt stock draw.
+
+  Independently of this choice, the older FAOSTAT balances (the FBS
+  before 2014 and both old commodity balances) sign stock change as a
+  withdrawal (FAO 2001, *Food Balance Sheets: A Handbook*, ch. II,
+  "Changes in Stocks"), the current ones as an addition. Measured on the
+  pins, the balance closes under those conventions on 99.8% to 100% of
+  the old rows with a nonzero stock and 99.7% of the current FBS ones.
+  Old stocks are now negated on read. The production imputed for a row
+  that reports none therefore adds the stock change instead of
+  subtracting it. That moves 2,945 production keys at 2015-2020 (49.4 Mt
+  in absolute value, net -35 Mt of 132,479 Mt). For example, Indonesia's
+  2015 wheat goes from 1,984 kt to none, and Malaysia's 2020 palm kernel
+  oil from 760 kt to 2,178 kt.
+
 - .fixed_data:
 
   Optional tibble with the same structure as the output of the internal
   `.read_cbs() |> .fix_cbs()` steps. When supplied, `primary_all` is
-  ignored and the pipeline skips directly to `.qc_cbs()`. Default
-  `NULL`.
+  ignored and the pipeline skips directly to `.qc_cbs()`. Its
+  `source_accounts` attribute, or else its own `stock_variation`,
+  `losses`, `residuals` and `tourist_consumption` rows, are the account
+  observations `method_cbs_account` restores. Default `NULL`.
 
 ## Value
 
@@ -717,11 +772,19 @@ For `format = "long"`, a tibble with columns: `year`, legacy numeric
 `area_code`, numeric `polity_area_code`, `reporting_polity_code`,
 `reporting_polity_name`, `reporting_polity_has_geometry`,
 `item_cbs_code`, `element` (e.g. `"production"`, `"import"`, `"food"`),
-`value`, `source`, and `fao_flag`. For `format = "wide"`, the elements
-become one column each, `stock_variation` is split into the non-negative
-`stock_addition` and `stock_withdrawal`, and `domestic_supply` is total
-use excluding `export`. A `unit` column says each row's denomination:
-`"tonnes"`, or `"heads"` for the live-animal rows (see
+`value`, `source`, `fao_flag` and `method_cbs_account`. The elements
+include `losses`, `residuals`, `tourist_consumption` and
+`balance_discrepancy` under `method_cbs_account = "source"`; see that
+argument for the identity they close. For `format = "wide"`, the
+elements become one column each, `stock_variation` is split into the
+non-negative `stock_addition` and `stock_withdrawal` (both `NA` where
+the stock change is unobserved), and `domestic_supply` is total physical
+use excluding `export`. The `source_accounts` attribute holds the
+selected account observations; `input_accounts` the raw ones, in each
+source's own code, unit, sign and pin version; and
+`unmatched_source_accounts` any observation on a key the balance does
+not carry. A `unit` column says each row's denomination: `"tonnes"`, or
+`"heads"` for the live-animal rows (see
 [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)).
 
 `fao_flag` is FAOSTAT's own observation-status code for the value, taken
