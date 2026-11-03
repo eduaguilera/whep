@@ -42,7 +42,11 @@ read_level_country_grid(
   [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
   grain, overriding
   [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md).
-  Not read at `level = 0L` with `grid_vintage = "snapshot_2015"`, which
+  For `geographic_key = "polity"`, a
+  [`build_reporting_support()`](https://eduaguilera.github.io/whep/reference/build_reporting_support.md)
+  bundle retains its complete physical denominator. Default-loaded
+  native support must carry explicit reporting-partition provenance. Not
+  read at `level = 0L` with `grid_vintage = "snapshot_2015"`, which
   resolves the support itself.
 
 - containment:

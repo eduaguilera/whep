@@ -97,7 +97,9 @@ is today's cell-to-<code>area_code</code> grid.</p></dd>
 
 <dt id="arg-support">support<a class="anchor" aria-label="anchor" href="#arg-support"></a></dt>
 <dd><p>Polycell support table in the <code><a href="build_polycell_support.html">build_polycell_support()</a></code>
-grain, overriding <code><a href="read_polycell_support.html">read_polycell_support()</a></code>. Not read at <code>level = 0L</code>
+grain, overriding <code><a href="read_polycell_support.html">read_polycell_support()</a></code>. For <code>geographic_key = "polity"</code>, a <code><a href="build_reporting_support.html">build_reporting_support()</a></code> bundle retains its complete
+physical denominator. Default-loaded native support must carry explicit
+reporting-partition provenance. Not read at <code>level = 0L</code>
 with <code>grid_vintage = "snapshot_2015"</code>, which resolves the support itself.</p></dd>
 
 

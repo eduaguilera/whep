@@ -99,6 +99,12 @@ leakage.
   : Partition each polycell into mutually exclusive land uses.
 - [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
   : Build the polycell spatial support table
+- [`build_reporting_support()`](https://eduaguilera.github.io/whep/reference/build_reporting_support.md)
+  : Build source-specific reporting support on a complete physical
+  domain
+- [`read_reporting_support()`](https://eduaguilera.github.io/whep/reference/read_reporting_support.md)
+  : Read native reporting support without renormalizing its physical
+  domain
 - [`expand_polycell_years()`](https://eduaguilera.github.io/whep/reference/expand_polycell_years.md)
   : Expand the interval-keyed polycell support to one row per year
 - [`polycell_example_geometries()`](https://eduaguilera.github.io/whep/reference/polycell_example_geometries.md)
