@@ -432,6 +432,8 @@ reference:
   - whep_list_file_versions
   - whep_registry
   - whep_clear_cache
+  - whep_data_access_status
+  - whep_assert_publishable
 
 - title: Code namings
   desc: >
