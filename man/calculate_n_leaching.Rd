@@ -19,9 +19,10 @@ calculate_n_leaching(
   x,
   drainage_mm = NULL,
   method = c("meisinger_drainage", "ipcc_fracleach", "fracleach_surplus", "image_gnm"),
-  transport = c("swat_mixing", "burns"),
+  transport = c("swat_mixing", "swat_uniform", "burns", "unlimited"),
   none_class = c("retention", "waterlogged"),
   carry_over_by = NULL,
+  initial_pool = c("steady_state", "zero"),
   example = FALSE
 )
 }
@@ -53,7 +54,8 @@ balance. Read by \code{"meisinger_drainage"} only.}
 \code{"fracleach_surplus"} or \code{"image_gnm"}.}
 
 \item{transport}{The transport factor of \code{"meisinger_drainage"}:
-\code{"swat_mixing"} (default) or \code{"burns"}.}
+\code{"swat_mixing"} (default), \code{"swat_uniform"}, \code{"burns"} or
+\code{"unlimited"}.}
 
 \item{none_class}{How \code{"meisinger_drainage"} prices Meisinger's \code{None}
 drainage class: \code{"retention"} (default) or \code{"waterlogged"}.}
@@ -61,6 +63,10 @@ drainage class: \code{"retention"} (default) or \code{"waterlogged"}.}
 \item{carry_over_by}{Character vector of the columns that key a row
 across years (every key column but \code{year}), or \code{NULL} (default) to treat
 each row as a single year.}
+
+\item{initial_pool}{The nitrate a key's first year of \code{"meisinger_drainage"}
+starts with: \code{"steady_state"} (default), the pool of that year's fluxes
+repeated, or \code{"zero"}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from \code{x}. Defaults to \code{FALSE}.}
@@ -149,17 +155,34 @@ root-zone depth \code{root_depth_cm}, \code{phi} the porosity \code{soil_porosit
 exclusion fraction \code{theta_e = 0.5} (Neitsch et al. 2011, SWAT 2009
 Theoretical Documentation, TR-406, eqs. 4:2.1.2 to 4:2.1.8, pp. 269-270;
 \code{theta_e} default from the SWAT Input/Output File Documentation,
-Version 2012, ch. 22, p. 304).
+Version 2012, ch. 22, p. 304). The source equation is daily; applied to
+nitrate present before the year drains, with no other exit, the daily
+shares compound exactly to this form on the year's drainage, so the
+annual form assumes the surplus is in the root zone before the
+drainage season and that lateral flow is negligible.
+\item \code{"swat_uniform"}: the same daily equation for a surplus that arrives in
+proportion to the drainage through the year, integrated exactly:
+\code{f_new = 1 - (1 - exp(-D / M)) / (D / M)}, \verb{M = (1 - theta_e) phi h},
+for the surplus, and the \code{"swat_mixing"} \code{f} for the carried pool,
+which is in the profile before the year drains. It bounds the input
+timing from the other side: on 2010 LPJmL monthly seepage, an explicit
+monthly iteration with equal monthly inputs gives a surplus-weighted
+mean within 2 percentage points of it (root zones of 30 to 150 cm).
 \item \code{"burns"}: Burns' displacement for a solute incorporated uniformly
 through the root zone, \code{f = (P / (P + theta_fc))^(h / 2)}, with \code{P} the
 drainage and \code{h} the depth, both in cm (Burns 1976, J. Agric. Sci.
 86:305-313, doi:10.1017/S0021859600054769).
+\item \code{"unlimited"}: no transport limit, \code{f = 1} wherever the row drains: the
+Meisinger cascade as it stood before transport was added, kept to
+measure what the transport limit changes. Nothing is retained on a
+drained row.
 }
 
 Every constant is read from \link{n_attenuation_constants}. The columns a
 transport reads must be present and non-missing on every row:
-\code{"swat_mixing"} reads \code{root_depth_cm} and \code{soil_porosity}, and \code{"burns"}
-\code{root_depth_cm} and \code{soil_field_capacity}.
+\code{"swat_mixing"} and \code{"swat_uniform"} read \code{root_depth_cm} and
+\code{soil_porosity}, \code{"burns"} \code{root_depth_cm} and \code{soil_field_capacity}, and
+\code{"unlimited"} neither.
 }
 
 \subsection{Zero drainage and deep vadose storage}{
@@ -204,9 +227,14 @@ With \code{carry_over_by}, rows are threaded per key in year order: each row's
 first row starts at the steady state of that year's fluxes,
 \verb{C_in = S r / (1 - r)}, where the share of the pool's input that stays is
 \code{(1 - d) (1 - a_cn) (1 - f)}, written \code{r} (field
-\code{initial_pool_steady_state}); a key
-whose first year does not drain has no finite steady state and starts at
-0 (field \code{initial_vadose_zero}). Later rows carry the field
+\code{initial_pool_steady_state}; under \code{"swat_uniform"} the surplus feeds the
+pool with \code{(1 - d) (1 - a_cn) (1 - f_new)} instead, so
+\code{C_in = S (1 - d) (1 - a_cn) (1 - f_new) / (1 - r)}). \code{initial_pool = "zero"} starts every key empty instead (field \code{initial_pool_zero}), the
+lower bound of a run with no legacy nitrate: in a one-year run under a
+transport other than \code{"swat_uniform"} it leaches \code{1 - r} times what the
+steady state does. A key whose first year does not
+drain has no finite steady state and starts at 0 (field
+\code{initial_vadose_zero}) under either. Later rows carry the field
 \code{carried_pool}. A key absent from a year of the run keeps its pool on the
 key: the pool is neither moved to another key nor dropped, and re-enters
 when the key reappears. The row whose pool waits that way, the key's last
@@ -389,7 +417,8 @@ aborts as in \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, and a dry 
 count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
 surplus, so a dry row of unknown regime has no defensible fraction. Wet
 rows need no \code{water_regime}. \code{"fracleach_surplus"} checks the same.
-\code{transport}, \code{none_class} and \code{carry_over_by} do not apply to either.
+\code{transport}, \code{none_class}, \code{carry_over_by} and \code{initial_pool} do not apply
+to either.
 
 Under \code{"ipcc_fracleach"} leaching is capped at \code{n_surplus_t}, so it never
 exceeds the nitrogen left after crop uptake. IPCC Tier 1 has no such cap;

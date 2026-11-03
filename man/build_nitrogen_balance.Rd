@@ -27,12 +27,13 @@ wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or \code{"ipcc2019_atl_med"}),
 FracLEACH-(H) of Section 11.2.2.2 p. 11.25 applied to the N added;
 \code{"fracleach_surplus"}, the same fractions on the surplus; or
 \code{"image_gnm"}, the IMAGE-GNM root zone of Beusen et al. 2015,
-eqs. 10-14 p. 4052), \code{leaching_transport} and
-\code{leaching_none_class} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} as
-\code{transport}, default \code{"swat_mixing"}, and \code{none_class}, default
-\code{"retention"}; read only under \code{"meisinger_drainage"}, which threads
-the retained nitrate through the years of the balance on each key
-without its year) and \code{regime}, how each grid
+eqs. 10-14 p. 4052), \code{leaching_transport}, \code{leaching_none_class} and
+\code{leaching_initial_pool} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} as
+\code{transport}, default \code{"swat_mixing"}, \code{none_class}, default
+\code{"retention"}, and \code{initial_pool}, default \code{"steady_state"}; read only
+under \code{"meisinger_drainage"}, which threads the retained nitrate
+through the years of the balance on each key without its year) and
+\code{regime}, how each grid
 row is split into a rainfed and an irrigated part (see Details):
 \code{"yield_split"} (default), \code{"area_split"} or \code{"none"}. The IPCC 2019
 wet/dry methods read \code{moisture_regime} from the driver tables in \code{data}.}
