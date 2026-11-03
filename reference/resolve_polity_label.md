@@ -149,6 +149,22 @@ ever carried. Two guards bound both halves.
   label naming an area the crosswalk leaves unmapped is refused
   outright.
 
+**A label's bracketed qualifier is part of the label.**
+`"british india (excl burma)"` and `"australia (excl victoria)"` are not
+spellings of `"british india"` and `"australia"`: no alias written for
+the bare label applies to them, and the name route matches them only to
+a polity name that carries the same qualifier, so a part or a remainder
+is never resolved to its whole. Such a label resolves through an alias
+written for it, or not at all. A polity name's own qualifier is still
+dropped for an unqualified label, so `"zimbabwe"` reaches
+`"Zimbabwe (1900-1953)"`. This is the key `whep-polities` builds
+(`matchlib.label_key`), and its manifest states it
+(`label_alias_map$label_key_why`). It applies to an alias map published
+under that key, which the build records on
+[polity_label_aliases](https://eduaguilera.github.io/whep/reference/polity_label_aliases.md);
+a snapshot built from an earlier revision keeps the stripped key its
+rules were written against.
+
 Returns `NA` when neither route resolves, which is a real answer rather
 than a failure. Some labels are aggregates a source keeps reporting
 after the territory stopped existing – `"FSU"` runs to 2009 though
@@ -193,22 +209,23 @@ alias map:
   `whep_error_unscoped_label_item_correction`, not a silent miss.
 
 - **`country`: the reporting country, as an ISO3 code.** The name route
-  compares normalised names, and normalisation drops parenthesised
-  qualifiers, so a bare subnational name meets another country's unit:
-  `"Santa Cruz (department of Bolivia)"` normalises to `"santa cruz"`,
-  and so does Argentina's province. Given `country`, the name and ISO3
-  routes only consider polities whose `iso3_code` (its code prefix where
-  that is missing) is that country. Without it, a name that live
-  polities of two or more countries carry at the same time – counting a
-  subnational polity's parenthesised qualifier as a name, so Mexico's
-  `"Ciudad de México (Distrito Federal)"` shares `"distrito federal"`
-  with Brazil's – is refused with a warning of class
-  `whep_warn_ambiguous_polity_name` rather than guessed. The refusal
-  holds in every year, not only in years two such polities overlap,
-  because a source can report a unit before its own polity begins: the
-  subnational panel reports Argentina's Santa Cruz from 1900, and with
-  no Argentine polity until 1955 the year alone sent it to Bolivia. The
-  alias route is not restricted: an alias names its polity explicitly.
+  compares normalised names, and a polity name's own parenthesised
+  qualifier is dropped, so a bare subnational name meets another
+  country's unit: `"Santa Cruz (department of Bolivia)"` normalises to
+  `"santa cruz"`, and so does Argentina's province. Given `country`, the
+  name and ISO3 routes only consider polities whose `iso3_code` (its
+  code prefix where that is missing) is that country. Without it, a name
+  that live polities of two or more countries carry at the same time –
+  counting a subnational polity's parenthesised qualifier as a name, so
+  Mexico's `"Ciudad de México (Distrito Federal)"` shares
+  `"distrito federal"` with Brazil's – is refused with a warning of
+  class `whep_warn_ambiguous_polity_name` rather than guessed. The
+  refusal holds in every year, not only in years two such polities
+  overlap, because a source can report a unit before its own polity
+  begins: the subnational panel reports Argentina's Santa Cruz from
+  1900, and with no Argentine polity until 1955 the year alone sent it
+  to Bolivia. The alias route is not restricted: an alias names its
+  polity explicitly.
 
 - **`back_cast`: whether to accept reconstructions.** An alias whose
   `disposition` is `"back_cast"` routes years a source reconstructs onto

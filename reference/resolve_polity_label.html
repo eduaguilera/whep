@@ -174,7 +174,19 @@ carry that ISO3 then – a real territorial overlap no re-sync removes –
 so the answer is <code>NA</code>, while <code>"PAN"</code> in 2000 resolves to <code>PAN-1979-2025</code>.</p></li>
 <li><p>An alias covering that year outranks both, whatever its source, and a label
 naming an area the crosswalk leaves unmapped is refused outright.</p></li>
-</ul><p>Returns <code>NA</code> when neither route resolves, which is a real answer rather than a
+</ul><p><strong>A label's bracketed qualifier is part of the label.</strong> <code>"british india (excl burma)"</code> and <code>"australia (excl victoria)"</code> are not spellings of
+<code>"british india"</code> and <code>"australia"</code>: no alias written for the bare label
+applies to them, and the name route matches them only to a polity name that
+carries the same qualifier, so a part or a remainder is never resolved to its
+whole. Such a label resolves through an alias written for it, or not at all.
+A polity name's own qualifier is still dropped for an unqualified label, so
+<code>"zimbabwe"</code> reaches <code>"Zimbabwe (1900-1953)"</code>. This is the key
+<code>whep-polities</code> builds (<code>matchlib.label_key</code>), and its manifest states it
+(<code>label_alias_map$label_key_why</code>). It applies to an alias map published
+under that key, which the build records on <a href="polity_label_aliases.html">polity_label_aliases</a>; a
+snapshot built from an earlier revision keeps the stripped key its rules
+were written against.</p>
+<p>Returns <code>NA</code> when neither route resolves, which is a real answer rather than a
 failure. Some labels are aggregates a source keeps reporting after the
 territory stopped existing – <code>"FSU"</code> runs to 2009 though nothing has held
 that territory since 1991 – and those years are deliberately unmapped rather
@@ -206,8 +218,9 @@ when the caller's <code>unit</code> / <code>indicator</code> equals it; a row it
 otherwise match but whose scoped value is missing is an error of class
 <code>whep_error_unscoped_label_item_correction</code>, not a silent miss.</p></li>
 <li><p><strong><code>country</code>: the reporting country, as an ISO3 code.</strong> The name route
-compares normalised names, and normalisation drops parenthesised
-qualifiers, so a bare subnational name meets another country's unit:
+compares normalised names, and a polity name's own parenthesised
+qualifier is dropped, so a bare subnational name meets another country's
+unit:
 <code>"Santa Cruz (department of Bolivia)"</code> normalises to <code>"santa cruz"</code>, and so
 does Argentina's province. Given <code>country</code>, the name and ISO3 routes only
 consider polities whose <code>iso3_code</code> (its code prefix where that is
