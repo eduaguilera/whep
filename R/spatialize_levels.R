@@ -144,7 +144,10 @@
 #' @param level Containment depth, a non-negative whole number. `0L` (default)
 #'   is today's cell-to-`area_code` grid.
 #' @param support Polycell support table in the [build_polycell_support()]
-#'   grain, overriding [read_polycell_support()]. Not read at `level = 0L`
+#'   grain, overriding [read_polycell_support()]. For `geographic_key =
+#'   "polity"`, a [build_reporting_support()] bundle retains its complete
+#'   physical denominator. Default-loaded native support must carry explicit
+#'   reporting-partition provenance. Not read at `level = 0L`
 #'   with `grid_vintage = "snapshot_2015"`, which resolves the support itself.
 #' @param containment Containment edge table in the [polity_containment]
 #'   schema, overriding the packaged one. Only read at `level >= 1L`.

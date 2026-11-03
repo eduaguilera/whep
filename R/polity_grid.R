@@ -13,7 +13,30 @@
       class = "whep_polity_grid_mode"
     )
   }
-  grid <- .polity_grid_year_aware(support %||% read_polycell_support())
+  if (is.null(support)) {
+    support <- read_polycell_support()
+    if (
+      !all(rlang::has_name(
+        support,
+        c("partition_method", "domain_land_area_ha")
+      )) ||
+        anyNA(support$partition_method) ||
+        any(support$partition_method != "explicit_reporting_inventory")
+    ) {
+      cli::cli_abort(
+        c(
+          "The default support has no native reporting-partition provenance.",
+          i = "Supply a bundle from {.fn build_reporting_support}; legacy source-code
+             selection does not certify native geographic identity."
+        ),
+        class = "whep_reporting_uncertified"
+      )
+    }
+  }
+  if (inherits(support, "whep_reporting_support")) {
+    support <- read_reporting_support(support)
+  }
+  grid <- .polity_grid_year_aware(support)
   if (!is.null(reference_year)) {
     grid <- .filter_country_grid_year(grid, reference_year)
   }
@@ -27,7 +50,7 @@
   .check_polity_grid_claims(support)
   support |>
     dplyr::mutate(
-      cell_land_ha = sum(.data$land_area_ha),
+      cell_land_ha = .reporting_domain_area(dplyr::pick(dplyr::everything())),
       .by = c("lon", "lat", "start_year", "end_year")
     ) |>
     dplyr::filter(.data$cell_land_ha > 0) |>
@@ -130,4 +153,25 @@
       class = "whep_polity_grid_overclaim"
     )
   }
+}
+
+# A reporting subset retains its separately measured full physical denominator.
+.reporting_domain_area <- function(x) {
+  if (!rlang::has_name(x, "domain_land_area_ha")) {
+    return(sum(x$land_area_ha))
+  }
+  area <- unique(x$domain_land_area_ha)
+  if (
+    length(area) != 1L ||
+      !is.numeric(area) ||
+      !is.finite(area) ||
+      area < 0 ||
+      sum(x$land_area_ha) > area
+  ) {
+    cli::cli_abort(
+      "Reporting support has an invalid physical denominator.",
+      class = "whep_reporting_denominator"
+    )
+  }
+  area
 }
