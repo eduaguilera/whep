@@ -1271,28 +1271,14 @@ run_spatialize <- function(
         "cft_mapping is missing the {.field {agg_col}} column."
       )
     }
-    .assert_unique_cft_mapping(cft_mapping)
-    group_cols <- unique(c(
-      .compartment_id_cols(result_crops),
-      "lon",
-      "lat",
-      "year",
-      "cft_name"
-    ))
-    cft_result <- result_crops |>
-      dplyr::inner_join(
-        dplyr::select(
-          cft_mapping,
-          item_prod_code,
-          cft_name = dplyr::all_of(agg_col)
-        ),
-        by = "item_prod_code"
-      ) |>
-      dplyr::summarise(
-        rainfed_ha = sum(rainfed_ha, na.rm = TRUE),
-        irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
-        .by = dplyr::all_of(group_cols)
+    cft_result <- .aggregate_to_cft(
+      result_crops,
+      dplyr::select(
+        cft_mapping,
+        item_prod_code,
+        cft_name = dplyr::all_of(agg_col)
       )
+    )
     cft_path <- file.path(out_dir, "gridded_landuse.parquet")
     write_parquet_checked(.stamp_grid_vintage(cft_result, config), cft_path)
     paths$landuse_cft <- cft_path

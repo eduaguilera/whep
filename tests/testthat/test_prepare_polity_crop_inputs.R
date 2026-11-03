@@ -187,3 +187,85 @@ testthat::test_that("absent physical year cannot borrow another year", {
     class = "whep_polity_preparation"
   )
 })
+
+testthat::test_that("native allocation records weighting separately by water regime", {
+  data <- .polity_preparation_data()
+  data$support <- dplyr::bind_rows(
+    data$support,
+    dplyr::mutate(data$support, lon = 0.75)
+  )
+  data$luh2 <- tibble::tribble(
+    ~year, ~lon, ~lat, ~luh2_type, ~crop_ha, ~irrig_ha,
+    1900L, 0.25, 0.25, "c3ann", 100, 0,
+    1900L, 0.75, 0.25, "c3ann", 20, 20
+  )
+  data$crop_patterns <- dplyr::bind_rows(
+    dplyr::mutate(data$crop_patterns, harvest_fraction = 1),
+    dplyr::mutate(data$crop_patterns, lon = 0.75, harvest_fraction = 0)
+  )
+  inputs <- whep::prepare_polity_crop_inputs(data, method = "luh2")
+  out <- whep::build_gridded_landuse(
+    inputs$country_areas,
+    inputs$crop_patterns,
+    inputs$gridded_cropland,
+    inputs$country_grid,
+    config = list(years = 1900L)
+  )
+  testthat::expect_equal(out$method_weight_rainfed, rep("crop_pattern", 4))
+  testthat::expect_equal(
+    out$method_weight_irrigated,
+    rep("cropland_proportional", 4)
+  )
+  testthat::expect_equal(out$method_irrigation, rep("luh2_proportional", 4))
+  testthat::expect_equal(sum(out$rainfed_ha), 80)
+  testthat::expect_equal(sum(out$irrigated_ha), 20)
+})
+
+testthat::test_that("native CFT totals retain mixed methods and supplied zero irrigation", {
+  data <- .polity_preparation_data()
+  data$luh2$irrig_ha <- 0
+  data$crop_patterns$harvest_fraction[1] <- 0
+  inputs <- whep::prepare_polity_crop_inputs(data, method = "luh2")
+  mapping <- tibble::tribble(
+    ~item_prod_code, ~cft_name,
+    15L, "cereal",
+    56L, "cereal"
+  )
+  out <- whep::build_gridded_landuse(
+    inputs$country_areas,
+    inputs$crop_patterns,
+    inputs$gridded_cropland,
+    inputs$country_grid,
+    config = list(years = 1900L, cft_mapping = mapping)
+  )
+  testthat::expect_equal(nrow(out), 1L)
+  testthat::expect_equal(out$rainfed_ha, 100)
+  testthat::expect_equal(out$irrigated_ha, 0)
+  testthat::expect_equal(
+    out$method_weight_rainfed,
+    "crop_pattern;cropland_proportional"
+  )
+  testthat::expect_equal(out$method_weight_irrigated, "no_land")
+  testthat::expect_equal(out$method_irrigation, "luh2_proportional")
+})
+
+testthat::test_that("native method labels survive capacity redistribution", {
+  data <- .polity_preparation_data()
+  data$luh2$crop_ha <- 50
+  data$luh2$irrig_ha <- 0
+  inputs <- whep::prepare_polity_crop_inputs(data, method = "luh2")
+  testthat::expect_warning(
+    out <- whep::build_gridded_landuse(
+      inputs$country_areas,
+      inputs$crop_patterns,
+      inputs$gridded_cropland,
+      inputs$country_grid,
+      config = list(years = 1900L)
+    ),
+    "50 ha over"
+  )
+  testthat::expect_equal(out$method_weight_rainfed, rep("crop_pattern", 2))
+  testthat::expect_equal(out$method_weight_irrigated, rep("no_land", 2))
+  testthat::expect_equal(out$method_irrigation, rep("luh2_proportional", 2))
+  testthat::expect_equal(sum(out$rainfed_ha), 100)
+})

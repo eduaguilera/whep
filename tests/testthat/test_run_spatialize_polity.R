@@ -38,6 +38,24 @@ testthat::test_that("native runner consumes prepared artifacts without external 
   cft <- nanoparquet::read_parquet(run$output_paths$landuse_cft)
   testthat::expect_identical(unique(cft$polity_code), "AAA-1800-1950")
   testthat::expect_equal(sum(cft$rainfed_ha + cft$irrigated_ha), 100)
+  testthat::expect_identical(
+    unique(crops$method_irrigation),
+    "luh2_proportional"
+  )
+  testthat::expect_identical(
+    unique(crops$method_weight_rainfed),
+    "crop_pattern"
+  )
+  testthat::expect_identical(
+    unique(crops$method_weight_irrigated),
+    "crop_pattern"
+  )
+  testthat::expect_identical(unique(cft$method_irrigation), "luh2_proportional")
+  testthat::expect_identical(unique(cft$method_weight_rainfed), "crop_pattern")
+  testthat::expect_identical(
+    unique(cft$method_weight_irrigated),
+    "crop_pattern"
+  )
   metadata <- yaml::read_yaml(file.path(paths$out_dir, "run_metadata.yaml"))
   testthat::expect_identical(metadata$polity_inputs$geographic_key, "polity")
   testthat::expect_identical(
