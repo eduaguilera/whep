@@ -11,7 +11,7 @@ and the nine \verb{admin_species_*} columns of
 }
 \source{
 Eurostat dissemination API
-(\url{https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1}), dataflows
+(\href{https://ec.europa.eu/eurostat/web/user-guides/data-browser/api-data-access/api-getting-started/sdmx2.1}{API guide}), dataflows
 \code{apro_cpshr}, \code{apro_cpnhr_h}, \code{apro_mt_ls_r} and \code{ef_lsk_poultry}; IBGE
 SIDRA aggregate metadata
 (\url{https://servicodados.ibge.gov.br/api/v3/agregados}), tables 5457,

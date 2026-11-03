@@ -1311,7 +1311,7 @@
 #'   builder enforces.
 #'
 #' @source Eurostat dissemination API
-#'   (<https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1>), dataflows
+#'   ([API guide](https://ec.europa.eu/eurostat/web/user-guides/data-browser/api-data-access/api-getting-started/sdmx2.1)), dataflows
 #'   `apro_cpshr`, `apro_cpnhr_h`, `apro_mt_ls_r` and `ef_lsk_poultry`; IBGE
 #'   SIDRA aggregate metadata
 #'   (<https://servicodados.ibge.gov.br/api/v3/agregados>), tables 5457,
