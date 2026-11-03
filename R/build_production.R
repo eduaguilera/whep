@@ -1648,13 +1648,13 @@ build_primary_production <- function(
   fao_stocks <- .read_livestock_stocks(years = NULL)
 
   # The completion inside `.combine_livestock()` is what invents the rows the
-  # drop removes, so the drop sits right after it (whep#1404).
+  # drop removes, so the drop sits right after it (whep#1404, whep#1562).
   fao_liv_raw <- .combine_livestock(
     fao_combined,
     fao_stocks,
     animals
   ) |>
-    .drop_retired_buckets()
+    .drop_unreported_stock_tail()
 
   .finalise_livestock(fao_liv_raw, animals, liv_lu) |>
     .filter_years(years)
@@ -1785,22 +1785,75 @@ build_primary_production <- function(
     )
 }
 
-# Under `options(whep.unfold_predecessor_bucket = "all")` only: drop the stock
-# rows of a promoted predecessor bucket (206 "Sudan (former)") after its own
-# area last reported, see `.retired_predecessor_buckets()`. `.combine_livestock()`
-# completes every area over every year and `fill_linear()` carries a series
-# longer than 40 years forward, so 206's 2011 herd ran flat to 2023 beside the
-# 276/277 herds that report the same animals. Scoped to the stock chain on
-# purpose: under the un-fold LUH2 grassland still keys north Sudan's pasture on
-# 206 in every year, and those rows are land no other row carries. The list of
-# buckets is derived from the crosswalk and is empty under the fold.
-.drop_retired_buckets <- function(df) {
-  retired <- .retired_predecessor_buckets()
-  if (nrow(retired) == 0L) {
+# Drop the stock rows of an area after the last year any reporting area
+# reports it. `.combine_livestock()` completes every area over every year and
+# `fill_linear()` carries a series longer than 40 years forward, so an area
+# FAOSTAT stops reporting kept its last herd flat to the end of the build, and
+# its livestock products followed as "Last value carried forward".
+#
+# Two cases reach this. Under `options(whep.unfold_predecessor_bucket = "all")`
+# bucket 206 "Sudan (former)" ran its 2011 herd beside the 276/277 herds that
+# report the same animals (whep#1404). And in every mode FAOSTAT reports the
+# French overseas departments (69, 87, 135, 182) only until 2006, and their
+# 2006 herds ran flat 2007-2023, 89 kt of livestock tonnes a year (whep#1562).
+# From 2007 France's own figures include them: FAOSTAT France's 2019 cattle
+# stock, 18,172,970 head, is Agreste's "France entière" total (DOM included;
+# metropolitan France alone is 18,050,754; Agreste SAA 2020 definitive,
+# Chiffres et Données No 14, pp. 20 and 37), and Eurostat's national France
+# (apro_mt_ls_r, 2018: 18,563.23 thousand cattle) includes the 141.83 thousand
+# of its outermost regions (FRY). The carried herds were a second copy of
+# animals France already reports, so they go, the same rule
+# `.filter_dissolved_countries()` applies to a dissolved country and the one
+# the wiki decision whep-territories-fold-to-faostat-reporting-area records:
+# a territory sits under the area whose FAOSTAT statistics include it.
+#
+# "Reports" is `.reported_bucket_years()`, which follows folds: under the fold
+# bucket 206 is reported after 2011 by 276/277 and keeps every row. Only the
+# tail after an area's last reported year goes, and only when that year falls
+# before the vocabulary's own horizon. An area no reporting window
+# covers at all is left alone, and years before the first report are not
+# touched either, because the completion fills those with zeros (n <= 40).
+.drop_unreported_stock_tail <- function(df) {
+  years <- sort(unique(as.integer(df$year)))
+  if (length(years) == 0L) {
     return(df)
   }
-  last_year <- retired$last_year[match(df$area_code, retired$area_code)]
-  dplyr::filter(df, is.na(last_year) | .data$year <= last_year)
+  # Over the vocabulary's whole span, not the frame's, so an area whose last
+  # report predates the frame's first year is still recognised as retired.
+  windows <- .area_reporting_windows()
+  span <- min(c(windows$window_start, years)):max(c(windows$window_end, years))
+  reported <- .reported_bucket_years(span)
+  last_year <- reported[, .(last_year = max(year)), by = area_code]
+  last <- last_year$last_year[match(df$area_code, last_year$area_code)]
+  # The stock pin can run past the last year the area vocabulary knows. Nothing
+  # is reported then, and that horizon is not a retirement: only an area whose
+  # last report falls before it has a tail.
+  horizon <- max(reported$year, -Inf)
+  tail <- !is.na(last) & last < horizon & df$year > last
+  # Named only where a herd went: the completion fills the tail of an area
+  # reported for 40 years or less with zeros, and dropping those moves nothing.
+  named <- tail & !is.na(df$value) & df$value != 0
+  if (any(named)) {
+    .inform_stock_tail(df[named, ], last[named])
+  }
+  df[!tail, ]
+}
+
+.inform_stock_tail <- function(dropped, last) {
+  areas <- tibble::tibble(area_code = dropped$area_code, last_year = last) |>
+    dplyr::distinct() |>
+    add_area_name()
+  labels <- paste0(
+    dplyr::coalesce(areas$area_name, as.character(areas$area_code)),
+    " (after ",
+    areas$last_year,
+    ")"
+  )
+  cli::cli_inform(c(
+    "i" = "Dropped livestock stocks of {nrow(areas)} area{?s} after the \\
+      last year FAOSTAT reports them: {labels}.",
+    " " = "No later observation anchors a fill (whep#1562)."
+  ))
 }
 
 # Split the unsplit QCL stock (`value`) across sub-items (e.g. dairy vs
