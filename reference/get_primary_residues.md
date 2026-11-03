@@ -9,7 +9,9 @@ get_primary_residues(
   example = FALSE,
   cereal_residue = c("ipcc", "ensemble", "ratio", "wirsenius"),
   oil_palm_residue = c("per_product", "per_hectare", "pin"),
-  non_cereal_residue = c("ipcc", "ensemble", "ratio", "pin")
+  non_cereal_residue = c("ipcc", "ensemble", "ratio", "pin"),
+  sugar_cane_residue = c("per_product", "pin", "supplied"),
+  sugar_cane_data = NULL
 )
 ```
 
@@ -81,6 +83,35 @@ get_primary_residues(
   for `cereal_residue`, or `"pin"`, the pin's ratio as for every other
   crop. See the "Non-cereal residue" section.
 
+- sugar_cane_residue:
+
+  How sugar cane trash (tops and leaves) is obtained. One of:
+
+  - `"per_product"` (default): a provisional 0.14 t of gross trash dry
+    matter per tonne of fresh cane (Hassuani, da Silva & Neves, 2005).
+
+  - `"supplied"`: local gross trash dry matter from `sugar_cane_data`,
+    with complete polity-year coverage required; no fallback.
+
+  - `"pin"`: the pin's own sugar cane residue, with the recovery rate
+    undone and the ratio re-keyed like every other non-cereal crop.
+
+  See the "Sugar cane residue" section.
+
+- sugar_cane_data:
+
+  For `sugar_cane_residue = "supplied"`, a tibble with
+  `reporting_polity_code`, `year`, `residue_dm_t` and `source`. Supply
+  one nonnegative finite gross field-trash total (tonnes DM) per
+  canonical polity and year, plus a nonempty source/method identifier.
+  The quantity includes field tops and leaves before recovery, burning
+  or use, excludes mill bagasse, and is not the removable or
+  soil-returned fraction. The caller is responsible for source
+  applicability. Missing coverage or duplicate keys abort; sources are
+  retained in the method stamp. Extra supplied keys do not create new
+  production rows. Data under another method abort rather than being
+  ignored.
+
 ## Value
 
 A tibble with the crop residue data. It contains the following columns:
@@ -122,8 +153,9 @@ A tibble with the crop residue data. It contains the following columns:
   `cereal_residue` method for a cereal, the `non_cereal_residue` method
   for a non-cereal crop with its own IPCC line,
   `"malaysia_nbs_per_product"` or `"malaysia_nbs_per_hectare"` for oil
-  palm unless `oil_palm_residue` is `"pin"`, and `"pin"` for every other
-  crop.
+  palm unless `oil_palm_residue` is `"pin"`; sugar cane uses
+  `"hassuani_2005_provisional"`, `"supplied_gross_dm:<source>"`, or
+  `"pin"` for its selected method; `"pin"` is used for every other crop.
 
 The pin's residue quantities are fresh matter. Across its crops the
 ratio of pinned residue to product tracks the fresh-matter
@@ -257,8 +289,8 @@ the crops reach it through `ipcc_crop_mapping.csv`, as in the soil
 carbon and nitrogen chain. The other non-cereal lines in
 `ipcc_residue_coefs.csv` (rapeseed, sunflower, sugar beet, sugar cane,
 cotton) are not in Table 11.2, so those crops, tree crops and vegetables
-keep the pin's ratio, as does every crop under
-`non_cereal_residue = "pin"`.
+keep the pin's ratio (sugar cane is anchored instead, see "Sugar cane
+residue"), as does every crop under `non_cereal_residue = "pin"`.
 
 World residue dry matter of the crops estimated from yield, Tg, the
 pin's ratio against `"ipcc"` (the default):
@@ -314,6 +346,77 @@ Feedipedia, <https://www.feedipedia.org/node/6916> (whep#1516). Fronds
 are 46 of the 60 Mt; trunks, whose sap is 75-80% of their weight, are
 wetter, so the fresh mass is if anything understated. It sets the fresh
 mass booked to `Firewood`, not the dry matter.
+
+## Sugar cane residue
+
+The CBS needs an unburned-equivalent gross harvest-field pool of tops
+and leaves before recovery and use, excluding mill bagasse. Recoverable
+material and material returned to soil are separate quantities. This
+estimate does not determine a sustainable removal rate, the feed
+fraction, or actual commercial harvest losses.
+
+`"per_product"` uses 0.14 t DM/t fresh stalk from Hassuani, da Silva &
+Neves (2005), *Sugarcane trash recovery alternatives for power
+generation*, Proc. ISSCT 25:394-402, Introduction p. 394. Their
+Brazilian experiments considered variety, age and soil; the reported
+field-trash average includes tops and dry/green leaves, with collection
+efficiencies treated separately. This matches the required gross field
+quantity better than a coefficient for bagasse, collected fuel, or
+leaves alone. It remains a **provisional transfer model**, not an
+empirically validated constant for every country and year. No new
+cultivar, harvest-age or irrigation assignments are assumed.
+
+The legacy pin has a fixed 0.3/0.7 biomass partition at its base; with
+the 0.48 trash DM fraction this implies about 0.206 t DM/t cane. Further
+pin adjustments remain: its annual global ratio varies from about 0.206
+to 0.223 over 1961-2021. These values are not impossible in every field.
+Thompson (1966), *The production of trash and its effects as a mulch on
+the soil and on sugarcane nutrition*, Proc. S. Afr. Sug. Technol. Ass.
+40:333-342, p. 333, explicitly rejects one ratio across varieties, ages
+and treatments; one Table I treatment implies 8.7/40 = 0.2175. His
+approximately 1/6 ratio is conditional on NCo376, dryland conditions,
+spacing and crop age. Donaldson et al. (2008), *Season effects on
+productivity of some commercial South African sugarcane cultivars, II:
+trash production*, Proc. S. Afr. Sug. Technol. Ass. 81:528-538, pp.
+533-534, excludes tops and restricts its linear equation to N14; its
+printed intercepts also disagree. Neither validates a global coefficient
+or supplies a defensible conditional model when cultivar and harvest-age
+inputs are absent from this pin.
+
+SUCRE (2020), *SUCRE Project Final Report*, p. 95, gives 0.12 for
+Center-South Brazil, citing Menandro et al. (2017),
+doi:10.1002/bbb.1760; those are one evidence lineage. Leite et al.
+(2016), doi:10.3389/fpls.2016.00466, Table 2, gives mean dry leaves 9
+and tops 11 Mg/ha, and fresh stalk yield 125 Mg/ha in 102 first-ratoon
+plots at three Southeast Brazil sites. (9 + 11)/125 = 0.16 is a ratio of
+rounded experimental means, not a reported mean field ratio or
+representative national estimate. These are sensitivity comparisons, not
+alternate universal constants or an uncertainty interval. The underlying
+Menandro full text was not read in this review.
+
+Select `"supplied"` for a site/region-specific model aggregated to
+canonical polity-years, with its gross-trash boundary and sources
+established. It requires complete coverage; there is no automatic
+global-proxy fallback. Select `"pin"` for the previous model. The
+default favors a traceable, quantity-matched field estimate over the
+undocumented fixed partition, not agreement between regional averages.
+Regional/historical transfer uncertainty remains explicit in
+`method_residue`.
+
+Gross DM is converted to fresh residue with the existing sugar cane
+`Residue_kgDM_kgFM` (0.48); recovery is not applied again to this
+anchor. The separate soil chain still uses its existing ensemble
+including an assumed sugarcane line. This estimate does not validate
+that line or claim the two chains now agree. On the same frozen pin,
+2010 cane trash changes 344.822 to 234.670 Tg DM; 2020 changes 383.588
+to 261.053 Tg DM.
+
+Resolved anchor rows match on canonical reporting polity and year.
+Existing unresolved source labels use a flagged local pin-source-code
+adapter and keep NA polity identity; no modern or historical territory
+is invented. Caller-supplied estimates require canonical polity coverage
+and cannot use this adapter. No pin or territorial database is published
+by this function.
 
 ## The batch pin on the build path
 
