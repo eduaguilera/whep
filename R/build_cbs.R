@@ -1795,6 +1795,7 @@ build_processing_coefs <- function(
   }
 
   dt <- .read_input("fishstat-trade", years = years, year_col = "Year")
+  dt <- .fishstat_adopted_rows(dt)
   data.table::setnames(
     dt,
     c("Area Code", "Item Code", "Element", "Year", "Value", "Unit"),

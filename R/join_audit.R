@@ -66,6 +66,18 @@
     "single_year",
     "Native polity allocation matches exact identities within the caller's
      simulation year; it never folds FAOSTAT codes or follows lineage.",
+    ".check_fishstat_area_iso3", "inner_join", "area_code", 1L,
+    "identity_lookup",
+    "Compares a FishStat reporter's ISO3 with the ISO3 its FAOSTAT area code
+     carries, to catch a code-space divergence before any year is resolved.",
+    ".check_fishstat_containment", "inner_join", "polity_code, member_polity",
+    1L, "identity_lookup",
+    "Keys on the year-scoped polity a row already resolved to; the edge's own
+     span is then filtered against the row's year (whep#1618).",
+    ".fishstat_reporter_areas", "left_join", "area_code, fishstat_identifier",
+    1L, "time_invariant",
+    "FishStat identifier -> FAOSTAT area code override table; a code-space
+     correspondence with no time dimension. Polity resolution follows by year.",
     ".add_federation_land_rows", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 names the territory, not one of its periods; the year rides along in
      the joined land rows.",
@@ -655,6 +667,10 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".check_fishstat_area_iso3", "distinct", "area_code, <dynamic>, area_iso3c",
+    1L, "identity_lookup",
+    "One row per FAOSTAT area code and its ISO3, the vocabulary a FishStat
+     reporter's ISO3 is checked against (whep#1618).",
     ".zero_pattern_underflow", "[", "polity_code, item_prod_code", 1L,
     "single_year",
     "Diagnoses one year's native polity-crop pattern after tiny signals are
