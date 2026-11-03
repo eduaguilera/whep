@@ -3,9 +3,9 @@
 Runs the same four compartments as
 [`decompose_terr_losses()`](https://eduaguilera.github.io/whep/reference/decompose_terr_losses.md),
 but comparing each reference period (each averaged across its ten years)
-against the immediately preceding one — 1860-1870 -\> 1920-1930 -\>
-1960-1970 -\> 2010-2020 — plus one extra transition spanning the full
-analysis window, 1860-1870 straight to 2010-2020 (the total change),
+against the immediately preceding one — 1860-1870 -\> 1925-1935 -\>
+1960-1970 -\> 2013-2023 — plus one extra transition spanning the full
+analysis window, 1860-1870 straight to 2013-2023 (the total change),
 instead of chaining year on year. This is the periodised table
 recommended alongside the main chained figure in the decomposition
 proposal (section 12), summarizing the four historical phases rather
@@ -45,8 +45,8 @@ decompose_terr_losses_periods(
 
 A named list with tibbles `detail` (per-compartment LMDI output, with
 `compartment` and `mechanism` columns added), `by_compartment`, and
-`by_mechanism` (each with `period` — one of "1865-1925", "1925-1965",
-"1965-2015", "Total (1865-2015)", the mean year of each reference window
+`by_mechanism` (each with `period` — one of "1865-1930", "1930-1965",
+"1965-2018", "Total (1865-2018)", the mean year of each reference window
 (1865 = mean of 1860-1870, and so on) — plus `contribution_mgn`,
 `period_years`, and `contribution_per_yr_mgn`, the per-year-normalized
 value used for plotting).

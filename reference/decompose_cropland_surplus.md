@@ -21,6 +21,24 @@ breakdown);
 still uses the full province x destiny detail for its
 `cropland_province` and `cropland_destiny` series.
 
+Still built from
+[`create_n_prov_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.md)
+and summed to national afterwards (`.national_area_panel()`), even
+though the result is national-only: unlike
+[`decompose_destiny_mix()`](https://eduaguilera.github.io/whep/reference/decompose_destiny_mix.md),
+this function does not report a destiny breakdown, so the provincial
+`"export"` destiny's inter-provincial/true-export ambiguity washes out
+in the total (every destiny sums into the same national surplus
+regardless). Aquaculture feed (#379) is the one thing this misses, since
+it is reported nationally only and provincial data cannot carry it – not
+switched to
+[`create_n_nat_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.md)
+to pick it up, since that would need this function's shared
+area-allocation machinery
+([`decompose_specialization_cov()`](https://eduaguilera.github.io/whep/reference/decompose_specialization_cov.md)
+also uses it, and needs real provinces) to support two incompatible
+shapes for one small addition.
+
 ## Usage
 
 ``` r
@@ -55,8 +73,8 @@ decompose_cropland_surplus(
 
   If `TRUE`, compares each reference period (each averaged across its
   ten years) against the immediately preceding one — 1860-1870 -\>
-  1920-1930 -\> 1960-1970 -\> 2010-2020 — plus one extra transition
-  spanning the full analysis window, 1860-1870 straight to 2010-2020
+  1925-1935 -\> 1960-1970 -\> 2013-2023 — plus one extra transition
+  spanning the full analysis window, 1860-1870 straight to 2013-2023
   (the total change) — instead of chaining year on year.
 
 - example:

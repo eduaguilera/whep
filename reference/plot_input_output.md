@@ -2,9 +2,7 @@
 
 Builds a stacked-area plot of Spanish national nitrogen inputs (as
 negative values), production, residues, and surplus over time for either
-cropland or semi-natural agroecosystems. For the semi-natural system a
-nitrogen "Accumulation" term (net soil/biomass N accumulation) is added
-when the `n_balance_ygpit_all` pin is available.
+cropland or semi-natural agroecosystems.
 
 ## Usage
 

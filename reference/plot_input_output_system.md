@@ -2,8 +2,7 @@
 
 Builds a stacked-area plot of Spanish national nitrogen inputs (soil
 inputs and imports, as negative values) against uses (feed, food, other
-uses, exports) and surplus over time. A nitrogen "Accumulation" term is
-added when the `n_balance_ygpit_all` pin is available.
+uses, exports) and surplus over time.
 
 ## Usage
 

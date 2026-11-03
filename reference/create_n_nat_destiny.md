@@ -39,9 +39,14 @@ includes the following columns:
   Fixation, Synthetic, or Outside. Fish and Agro-industry are `box`
   values, not origins; their nitrogen enters as Outside.
 
-- `destiny`: The destiny category of N: population_food,
-  population_other_uses, livestock_mono, livestock_rum (feed), export,
-  processing_losses (N not credited to a processed output), Cropland and
+- `destiny`: The destiny category of N: population_food (edible-basis;
+  see `.split_food_inedible_loss()`), population_food_inedible (the
+  inedible fraction of the same food, split out of population_food so
+  nothing is silently discarded from the total), population_other_uses,
+  livestock_mono, livestock_rum (feed), aquaculture (feed too, but into
+  the Fish box rather than Livestock – aquaculture has no land-based
+  production of its own, see issue \#379), export, processing_losses (N
+  not credited to a processed output), Cropland and
   semi_natural_agroecosystems (for N soil inputs).
 
 - `mg_n`: Nitrogen amount in megagrams (Mg).
@@ -52,7 +57,7 @@ includes the following columns:
 
 ``` r
 create_n_nat_destiny(example = TRUE)
-#> # A tibble: 10 × 8
+#> # A tibble: 12 × 8
 #>     year item                irrig_cat box   origin destiny   mg_n province_name
 #>    <dbl> <chr>               <chr>     <chr> <chr>  <chr>    <dbl> <chr>        
 #>  1  1863 Hard Fibres, Other  Irrigated NA    Lives… Cropla… 5.21e1 Spain        
@@ -65,4 +70,6 @@ create_n_nat_destiny(example = TRUE)
 #>  8  1874 Fodder mix          Rainfed   Crop… Cropl… livest… 6.05e2 Spain        
 #>  9  1983 Oranges, Mandarines Irrigated NA    Lives… Cropla… 5.29e3 Spain        
 #> 10  1997 Barley and products Rainfed   Crop… Cropl… livest… 1.75e4 Spain        
+#> 11  1958 Grasses, Other      NA        NA    Fixat… semi_n… 8.12e2 Spain        
+#> 12  1958 Grasses, Other      NA        semi… semi_… livest… 1.34e3 Spain        
 ```

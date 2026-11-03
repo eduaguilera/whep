@@ -12,10 +12,20 @@ is deliberately excluded even though `.create_wastewater_surplus_df()`
 in `grafs_plot_df.R` includes it: that material is not ingested, so it
 cannot be assumed to leave the body as excreta, breaking the
 intake-approximates-excretion logic this compartment relies on.
+`population_food_inedible` – the non-edible remainder
+`.split_food_inedible_loss()` (n_prov_destiny.R) split out of
+`population_food` (peel, bone, and similar trimmings) – is excluded for
+the same reason: it is never ingested, so it cannot leave the body as
+excreta either. Unlike `population_other_uses`, it never reaches the
+population's ingested-food quantity. The GRAFS diagram displays it
+through `{CRP_PROCLOSS}`/`{LVSTCK_INEDIBLE}`; circularity retains whole
+delivered food in its People compartment. These accounting/display
+conventions do not establish the physical location at which refuse is
+generated.
 
-Food waste is not included: the commodity-balance sheets underlying
-`n_prov_destiny` carry Food/Feed/Seed/Other-uses/Export/Import destinies
-but no separate consumer food-waste line, so this loss is excreta-only.
+This compartment captures excreta loss only, not consumer food waste
+(spoilage, plate waste and similar, once ingredients have already
+reached the household) – `n_prov_destiny` has no destiny for that.
 Whether the `urban`/`People` recycling flows already folded in some food
 waste from the original source is unconfirmed.
 
@@ -47,8 +57,8 @@ decompose_urban_losses(
 
   If `TRUE`, compares each reference period (each averaged across its
   ten years) against the immediately preceding one — 1860-1870 -\>
-  1920-1930 -\> 1960-1970 -\> 2010-2020 — plus one extra transition
-  spanning the full analysis window, 1860-1870 straight to 2010-2020
+  1925-1935 -\> 1960-1970 -\> 2013-2023 — plus one extra transition
+  spanning the full analysis window, 1860-1870 straight to 2013-2023
   (the total change) — instead of chaining year on year.
 
 - example:

@@ -3,7 +3,7 @@
 Creates a four-panel figure comparing external N dependency, Finn
 Cycling Index, pollution (soil + livestock surplus per ha), and
 intensification (synthetic + feed imports per ha) across four reference
-periods (1860-1870, 1920-1930, 1960-1970, 2010-2020), analogous to the
+periods (1860-1870, 1925-1935, 1960-1970, 2013-2023), analogous to the
 periods panel from
 [`plot_finn_circularity()`](https://eduaguilera.github.io/whep/reference/plot_finn_circularity.md).
 Each panel facets by typology and adds a "Spain (national)" facet
@@ -46,9 +46,10 @@ plot_typology_periods_panel(
 - panel_data:
 
   Named list overriding the two frames otherwise read from pins:
-  `area_df` (`year`, `province_name`, `area_ha`) and `typo_df` (`year`,
-  `province_name`, `Typology_base`). Missing elements are loaded
-  automatically.
+  `area_df` – total agricultural area (cropland plus semi-natural land
+  uses), with columns `year`, `province_name`, `area_ha` – and `typo_df`
+  (`year`, `province_name`, `Typology_base`). Missing elements are
+  loaded automatically.
 
 ## Value
 
@@ -61,8 +62,8 @@ if (
   requireNamespace("ggplot2", quietly = TRUE) &&
     requireNamespace("patchwork", quietly = TRUE)
 ) {
-  # The four reference periods are 1860-1870, 1920-1930, 1960-1970 and
-  # 2010-2020, so an example needs at least one year inside two of them.
+  # The four reference periods are 1860-1870, 1925-1935, 1960-1970 and
+  # 2013-2023, so an example needs at least one year inside two of them.
   flows <- tibble::tribble(
     ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
     1865, "A", "Cropland", "Synthetic", "Cropland", 900,

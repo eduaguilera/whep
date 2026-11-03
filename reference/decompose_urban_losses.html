@@ -10,11 +10,20 @@ is deliberately excluded even though .create_wastewater_surplus_df()
 in grafs_plot_df.R includes it: that material is not ingested, so it
 cannot be assumed to leave the body as excreta, breaking the
 intake-approximates-excretion logic this compartment relies on.
-Food waste is not included: the commodity-balance sheets underlying
-n_prov_destiny carry Food/Feed/Seed/Other-uses/Export/Import
-destinies but no separate consumer food-waste line, so this loss is
-excreta-only. Whether the urban/People recycling flows already
-folded in some food waste from the original source is unconfirmed."><meta property="og:description" content="Decomposes the year-on-year change in non-recycled human excreta
+population_food_inedible – the non-edible remainder
+.split_food_inedible_loss() (n_prov_destiny.R) split out of
+population_food (peel, bone, and similar trimmings) – is excluded for
+the same reason: it is never ingested, so it cannot leave the body as
+excreta either. Unlike population_other_uses, it never reaches the
+population's ingested-food quantity. The GRAFS diagram displays it through
+{CRP_PROCLOSS}/{LVSTCK_INEDIBLE}; circularity retains whole delivered
+food in its People compartment. These accounting/display conventions do
+not establish the physical location at which refuse is generated.
+This compartment captures excreta loss only, not consumer food waste
+(spoilage, plate waste and similar, once ingredients have already
+reached the household) – n_prov_destiny has no destiny for that.
+Whether the urban/People recycling flows already folded in some food
+waste from the original source is unconfirmed."><meta property="og:description" content="Decomposes the year-on-year change in non-recycled human excreta
 nitrogen (N) into three multiplicative drivers, computed at the
 national level: population, per-capita excreted N (approximated by
 per-capita food N consumption, since intake is approximately equal to
@@ -25,11 +34,20 @@ is deliberately excluded even though .create_wastewater_surplus_df()
 in grafs_plot_df.R includes it: that material is not ingested, so it
 cannot be assumed to leave the body as excreta, breaking the
 intake-approximates-excretion logic this compartment relies on.
-Food waste is not included: the commodity-balance sheets underlying
-n_prov_destiny carry Food/Feed/Seed/Other-uses/Export/Import
-destinies but no separate consumer food-waste line, so this loss is
-excreta-only. Whether the urban/People recycling flows already
-folded in some food waste from the original source is unconfirmed."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+population_food_inedible – the non-edible remainder
+.split_food_inedible_loss() (n_prov_destiny.R) split out of
+population_food (peel, bone, and similar trimmings) – is excluded for
+the same reason: it is never ingested, so it cannot leave the body as
+excreta either. Unlike population_other_uses, it never reaches the
+population's ingested-food quantity. The GRAFS diagram displays it through
+{CRP_PROCLOSS}/{LVSTCK_INEDIBLE}; circularity retains whole delivered
+food in its People compartment. These accounting/display conventions do
+not establish the physical location at which refuse is generated.
+This compartment captures excreta loss only, not consumer food waste
+(spoilage, plate waste and similar, once ingredients have already
+reached the household) – n_prov_destiny has no destiny for that.
+Whether the urban/People recycling flows already folded in some food
+waste from the original source is unconfirmed."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -79,12 +97,21 @@ excretion), and the non-recycled fraction of excreted N.</p>
 is deliberately excluded even though <code>.create_wastewater_surplus_df()</code>
 in <code>grafs_plot_df.R</code> includes it: that material is not ingested, so it
 cannot be assumed to leave the body as excreta, breaking the
-intake-approximates-excretion logic this compartment relies on.</p>
-<p>Food waste is not included: the commodity-balance sheets underlying
-<code>n_prov_destiny</code> carry Food/Feed/Seed/Other-uses/Export/Import
-destinies but no separate consumer food-waste line, so this loss is
-excreta-only. Whether the <code>urban</code>/<code>People</code> recycling flows already
-folded in some food waste from the original source is unconfirmed.</p>
+intake-approximates-excretion logic this compartment relies on.
+<code>population_food_inedible</code> – the non-edible remainder
+<code>.split_food_inedible_loss()</code> (n_prov_destiny.R) split out of
+<code>population_food</code> (peel, bone, and similar trimmings) – is excluded for
+the same reason: it is never ingested, so it cannot leave the body as
+excreta either. Unlike <code>population_other_uses</code>, it never reaches the
+population's ingested-food quantity. The GRAFS diagram displays it through
+<code>{CRP_PROCLOSS}</code>/<code>{LVSTCK_INEDIBLE}</code>; circularity retains whole delivered
+food in its People compartment. These accounting/display conventions do
+not establish the physical location at which refuse is generated.</p>
+<p>This compartment captures excreta loss only, not consumer food waste
+(spoilage, plate waste and similar, once ingredients have already
+reached the household) – <code>n_prov_destiny</code> has no destiny for that.
+Whether the <code>urban</code>/<code>People</code> recycling flows already folded in some food
+waste from the original source is unconfirmed.</p>
     </div>
 
     <div class="section level2">
@@ -114,9 +141,9 @@ folded in some food waste from the original source is unconfirmed.</p>
 <dt id="arg-by-period">by_period<a class="anchor" aria-label="anchor" href="#arg-by-period"></a></dt>
 <dd><p>If <code>TRUE</code>, compares each reference period (each
 averaged across its ten years) against the immediately preceding
-one — 1860-1870 -&gt; 1920-1930 -&gt; 1960-1970 -&gt; 2010-2020 — plus one
+one — 1860-1870 -&gt; 1925-1935 -&gt; 1960-1970 -&gt; 2013-2023 — plus one
 extra transition spanning the full analysis window, 1860-1870
-straight to 2010-2020 (the total change) — instead of chaining year
+straight to 2013-2023 (the total change) — instead of chaining year
 on year.</p></dd>
 
 

@@ -8,7 +8,7 @@ boxplots; (c) net change in mean FCI from first to last period.
 
 ``` r
 plot_finn_circularity(
-  periods = c(1860, 1920, 1960, 2010),
+  periods = c(1860, 1925, 1960, 2013),
   finn_data = NULL,
   n_prov_destiny = NULL,
   typologies = NULL
@@ -21,8 +21,8 @@ plot_finn_circularity(
 
   Integer vector of years to mark as dashed reference lines on the
   `evolution` panel. The `periods` and `change` panels always compare
-  the four fixed historical eras (1860-1870, 1920-1930, 1960-1970,
-  2010-2020) regardless of this argument.
+  the four fixed historical eras (1860-1870, 1925-1935, 1960-1970,
+  2013-2023) regardless of this argument.
 
 - finn_data:
 

@@ -32,6 +32,20 @@ between two compared years; this function warns when that occurs instead
 of silently returning `NA`, but does not implement the Shapley/Sun
 alternative required for those cases.
 
+Still built from
+[`create_n_prov_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.md),
+for the same reason as
+[`decompose_cropland_surplus()`](https://eduaguilera.github.io/whep/reference/decompose_cropland_surplus.md):
+no destiny breakdown is reported, so every destiny (including
+`"export"`) sums into the same national surplus regardless of whether it
+is correctly classified, and the one thing provincial data cannot carry
+– aquaculture feed, reported nationally only (#379) – remains omitted
+from this provincial aggregation. A national overlay requires extending
+the shared area-allocation machinery
+([`decompose_specialization_cov()`](https://eduaguilera.github.io/whep/reference/decompose_specialization_cov.md)
+also uses it and needs real provinces); no provincial aquaculture
+allocation is inferred here.
+
 ## Usage
 
 ``` r
@@ -60,8 +74,8 @@ decompose_semi_natural_surplus(
 
   If `TRUE`, compares each reference period (each averaged across its
   ten years) against the immediately preceding one — 1860-1870 -\>
-  1920-1930 -\> 1960-1970 -\> 2010-2020 — plus one extra transition
-  spanning the full analysis window, 1860-1870 straight to 2010-2020
+  1925-1935 -\> 1960-1970 -\> 2013-2023 — plus one extra transition
+  spanning the full analysis window, 1860-1870 straight to 2013-2023
   (the total change) — instead of chaining year on year.
 
 - example:

@@ -67,9 +67,14 @@ the following columns:
   Fixation, Synthetic, or Outside. Fish and Agro-industry are `box`
   values, not origins; their nitrogen enters as Outside.
 
-- `destiny`: The destiny category of N: population_food,
-  population_other_uses, livestock_mono, livestock_rum (feed), export,
-  processing_losses (N not credited to a processed output), Cropland and
+- `destiny`: The destiny category of N: population_food (edible-basis;
+  see `.split_food_inedible_loss()`), population_food_inedible (the
+  inedible fraction of the same food, split out of population_food so
+  nothing is silently discarded from the total), population_other_uses,
+  livestock_mono, livestock_rum (feed), aquaculture (feed too, but into
+  the Fish box rather than Livestock – aquaculture has no land-based
+  production of its own, see issue \#379), export, processing_losses (N
+  not credited to a processed output), Cropland and
   semi_natural_agroecosystems (for N soil inputs).
 
 - `mg_n`: Nitrogen amount in megagrams (Mg).
@@ -78,17 +83,18 @@ the following columns:
 
 ``` r
 create_n_prov_destiny(example = TRUE)
-#> # A tibble: 10 × 8
+#> # A tibble: 11 × 8
 #>     year province_name item               irrig_cat box   origin destiny    mg_n
 #>    <dbl> <chr>         <chr>              <chr>     <chr> <chr>  <chr>     <dbl>
 #>  1  1865 Huesca        Sugarbeet pulp     NA        Crop… Outsi… livest… 4.52e-3
 #>  2  1929 Tarragona     Olives (including… Irrigated Crop… Cropl… export  6.92e+1
 #>  3  1955 Albacete      Wheat and products Rainfed   NA    Synth… Cropla… 6.16e+2
 #>  4  1957 Gipuzkoa      Wheat and products NA        Crop… Outsi… popula… 8.17e-1
-#>  5  1862 Huesca        Grapes and produc… Irrigated Crop… Cropl… popula… 9.39e-2
-#>  6  1980 Lleida        Wheat and products Irrigated NA    Fixat… Cropla… 1.71e+2
-#>  7  1863 A_Coruna      Millet and produc… Rainfed   NA    Fixat… Cropla… 9.95e-3
-#>  8  1987 Lugo          Tomatoes and prod… Irrigated Crop… Cropl… livest… 1.29e-3
-#>  9  1950 Castello      Apples and produc… Irrigated Crop… Cropl… livest… 1.96e-2
-#> 10  1988 Zaragoza      Grassland          NA        semi… semi_… livest… 1.32e+3
+#>  5  1862 Huesca        Grapes and produc… Irrigated Crop… Cropl… popula… 8.45e-2
+#>  6  1862 Huesca        Grapes and produc… Irrigated Crop… Cropl… popula… 9.39e-3
+#>  7  1980 Lleida        Wheat and products Irrigated NA    Fixat… Cropla… 1.71e+2
+#>  8  1863 A_Coruna      Millet and produc… Rainfed   NA    Fixat… Cropla… 9.95e-3
+#>  9  1987 Lugo          Tomatoes and prod… Irrigated Crop… Cropl… livest… 1.29e-3
+#> 10  1950 Castello      Apples and produc… Irrigated Crop… Cropl… livest… 1.96e-2
+#> 11  1988 Zaragoza      Grassland          NA        semi… semi_… livest… 1.32e+3
 ```

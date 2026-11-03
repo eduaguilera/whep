@@ -73,6 +73,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_fao_arable_fallow_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_feed_demand.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_feed_intake_local.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_food_protein_destiny.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_food_supply.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_footprint.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grass_availability.html</loc></url>
@@ -338,8 +339,11 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_finn_circularity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_footprint_sankey.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output_four_panel.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output_land_panel.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output_livestock.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output_system.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/plot_input_output_total_panel.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_loss_decomp.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_loss_decomp_periods.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/plot_loss_decomp_periods_panel.html</loc></url>
@@ -416,6 +420,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/row_evidence_schema.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/row_promotion_status.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/run_spatialize.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/run_typology_area_sensitivity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/run_typology_sensitivity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/seam_gate.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/seam_gate_tolerances.html</loc></url>

@@ -630,6 +630,8 @@ Nitrogen inputs, outputs, production, and destinies for Spain.
   : System NUE
 - [`create_n_nat_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.md)
   : GRAFS Nitrogen (N) flows – National Spain
+- [`build_food_protein_destiny()`](https://eduaguilera.github.io/whep/reference/build_food_protein_destiny.md)
+  : Per-capita food protein from the Spain N destiny flows
 - [`create_grafs_plot_df()`](https://eduaguilera.github.io/whep/reference/create_grafs_plot_df.md)
   : Create GRAFS plot dataset.
 - [`plot_input_output()`](https://eduaguilera.github.io/whep/reference/plot_input_output.md)
@@ -641,6 +643,12 @@ Nitrogen inputs, outputs, production, and destinies for Spain.
 - [`plot_input_output_system()`](https://eduaguilera.github.io/whep/reference/plot_input_output_system.md)
   : Plot national nitrogen inputs and uses for the full agro-food
   system.
+- [`plot_input_output_land_panel()`](https://eduaguilera.github.io/whep/reference/plot_input_output_land_panel.md)
+  : Plot cropland and semi-natural input-output panels side by side
+- [`plot_input_output_total_panel()`](https://eduaguilera.github.io/whep/reference/plot_input_output_total_panel.md)
+  : Plot livestock and agro-food system input-output panels side by side
+- [`plot_input_output_four_panel()`](https://eduaguilera.github.io/whep/reference/plot_input_output_four_panel.md)
+  : Plot all four input-output panels together
 
 ## Download large input datasets
 
@@ -830,6 +838,9 @@ typologies, etc.
   : GRAFS Nitrogen (N) flows – National Spain
 - [`run_typology_sensitivity()`](https://eduaguilera.github.io/whep/reference/run_typology_sensitivity.md)
   : Run one-at-a-time sensitivity analysis on typology thresholds.
+- [`run_typology_area_sensitivity()`](https://eduaguilera.github.io/whep/reference/run_typology_area_sensitivity.md)
+  : Reclassify typologies with Julia's and Josette's thresholds, on both
+  area bases
 - [`plot_typology_indicators_panel()`](https://eduaguilera.github.io/whep/reference/plot_typology_indicators_panel.md)
   : Plot four N indicators as time series per typology
 - [`plot_typology_periods_panel()`](https://eduaguilera.github.io/whep/reference/plot_typology_periods_panel.md)

@@ -32,7 +32,9 @@ plot_typology_indicators_panel(
 
 - area_df:
 
-  Cropland area per year and province, with columns `year`,
+  Total agricultural area per year and province (cropland plus the
+  semi-natural land uses dehesa, high/low forest, pasture-shrubland and
+  other – see `.semi_natural_landuse_cats()`), with columns `year`,
   `province_name` and `area_ha`. If `NULL`, read from the `npp_ygpit`
   pin.
 

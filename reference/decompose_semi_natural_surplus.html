@@ -24,7 +24,16 @@ Semi-natural surplus can turn negative (soil N mining) in some years.
 LMDI relies on logarithms and cannot handle a series that changes sign
 between two compared years; this function warns when that occurs
 instead of silently returning NA, but does not implement the
-Shapley/Sun alternative required for those cases."><meta property="og:description" content="Decomposes the year-on-year change in Spain's semi-natural agroecosystem
+Shapley/Sun alternative required for those cases.
+Still built from create_n_prov_destiny(), for the same reason as
+decompose_cropland_surplus(): no destiny breakdown is reported, so
+every destiny (including &quot;export&quot;) sums into the same national
+surplus regardless of whether it is correctly classified, and the one
+thing provincial data cannot carry – aquaculture feed, reported
+nationally only (#379) – remains omitted from this provincial aggregation.
+A national overlay requires extending the shared area-allocation machinery
+(decompose_specialization_cov() also uses it and needs real provinces);
+no provincial aquaculture allocation is inferred here."><meta property="og:description" content="Decomposes the year-on-year change in Spain's semi-natural agroecosystem
 (grazing land, dehesa, and non-cropland vegetation) nitrogen (N) surplus
 into three multiplicative drivers, following an additive LMDI
 shift-share decomposition computed at the national level:
@@ -49,7 +58,16 @@ Semi-natural surplus can turn negative (soil N mining) in some years.
 LMDI relies on logarithms and cannot handle a series that changes sign
 between two compared years; this function warns when that occurs
 instead of silently returning NA, but does not implement the
-Shapley/Sun alternative required for those cases."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+Shapley/Sun alternative required for those cases.
+Still built from create_n_prov_destiny(), for the same reason as
+decompose_cropland_surplus(): no destiny breakdown is reported, so
+every destiny (including &quot;export&quot;) sums into the same national
+surplus regardless of whether it is correctly classified, and the one
+thing provincial data cannot carry – aquaculture feed, reported
+nationally only (#379) – remains omitted from this provincial aggregation.
+A national overlay requires extending the shared area-allocation machinery
+(decompose_specialization_cov() also uses it and needs real provinces);
+no provincial aquaculture allocation is inferred here."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -112,6 +130,15 @@ LMDI relies on logarithms and cannot handle a series that changes sign
 between two compared years; this function warns when that occurs
 instead of silently returning <code>NA</code>, but does not implement the
 Shapley/Sun alternative required for those cases.</p>
+<p>Still built from <code><a href="create_n_prov_destiny.html">create_n_prov_destiny()</a></code>, for the same reason as
+<code><a href="decompose_cropland_surplus.html">decompose_cropland_surplus()</a></code>: no destiny breakdown is reported, so
+every destiny (including <code>"export"</code>) sums into the same national
+surplus regardless of whether it is correctly classified, and the one
+thing provincial data cannot carry – aquaculture feed, reported
+nationally only (#379) – remains omitted from this provincial aggregation.
+A national overlay requires extending the shared area-allocation machinery
+(<code><a href="decompose_specialization_cov.html">decompose_specialization_cov()</a></code> also uses it and needs real provinces);
+no provincial aquaculture allocation is inferred here.</p>
     </div>
 
     <div class="section level2">
@@ -141,9 +168,9 @@ Shapley/Sun alternative required for those cases.</p>
 <dt id="arg-by-period">by_period<a class="anchor" aria-label="anchor" href="#arg-by-period"></a></dt>
 <dd><p>If <code>TRUE</code>, compares each reference period (each
 averaged across its ten years) against the immediately preceding
-one — 1860-1870 -&gt; 1920-1930 -&gt; 1960-1970 -&gt; 2010-2020 — plus one
+one — 1860-1870 -&gt; 1925-1935 -&gt; 1960-1970 -&gt; 2013-2023 — plus one
 extra transition spanning the full analysis window, 1860-1870
-straight to 2010-2020 (the total change) — instead of chaining year
+straight to 2013-2023 (the total change) — instead of chaining year
 on year.</p></dd>
 
 

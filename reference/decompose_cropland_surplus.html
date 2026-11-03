@@ -14,7 +14,19 @@ observed change in cropland N surplus for every year-on-year transition.
 This is a simplified, national-only view (no provincial or destiny
 breakdown); decompose_specialization_cov() still uses the
 full province x destiny detail for its cropland_province and
-cropland_destiny series."><meta property="og:description" content="Decomposes the year-on-year change in Spain's cropland nitrogen (N)
+cropland_destiny series.
+Still built from create_n_prov_destiny() and summed to national
+afterwards (.national_area_panel()), even though the result is
+national-only: unlike decompose_destiny_mix(), this function does not
+report a destiny breakdown, so the provincial &quot;export&quot; destiny's
+inter-provincial/true-export ambiguity washes out in the total (every
+destiny sums into the same national surplus regardless). Aquaculture
+feed (#379) is the one thing this misses, since it is reported
+nationally only and provincial data cannot carry it – not switched to
+create_n_nat_destiny() to pick it up, since that would need this
+function's shared area-allocation machinery
+(decompose_specialization_cov() also uses it, and needs real
+provinces) to support two incompatible shapes for one small addition."><meta property="og:description" content="Decomposes the year-on-year change in Spain's cropland nitrogen (N)
 surplus into three multiplicative drivers, following an additive LMDI
 (logarithmic mean Divisia index) shift-share decomposition computed at
 the national level:
@@ -29,7 +41,19 @@ observed change in cropland N surplus for every year-on-year transition.
 This is a simplified, national-only view (no provincial or destiny
 breakdown); decompose_specialization_cov() still uses the
 full province x destiny detail for its cropland_province and
-cropland_destiny series."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+cropland_destiny series.
+Still built from create_n_prov_destiny() and summed to national
+afterwards (.national_area_panel()), even though the result is
+national-only: unlike decompose_destiny_mix(), this function does not
+report a destiny breakdown, so the provincial &quot;export&quot; destiny's
+inter-provincial/true-export ambiguity washes out in the total (every
+destiny sums into the same national surplus regardless). Aquaculture
+feed (#379) is the one thing this misses, since it is reported
+nationally only and provincial data cannot carry it – not switched to
+create_n_nat_destiny() to pick it up, since that would need this
+function's shared area-allocation machinery
+(decompose_specialization_cov() also uses it, and needs real
+provinces) to support two incompatible shapes for one small addition."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -82,6 +106,18 @@ observed change in cropland N surplus for every year-on-year transition.</p>
 breakdown); <code><a href="decompose_specialization_cov.html">decompose_specialization_cov()</a></code> still uses the
 full province x destiny detail for its <code>cropland_province</code> and
 <code>cropland_destiny</code> series.</p>
+<p>Still built from <code><a href="create_n_prov_destiny.html">create_n_prov_destiny()</a></code> and summed to national
+afterwards (<code>.national_area_panel()</code>), even though the result is
+national-only: unlike <code><a href="decompose_destiny_mix.html">decompose_destiny_mix()</a></code>, this function does not
+report a destiny breakdown, so the provincial <code>"export"</code> destiny's
+inter-provincial/true-export ambiguity washes out in the total (every
+destiny sums into the same national surplus regardless). Aquaculture
+feed (#379) is the one thing this misses, since it is reported
+nationally only and provincial data cannot carry it – not switched to
+<code><a href="create_n_nat_destiny.html">create_n_nat_destiny()</a></code> to pick it up, since that would need this
+function's shared area-allocation machinery
+(<code><a href="decompose_specialization_cov.html">decompose_specialization_cov()</a></code> also uses it, and needs real
+provinces) to support two incompatible shapes for one small addition.</p>
     </div>
 
     <div class="section level2">
@@ -117,9 +153,9 @@ full province x destiny detail for its <code>cropland_province</code> and
 <dt id="arg-by-period">by_period<a class="anchor" aria-label="anchor" href="#arg-by-period"></a></dt>
 <dd><p>If <code>TRUE</code>, compares each reference period (each
 averaged across its ten years) against the immediately preceding
-one — 1860-1870 -&gt; 1920-1930 -&gt; 1960-1970 -&gt; 2010-2020 — plus one
+one — 1860-1870 -&gt; 1925-1935 -&gt; 1960-1970 -&gt; 2013-2023 — plus one
 extra transition spanning the full analysis window, 1860-1870
-straight to 2010-2020 (the total change) — instead of chaining year
+straight to 2013-2023 (the total change) — instead of chaining year
 on year.</p></dd>
 
 
