@@ -1,5 +1,6 @@
 # Retain the raw account observations (stock change, losses, residuals and
-# tourist use) before item rebasing, unit conversion, sign normalisation,
+# tourist use), plus the publisher's domestic-supply comparator, before item
+# rebasing, unit conversion, sign normalisation,
 # aggregation or reconciliation: the source's own code, unit, value, flag,
 # pin version and dated reporting polity. These records describe a source, not
 # validated physical truth: FAOSTAT flag I, for example, denotes an
@@ -9,7 +10,8 @@
     "Stock Variation",
     "Losses",
     "Residuals",
-    "Tourist consumption"
+    "Tourist consumption",
+    "Domestic supply quantity"
   )
   records <- tibble::as_tibble(dt) |>
     dplyr::filter(element %in% elements) |>
@@ -68,7 +70,7 @@
 # `domestic_supply` stays total physical domestic use, as documented for
 # `build_commodity_balances()`: the calibrated destinies plus losses and
 # tourist use. FAOSTAT's own domestic supply also nets in its residual; that
-# value stays in the source ledger. FABIO's balance formula also leaves
+# original value stays in the raw `input_accounts` ledger. FABIO also leaves
 # residuals out of `domestic_use` (fineprint-global/fabio@66a9298,
 # R/03_1a_build_cbs.R), though its later rebalancing (R/03_1b_balance_cbs.R)
 # reallocates them into the uses; that would hide the statistical quantity,

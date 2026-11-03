@@ -288,3 +288,28 @@ test_that("the published balance keeps the supplied stock and the residual", {
   expect_equal(value(residual, "stock_variation"), 402000 - 3113000 + 2000)
   expect_false(any(c("losses", "residuals") %in% residual$element))
 })
+
+test_that("raw provenance preserves the publisher's domestic supply", {
+  raw <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~unit, ~value, ~fao_flag,
+    2015L, 203L, 2563L, "Domestic supply quantity", "1000 t", 5543, "I",
+    2015L, 203L, 2563L, "Stock Variation", "1000 t", 0, "I",
+    2015L, 203L, 2563L, "Residuals", "1000 t", -3113, "I",
+  )
+  records <- whep:::.cbs_input_account_records(raw, "faostat-fbs-new")
+  supply <- dplyr::filter(
+    records,
+    source_element == "Domestic supply quantity"
+  )
+  expect_equal(nrow(supply), 1L)
+  expect_equal(supply$source_value, 5543)
+  expect_equal(supply$source_unit, "1000 t")
+  expect_equal(supply$fao_flag, "I")
+  expect_equal(supply$source_area_code, 203L)
+  expect_equal(supply$source_item_code, 2563L)
+  expect_equal(supply$source_alias, "faostat-fbs-new")
+  expect_false(anyNA(supply$reporting_polity_code))
+  expect_false(anyNA(supply$source_version))
+  # This original comparator must not replace calibrated physical use.
+  expect_false("domestic_supply" %in% whep:::.cbs_account_elements())
+})
