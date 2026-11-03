@@ -75,6 +75,7 @@ surviving (deduplicated) values.</p></li>
 <span>  federation_land <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"successor_union"</span><span class="op">)</span>,</span>
 <span>  land_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"present_day"</span>, <span class="st">"historical_polity"</span><span class="op">)</span>,</span>
 <span>  fodder_split <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fao_mix"</span>, <span class="st">"equal"</span><span class="op">)</span>,</span>
+<span>  meat_nes_backcast <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"agriland"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  .raw_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -161,6 +162,27 @@ until whep#654 each item could get all of it.</p><ul><li><p><code>"fao_mix"</cod
 areas in that year, or in the nearest years that report them. A label
 FAOSTAT never gives an item area for in that country is split evenly.</p></li>
 <li><p><code>"equal"</code> gives every item sharing the label the same share.</p></li>
+</ul></dd>
+
+
+<dt id="arg-meat-nes-backcast">meat_nes_backcast<a class="anchor" aria-label="anchor" href="#arg-meat-nes-backcast"></a></dt>
+<dd><p>Character. What the pre-1962 back-cast does with
+item 1166, "Meat nes". FAO defines it as "including frog legs, marine
+mammals, etc." (FAO 1994, <em>Definition and Classification of
+Commodities</em>, chapter 17), so in whaling countries its 1961 anchor is
+mostly whale meat: FAOSTAT has 193 kt for Japan in 1963, against 186,501
+t of whale meat in Japan's own 1963 statistics (Shapiro, <em>The Fisheries
+of Japan</em>, US Fish and Wildlife Service Circular 233, Table 8, p. 13;
+whep#1538). WHEP has no whaling series to split the item on.</p><ul><li><p><code>"agriland"</code> (default, current published behaviour) scales the first
+reported value back on agricultural land like any herdless livestock
+product, so its rows read <code>"LUH2_agriland"</code>. Whatever marine-mammal
+meat the anchor holds is carried back in proportion to farmland, which
+bears no relation to historical whaling: Japan's 1950-1960 back-cast is
+1.89 Mt of the world's 6.46 Mt.</p></li>
+<li><p><code>"none"</code> leaves the back-cast years of 1166 empty in every area. A
+value supplied through <code>historical_data</code> is still kept. This also drops
+the terrestrial "other meat" the item holds elsewhere (France, India,
+Ethiopia), because the two cannot be told apart.</p></li>
 </ul></dd>
 
 
