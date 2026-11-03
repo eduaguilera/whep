@@ -2754,6 +2754,8 @@ utils::globalVariables(
     "rebase_old_new",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
+    # cbs_coverage.R — bucket source-policy stamp (whep#1481).
+    "method_cbs_coverage",
     NULL
   )
 )

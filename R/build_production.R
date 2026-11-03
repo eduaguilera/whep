@@ -394,7 +394,8 @@ build_primary_production <- function(
   # The one place both member records meet before the sums travel on: say
   # where a balance-sheet source covers a bucket partially (whep#588).
   .warn_partial_source_coverage(fao_crop_liv, cb_extracts)
-  .strip_bucket_members(c(list(fao_crop_liv), cb_extracts))
+  # The CBS needs the extracts' member sets before choosing sources.
+  .strip_bucket_members(list(fao_crop_liv))
   # The reporting identity the folds emitted, parked before the reductions
   # below drop it and written back at the end (whep#707).
   polity_identity <- .park_polity_identity(c(list(fao_crop_liv), cb_extracts))
