@@ -606,3 +606,363 @@ testthat::test_that("get_primary_residues rejects an unknown oil palm method", {
     class = "rlang_error"
   )
 })
+
+# Sugar cane trash (whep#1551) -------------------------------------------------
+
+# Brazil 2010 as the pin carries it: a recovered trash row and FAOSTAT's cane
+# tonnes. A Spanish rapeseed row stands for every other crop on the pin.
+sugar_cane_pin <- function(residue = 150e6) {
+  cane <- tibble::tibble(
+    Area = "Brazil",
+    Item_prod = "Sugar cane",
+    Item_cbs_crop = "Sugar cane",
+    Name_biomass = "Sugarcane"
+  )
+  residue_pin(
+    dplyr::bind_rows(
+      dplyr::mutate(
+        cane,
+        Item_cbs = "Other crop residues",
+        Prod_ygpit_Mg = residue
+      ),
+      crop_rows("rapeseed", "Spain", 70)
+    ),
+    dplyr::mutate(
+      cane,
+      Item_cbs = "Sugar cane",
+      Prod_ygpit_Mg = 717462101,
+      Area_ygpit_ha = 9076706
+    )
+  ) |>
+    dplyr::mutate(Year = 2010L)
+}
+
+testthat::test_that("sugar cane trash is 0.14 t of dry matter per t of cane", {
+  # whep#1551. The pin's ratio put world cane trash at 0.206 t DM per t of
+  # cane, 1.47 times Hassuani et al. (2005). The default anchors it on their
+  # 140 kg DM per t of stalk, whatever the pin's own residue figure, and the
+  # anchor is not divided by the pin's recovery rate on top.
+  local_mocked_bindings(whep_read_file = function(name, ...) sugar_cane_pin())
+
+  out <- whep::get_primary_residues()
+
+  cane <- out[out$item_cbs_code_crop == 2536, ]
+  testthat::expect_equal(cane$value_dm, 0.14 * 717462101)
+  testthat::expect_equal(
+    cane$value,
+    0.14 * 717462101 / biomass_coef("Sugarcane", "Residue_kgDM_kgFM")
+  )
+  testthat::expect_equal(cane$item_cbs_code_residue, 2106)
+  testthat::expect_equal(cane$method_residue, "hassuani_2005_provisional")
+  rape <- out[out$item_cbs_code_crop != 2536, ]
+  testthat::expect_equal(rape$method_residue, "pin")
+
+  # The pin's residue figure does not reach the anchored rows.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    sugar_cane_pin(residue = 1)
+  })
+  testthat::expect_equal(
+    whep::get_primary_residues()$value_dm[out$item_cbs_code_crop == 2536],
+    0.14 * 717462101
+  )
+})
+
+testthat::test_that("sugar cane trash can be kept as the pin's", {
+  local_mocked_bindings(whep_read_file = function(name, ...) sugar_cane_pin())
+
+  out <- whep::get_primary_residues(sugar_cane_residue = "pin")
+
+  cane <- out[out$item_cbs_code_crop == 2536, ]
+  testthat::expect_equal(cane$method_residue, "pin")
+  testthat::expect_false(isTRUE(all.equal(cane$value_dm, 0.14 * 717462101)))
+})
+
+testthat::test_that("sugar cane trash without its cane row aborts", {
+  # Without the cane row the anchor would come out NA, then be summed to zero
+  # and dropped: a missing input turned into no residue.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    dplyr::filter(sugar_cane_pin(), Product_residue == "Residue")
+  })
+
+  testthat::expect_error(
+    whep::get_primary_residues(),
+    class = "whep_residue_anchor_no_product"
+  )
+  out <- whep::get_primary_residues(sugar_cane_residue = "pin")
+  testthat::expect_true(any(out$item_cbs_code_crop == 2536))
+})
+
+testthat::test_that("get_primary_residues rejects an unknown cane method", {
+  testthat::expect_error(
+    whep::get_primary_residues(sugar_cane_residue = "per_hectare"),
+    class = "rlang_error"
+  )
+})
+
+# A source-specific gross-trash estimate must cover the requested polity/year;
+# it must not fall back to a global coefficient when local evidence is absent.
+.cane_supplied_fixture <- function() {
+  whep:::.add_reporting_polity_columns(
+    tibble::tibble(area_code = 21L, year = 2010L)
+  ) |>
+    dplyr::transmute(
+      reporting_polity_code,
+      year,
+      residue_dm_t = 123,
+      source = "offline_field_survey"
+    )
+}
+
+testthat::test_that("supplied cane gross DM is used once with provenance", {
+  local_mocked_bindings(whep_read_file = function(name, ...) sugar_cane_pin())
+  supplied <- .cane_supplied_fixture()
+  out <- whep::get_primary_residues(
+    sugar_cane_residue = "supplied",
+    sugar_cane_data = supplied
+  )
+  cane <- dplyr::filter(out, item_cbs_code_crop == 2536)
+  testthat::expect_equal(cane$value_dm, 123)
+  testthat::expect_equal(
+    cane$method_residue,
+    "supplied_gross_dm:offline_field_survey"
+  )
+  testthat::expect_identical(
+    cane$reporting_polity_code,
+    supplied$reporting_polity_code
+  )
+})
+
+testthat::test_that("supplied cane rejects missing and duplicate coverage", {
+  local_mocked_bindings(whep_read_file = function(name, ...) sugar_cane_pin())
+  supplied <- .cane_supplied_fixture()
+  testthat::expect_error(
+    whep::get_primary_residues(
+      sugar_cane_residue = "supplied",
+      sugar_cane_data = supplied[0, ]
+    ),
+    class = "whep_cane_missing_data"
+  )
+  testthat::expect_error(
+    whep::get_primary_residues(
+      sugar_cane_residue = "supplied",
+      sugar_cane_data = dplyr::bind_rows(supplied, supplied)
+    ),
+    class = "whep_cane_invalid_data"
+  )
+  supplied$residue_dm_t <- NA_real_
+  testthat::expect_error(
+    whep::get_primary_residues(
+      sugar_cane_residue = "supplied",
+      sugar_cane_data = supplied
+    ),
+    class = "whep_cane_invalid_data"
+  )
+})
+
+testthat::test_that("unused supplied cane data is never silently ignored", {
+  testthat::expect_error(
+    whep::get_primary_residues(sugar_cane_data = .cane_supplied_fixture()),
+    class = "whep_cane_unused_data"
+  )
+})
+
+testthat::test_that("residue anchors match resolved polities not names", {
+  pin <- sugar_cane_pin() |>
+    dplyr::rename_with(tolower) |>
+    dplyr::filter(name_biomass == "Sugarcane") |>
+    dplyr::mutate(area_code = 21L)
+  product <- dplyr::filter(pin, product_residue == "Product") |>
+    dplyr::mutate(area = "another display label")
+  residue <- dplyr::filter(pin, product_residue == "Residue")
+  out <- whep:::.residue_sugar_cane_anchored(residue, product, "per_product")
+  testthat::expect_equal(
+    out$prod_ygpit_mg * biomass_coef("Sugarcane", "Residue_kgDM_kgFM"),
+    product$prod_ygpit_mg * 0.14
+  )
+})
+
+.cane_anchor_fixture <- function() {
+  tibble::tibble(
+    name_biomass = "Sugarcane",
+    year = 2010L,
+    area = "Brazil",
+    area_code = 21L,
+    prod_ygpit_mg = 100
+  )
+}
+
+testthat::test_that("anchor cannot turn missing product into missing trash", {
+  residue <- .cane_anchor_fixture()
+  product <- residue
+  product$prod_ygpit_mg <- NA_real_
+  testthat::expect_error(
+    whep:::.residue_sugar_cane_anchored(residue, product, "per_product"),
+    class = "whep_residue_anchor_bad_product"
+  )
+})
+
+testthat::test_that("supplied cane source and year must be meaningful", {
+  supplied <- .cane_supplied_fixture()
+  supplied$year <- Inf
+  testthat::expect_error(
+    whep:::.check_cane_supplied_data(supplied),
+    class = "whep_cane_invalid_data"
+  )
+  supplied <- .cane_supplied_fixture()
+  supplied$source <- " "
+  testthat::expect_error(
+    whep:::.check_cane_supplied_data(supplied),
+    class = "whep_cane_invalid_data"
+  )
+})
+
+testthat::test_that("anchors retain distinct unresolved source keys visibly", {
+  rows <- .cane_anchor_fixture() |>
+    dplyr::mutate(area_code = NA_integer_, area = "unresolved source A")
+  rows <- dplyr::bind_rows(
+    rows,
+    dplyr::mutate(rows, area = "unresolved source B", prod_ygpit_mg = 200)
+  )
+  testthat::expect_warning(
+    out <- whep:::.residue_sugar_cane_anchored(rows, rows, "per_product"),
+    class = "whep_residue_anchor_source_identity"
+  )
+  testthat::expect_equal(nrow(out), 2L)
+  testthat::expect_true(all(is.na(out$area_code)))
+  testthat::expect_equal(
+    out$prod_ygpit_mg * biomass_coef("Sugarcane", "Residue_kgDM_kgFM"),
+    c(14, 28)
+  )
+})
+
+testthat::test_that("duplicate canonical anchor rows cannot double totals", {
+  residue <- .cane_anchor_fixture()
+  testthat::expect_error(
+    whep:::.residue_sugar_cane_anchored(
+      dplyr::bind_rows(residue, dplyr::mutate(residue, area = "alias")),
+      residue,
+      "per_product"
+    ),
+    class = "whep_residue_anchor_duplicate"
+  )
+})
+
+testthat::test_that("supplied zero is retained and non-cane rows stay unchanged", {
+  supplied <- .cane_supplied_fixture()
+  supplied$residue_dm_t <- 0
+  rows <- .cane_anchor_fixture()
+  out <- whep:::.residue_cane_supplied(rows, supplied)
+  testthat::expect_equal(out$prod_ygpit_mg, 0)
+  other <- dplyr::mutate(rows, name_biomass = "Wheat")
+  testthat::expect_equal(whep:::.residue_cane_supplied(other, supplied), other)
+})
+
+testthat::test_that("an anonymous unresolved source is never an identity", {
+  rows <- .cane_anchor_fixture() |>
+    dplyr::mutate(area = NA_character_, area_code = NA_integer_)
+  testthat::expect_error(
+    whep:::.residue_sugar_cane_anchored(rows, rows, "per_product"),
+    class = "whep_residue_anchor_missing_identity"
+  )
+  # A canonical identity does not require a display name.
+  rows$area_code <- 21L
+  out <- whep:::.residue_sugar_cane_anchored(rows, rows, "per_product")
+  testthat::expect_equal(
+    out$prod_ygpit_mg * biomass_coef("Sugarcane", "Residue_kgDM_kgFM"),
+    14
+  )
+})
+
+.expect_bad_anchor_year <- function(year) {
+  r <- dplyr::mutate(.cane_anchor_fixture(), year = .env$year)
+  testthat::expect_error(
+    whep:::.residue_sugar_cane_anchored(r, r, "per_product"),
+    class = "whep_residue_anchor_bad_year"
+  )
+}
+
+.expect_bad_anchor_fraction <- function(fraction) {
+  coefs <- tibble::tibble(
+    Name_biomass = "Sugarcane",
+    Residue_kgDM_kgFM = fraction
+  )
+  testthat::expect_error(whep:::.residue_anchor_kgdm("Sugarcane", coefs))
+}
+
+testthat::test_that("canonical product aliases cannot double anchor inputs", {
+  r <- .cane_anchor_fixture()
+  p <- dplyr::bind_rows(r, dplyr::mutate(r, area = "another source label"))
+  testthat::expect_error(
+    whep:::.residue_sugar_cane_anchored(r, p, "per_product"),
+    class = "whep_residue_anchor_duplicate"
+  )
+})
+
+testthat::test_that("anchor years are supplied finite annual identifiers", {
+  purrr::walk(c(NA_real_, Inf, 2010.5), .expect_bad_anchor_year)
+})
+
+testthat::test_that("anchor dry matter fractions obey physical bounds", {
+  purrr::walk(c(Inf, 1.2), .expect_bad_anchor_fraction)
+})
+
+testthat::test_that("canonical anchor identities respect annual intervals", {
+  rows <- dplyr::bind_rows(
+    dplyr::mutate(.cane_anchor_fixture(), area_code = 206L, year = 2011L),
+    dplyr::mutate(.cane_anchor_fixture(), area_code = 206L, year = 2012L)
+  )
+  keyed <- whep:::.residue_anchor_keys(rows, rows)
+  testthat::expect_equal(
+    keyed$residue$anchor_polity_code,
+    c("SUD-1956-2011", "F206-2011-2025")
+  )
+  testthat::expect_equal(keyed$residue$anchor_source_code, c(0L, 0L))
+  testthat::expect_equal(nrow(keyed$residue), 2L)
+})
+
+testthat::test_that("supplied coverage cannot borrow another year or source key", {
+  rows <- .cane_anchor_fixture()
+  supplied <- .cane_supplied_fixture()
+  wrong_year <- dplyr::mutate(supplied, year = year + 1L)
+  testthat::expect_error(
+    whep:::.residue_cane_supplied(rows, wrong_year),
+    class = "whep_cane_missing_data"
+  )
+  unresolved <- dplyr::mutate(rows, area_code = NA_integer_)
+  testthat::expect_error(
+    whep:::.residue_cane_supplied(unresolved, supplied),
+    class = "whep_cane_missing_data"
+  )
+  extra <- dplyr::bind_rows(supplied, wrong_year)
+  testthat::expect_equal(
+    whep:::.residue_cane_supplied(rows, extra),
+    whep:::.residue_cane_supplied(rows, supplied)
+  )
+})
+
+testthat::test_that("unresolved labels cannot override distinct source codes", {
+  r <- dplyr::mutate(
+    .cane_anchor_fixture(),
+    area = "unresolved",
+    area_code = 999991L
+  )
+  p <- dplyr::mutate(r, area_code = 999992L)
+  testthat::expect_error(
+    whep:::.residue_sugar_cane_anchored(r, p, "per_product"),
+    class = "whep_residue_anchor_source_ambiguous"
+  )
+})
+
+testthat::test_that("display label columns are optional only for resolved keys", {
+  rows <- dplyr::select(.cane_anchor_fixture(), -area)
+  out <- whep:::.residue_sugar_cane_anchored(rows, rows, "per_product")
+  testthat::expect_equal(
+    out$prod_ygpit_mg * biomass_coef("Sugarcane", "Residue_kgDM_kgFM"),
+    14
+  )
+  rows$area_code <- NA_integer_
+  testthat::expect_error(
+    whep:::.residue_sugar_cane_anchored(rows, rows, "per_product"),
+    class = "whep_residue_anchor_missing_identity"
+  )
+})
