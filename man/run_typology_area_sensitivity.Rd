@@ -23,7 +23,11 @@ loaded automatically (slow).}
 \code{create_typologies_spain()}, carrying \code{year}, \code{province_name},
 \code{LU_total}, \code{Typology_base} and the other indicator columns
 \code{.classify_typology_base()} acts on. If \code{NULL}, computed automatically
-(slow).}
+(slow).
+
+Inputs must resolve to dated polity identities. Duplicate aliases within a
+source polity-year, missing/non-finite UAA, zero UAA and unresolved
+territories abort with diagnostic rows; they never become classifications.}
 }
 \value{
 A tibble with columns \code{source} (\code{"Julia"}/\code{"Josette"}),
@@ -73,20 +77,20 @@ baseline <- tibble::tribble(
   ~animal_ingestion, ~synthetic_share, ~crop_productivity, ~LU_total,
   ~Livestock_density, ~imported_feed_share, ~feed_from_seminatural_share,
   ~local_feed_share, ~Manure_share, ~Typology_base,
-  2000, "A", 1, 100, 5, 0.8, 40, 500,
+  2000, "Huesca", 1, 100, 5, 0.8, 40, 500,
   0.1, 0.1, 0.1,
   0.1, 0.1, "Specialized cropping systems (intensive)",
-  2000, "B", 1, 10, 50, 0.1, 40, 6000,
+  2000, "Zaragoza", 1, 10, 50, 0.1, 40, 6000,
   0.4, 0.8, 0.1,
   0.1, 0.1, "Specialized livestock systems (extensive)"
 )
 npp_ygpit <- tibble::tribble(
   ~Year, ~Province_name, ~LandUse, ~Area_ygpit_ha,
-  2000, "A", "Cropland", 8000,
-  2000, "A", "Forest_high", 2000,
-  2000, "B", "Cropland", 4000,
-  2000, "B", "Pasture_Shrubland", 2000,
-  2000, "B", "Forest_high", 9000
+  2000, "Huesca", "Cropland", 8000,
+  2000, "Huesca", "Forest_high", 2000,
+  2000, "Zaragoza", "Cropland", 4000,
+  2000, "Zaragoza", "Pasture_Shrubland", 2000,
+  2000, "Zaragoza", "Forest_high", 9000
 )
 sensitivity <- run_typology_area_sensitivity(
   npp_ygpit = npp_ygpit,

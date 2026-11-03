@@ -42,6 +42,10 @@
 #'   `.classify_typology_base()` acts on. If `NULL`, computed automatically
 #'   (slow).
 #'
+#' Inputs must resolve to dated polity identities. Duplicate aliases within a
+#' source polity-year, missing/non-finite UAA, zero UAA and unresolved
+#' territories abort with diagnostic rows; they never become classifications.
+#'
 #' @return A tibble with columns `source` (`"Julia"`/`"Josette"`),
 #'   `uaa_threshold`, `area_basis` (`"whole_province"`/`"uaa"`),
 #'   `agreement_pct` (share of province-years keeping the baseline's
@@ -59,20 +63,20 @@
 #'   ~animal_ingestion, ~synthetic_share, ~crop_productivity, ~LU_total,
 #'   ~Livestock_density, ~imported_feed_share, ~feed_from_seminatural_share,
 #'   ~local_feed_share, ~Manure_share, ~Typology_base,
-#'   2000, "A", 1, 100, 5, 0.8, 40, 500,
+#'   2000, "Huesca", 1, 100, 5, 0.8, 40, 500,
 #'   0.1, 0.1, 0.1,
 #'   0.1, 0.1, "Specialized cropping systems (intensive)",
-#'   2000, "B", 1, 10, 50, 0.1, 40, 6000,
+#'   2000, "Zaragoza", 1, 10, 50, 0.1, 40, 6000,
 #'   0.4, 0.8, 0.1,
 #'   0.1, 0.1, "Specialized livestock systems (extensive)"
 #' )
 #' npp_ygpit <- tibble::tribble(
 #'   ~Year, ~Province_name, ~LandUse, ~Area_ygpit_ha,
-#'   2000, "A", "Cropland", 8000,
-#'   2000, "A", "Forest_high", 2000,
-#'   2000, "B", "Cropland", 4000,
-#'   2000, "B", "Pasture_Shrubland", 2000,
-#'   2000, "B", "Forest_high", 9000
+#'   2000, "Huesca", "Cropland", 8000,
+#'   2000, "Huesca", "Forest_high", 2000,
+#'   2000, "Zaragoza", "Cropland", 4000,
+#'   2000, "Zaragoza", "Pasture_Shrubland", 2000,
+#'   2000, "Zaragoza", "Forest_high", 9000
 #' )
 #' sensitivity <- run_typology_area_sensitivity(
 #'   npp_ygpit = npp_ygpit,
@@ -88,21 +92,10 @@ run_typology_area_sensitivity <- function(
       n_prov_destiny = n_prov_destiny,
       make_map = FALSE
     )
-  baseline <- dplyr::ungroup(baseline)
+  baseline <- .uaa_key_panel(dplyr::ungroup(baseline))
   npp_ygpit <- npp_ygpit %||% whep_read_file("npp_ygpit")
 
-  baseline_uaa <- baseline |>
-    dplyr::left_join(
-      .calculate_uaa_area(npp_ygpit),
-      by = c("year" = "Year", "province_name" = "Province_name")
-    ) |>
-    dplyr::mutate(
-      Livestock_density = dplyr::if_else(
-        is.na(Area_ha_uaa) | Area_ha_uaa == 0,
-        NA_real_,
-        LU_total / Area_ha_uaa
-      )
-    )
+  baseline_uaa <- .attach_uaa_density(baseline, npp_ygpit)
 
   area_bases <- list(whole_province = baseline, uaa = baseline_uaa)
 
@@ -157,17 +150,52 @@ run_typology_area_sensitivity <- function(
 #'
 #' @param npp_ygpit Output of `whep_read_file("npp_ygpit")`.
 #'
-#' @return A tibble with `Year`, `Province_name`, `Area_ha_uaa`.
+#' @return A tibble with `Year`, `reporting_polity_code`, `Area_ha_uaa`.
 #' @keywords internal
 #' @noRd
 .calculate_uaa_area <- function(npp_ygpit) {
-  npp_ygpit |>
-    dplyr::filter(LandUse %in% c("Cropland", "Pasture_Shrubland", "Dehesa")) |>
-    dplyr::group_by(Year, Province_name) |>
-    dplyr::summarise(
-      Area_ha_uaa = sum(Area_ygpit_ha, na.rm = TRUE),
-      .groups = "drop"
+  .uaa_require_columns(
+    npp_ygpit,
+    c("Year", "Province_name", "LandUse", "Area_ygpit_ha")
+  )
+  if (anyNA(npp_ygpit$LandUse) || any(!nzchar(npp_ygpit$LandUse))) {
+    cli::cli_abort(
+      "UAA source rows require explicit land-use categories.",
+      class = "whep_uaa_missing_support"
     )
+  }
+  rows <- npp_ygpit |>
+    dplyr::filter(LandUse %in% c("Cropland", "Pasture_Shrubland", "Dehesa")) |>
+    .uaa_polity_rows() |>
+    dplyr::rename(year = Year)
+  if (
+    !is.numeric(rows$Area_ygpit_ha) ||
+      any(!is.finite(rows$Area_ygpit_ha) | rows$Area_ygpit_ha < 0)
+  ) {
+    cli::cli_abort(
+      "UAA requires finite, non-negative supplied area values.",
+      class = "whep_uaa_missing_support"
+    )
+  }
+  aliases <- rows |>
+    dplyr::summarise(
+      uaa_source_labels = dplyr::n_distinct(Province_name),
+      .by = c(year, reporting_polity_code)
+    ) |>
+    dplyr::filter(uaa_source_labels > 1L)
+  if (nrow(aliases) > 0L) {
+    cli::cli_abort(
+      "Multiple source aliases supply the same polity-year UAA.",
+      class = "whep_uaa_duplicate_identity",
+      unresolved = aliases
+    )
+  }
+  rows |>
+    dplyr::summarise(
+      Area_ha_uaa = sum(Area_ygpit_ha),
+      .by = c(year, reporting_polity_code)
+    ) |>
+    dplyr::rename(Year = year)
 }
 
 #' @title Agreement and specialized-livestock count for one source/basis -----
@@ -200,19 +228,33 @@ run_typology_area_sensitivity <- function(
     "Specialized livestock systems (extensive)"
   )
 
+  baseline <- .uaa_key_panel(baseline)
+  result <- .uaa_key_panel(result)
+  key <- c("year", "reporting_polity_code")
+  missing <- dplyr::anti_join(baseline, result, by = key)
+  extra <- dplyr::anti_join(result, baseline, by = key)
+  if (
+    nrow(missing) > 0L ||
+      nrow(extra) > 0L ||
+      anyNA(baseline$Typology_base) ||
+      anyNA(result$Typology_base)
+  ) {
+    cli::cli_abort(
+      "Agreement requires complete classifications on identical polity-years.",
+      class = "whep_uaa_missing_support",
+      unresolved = missing
+    )
+  }
   baseline |>
-    dplyr::select(year, province_name, Typology_base) |>
+    dplyr::select(year, reporting_polity_code, Typology_base) |>
     dplyr::left_join(
-      dplyr::select(result, year, province_name, Typology_base),
-      by = c("year", "province_name"),
+      dplyr::select(result, year, reporting_polity_code, Typology_base),
+      by = key,
+      relationship = "one-to-one",
       suffix = c("_base", "_uaa")
     ) |>
     dplyr::summarise(
-      agreement_pct = mean(
-        Typology_base_base == Typology_base_uaa,
-        na.rm = TRUE
-      ) *
-        100,
+      agreement_pct = mean(Typology_base_base == Typology_base_uaa) * 100,
       n_specialized_livestock = sum(Typology_base_uaa %in% specialized)
     ) |>
     dplyr::mutate(
@@ -227,4 +269,121 @@ run_typology_area_sensitivity <- function(
       agreement_pct,
       n_specialized_livestock
     )
+}
+
+
+.uaa_require_columns <- function(rows, columns) {
+  if (!all(rlang::has_name(rows, columns))) {
+    cli::cli_abort(
+      "UAA input requires columns {.val {columns}}.",
+      class = "whep_uaa_missing_support"
+    )
+  }
+}
+
+# Source names are resolved only at ingestion. No unknown label is used as a
+# substitute identity: the pre-1927 Canary source territories remain subject
+# to whep-polities#741. Expose the unresolved observations instead of silently
+# classifying a missing denominator or matching historical names.
+.uaa_polity_rows <- function(rows) {
+  .uaa_require_columns(rows, c("Year", "Province_name"))
+  supplied <- if (rlang::has_name(rows, "reporting_polity_code")) {
+    rows$reporting_polity_code
+  }
+  rows <- .grafs_province_keys(rows)
+  invalid <- is.na(rows$reporting_polity_code)
+  if (!is.null(supplied)) {
+    invalid <- invalid |
+      is.na(supplied) |
+      supplied != rows$reporting_polity_code
+  }
+  unresolved <- rows[invalid, ]
+  if (nrow(unresolved) > 0L) {
+    if (!is.null(supplied)) {
+      unresolved$supplied_polity_code <- supplied[invalid]
+    }
+    cli::cli_abort(
+      "UAA sensitivity requires consistent, resolved dated polity identities.",
+      class = "whep_uaa_unresolved_identity",
+      unresolved = unresolved
+    )
+  }
+  rows |> dplyr::select(-grafs_geography_key)
+}
+
+.uaa_key_panel <- function(rows) {
+  .uaa_require_columns(rows, c("year", "province_name", "Typology_base"))
+  if (
+    nrow(rows) == 0L ||
+      anyNA(rows$Typology_base) ||
+      any(!nzchar(as.character(rows$Typology_base)))
+  ) {
+    cli::cli_abort(
+      "Typology sensitivity requires a non-empty classified panel.",
+      class = "whep_uaa_missing_support"
+    )
+  }
+  rows <- rows |>
+    dplyr::rename(Year = year, Province_name = province_name) |>
+    .uaa_polity_rows() |>
+    dplyr::rename(year = Year, province_name = Province_name)
+  duplicates <- rows |>
+    dplyr::count(year, reporting_polity_code) |>
+    dplyr::filter(n > 1L)
+  if (nrow(duplicates) > 0L) {
+    cli::cli_abort(
+      "Typology panel has repeated dated polity identities.",
+      class = "whep_uaa_duplicate_identity",
+      unresolved = duplicates
+    )
+  }
+  rows
+}
+
+.attach_uaa_density <- function(baseline, npp_ygpit) {
+  .uaa_require_columns(baseline, c("LU_total", "Livestock_density"))
+  if (
+    !is.numeric(baseline$LU_total) ||
+      any(!is.finite(baseline$LU_total) | baseline$LU_total < 0) ||
+      !is.numeric(baseline$Livestock_density) ||
+      any(
+        !is.finite(baseline$Livestock_density) |
+          baseline$Livestock_density < 0
+      )
+  ) {
+    cli::cli_abort(
+      "Sensitivity requires finite, non-negative livestock indicators.",
+      class = "whep_uaa_missing_support"
+    )
+  }
+  .uaa_require_columns(npp_ygpit, "Year")
+  if (
+    !is.numeric(npp_ygpit$Year) ||
+      any(!is.finite(npp_ygpit$Year)) ||
+      any(npp_ygpit$Year != floor(npp_ygpit$Year))
+  ) {
+    cli::cli_abort(
+      "UAA source years must be supplied finite integers.",
+      class = "whep_grafs_geography"
+    )
+  }
+  area <- npp_ygpit |>
+    dplyr::filter(Year %in% baseline$year) |>
+    .calculate_uaa_area()
+  result <- baseline |>
+    dplyr::left_join(
+      area,
+      by = c("year" = "Year", "reporting_polity_code"),
+      relationship = "one-to-one"
+    )
+  unresolved <- result |>
+    dplyr::filter(!is.finite(Area_ha_uaa) | Area_ha_uaa <= 0)
+  if (nrow(unresolved) > 0L) {
+    cli::cli_abort(
+      "Every classified polity-year requires supplied positive UAA.",
+      class = "whep_uaa_missing_support",
+      unresolved = unresolved
+    )
+  }
+  result |> dplyr::mutate(Livestock_density = LU_total / Area_ha_uaa)
 }
