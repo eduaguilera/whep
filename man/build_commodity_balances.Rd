@@ -561,6 +561,12 @@ value, so it is dropped rather than guessed when the parts do not agree.
 Rows sourced from \code{"FAOSTAT_prod"} are \code{NA} today because
 \code{\link[=build_primary_production]{build_primary_production()}} does not carry the flag out of the
 production pin.
+
+Both formats retain a \code{residue_feed_kgdm} attribute with the crop-mix
+dry-matter content behind their residue feed, including the selected
+historical back-cast. The feed allocator uses this provenance; formats
+such as CSV that discard attributes cannot preserve it. Custom balances
+without it retain the residue reader and warn on uncovered feed rows.
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data.
