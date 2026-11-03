@@ -748,7 +748,7 @@
 #' derives from the energy balance. Since whep#601 the manure engine reads
 #' the sourced [ipcc_n_excretion_tier1] by default; this table is read only
 #' under `nex_source = "as_shipped"` (see [manure_engine_options]) and as the
-#' fallback for a row that table prices at nothing.
+#' fallback only when `nex_missing = "as_shipped"` is explicitly requested.
 #'
 #' @format A tibble with `region`, `category`, `nex_kg_n_head_yr`.
 #'
@@ -795,8 +795,9 @@
 #' `"Chickens"` (the chicken aggregate, for a chicken that is neither),
 #' `"Turkeys"`, `"Ducks"`, `"Sheep"`, `"Goats"`, `"Horses"`,
 #' `"Mules and Asses"` and `"Camels"`. Geese have no row in either table; a
-#' row this table prices at nothing keeps the as-shipped value, and
-#' `method_manure_n2o` says so (`nex_as_shipped_fallback`).
+#' missing coefficient aborts by default. Only an explicit
+#' `nex_missing = "as_shipped"` requests a legacy value, stamped in
+#' `method_manure_n2o` as `nex_as_shipped_fallback`.
 #'
 #' @format A tibble with one row per `edition`, `region` and `category`:
 #'   - `edition`: `"ipcc_2019"`.
@@ -819,8 +820,11 @@
 #' goats 1.28 to 1.42). FAOSTAT's 2020 Tier 1 figures for the same heads are
 #' 22.2 Tg N for sheep and 25.3 for goats, because FAOSTAT takes its rates
 #' from the 2006 table (FAOSTAT Livestock Manure methodological note, 2025).
-#' Every row resolved an IPCC region; the only fallback rows were geese and
-#' 163 buffalo head in North America and Oceania.
+#' This historical comparison uses the explicitly selectable hybrid policy
+#' `nex_missing = "as_shipped"`. Every row resolved an IPCC region; missing
+#' coefficients were geese and 163 buffalo head in North America and Oceania.
+#' The strict default now aborts on those rows, rather than returning a
+#' partial total or silently choosing that hybrid.
 #'
 #' @section Why the 2019 sheep and goat rates are kept:
 #' The default follows the package's 2019 edition precedent. The difference

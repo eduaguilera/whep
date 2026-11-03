@@ -3794,15 +3794,17 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
 # region mapping below (whep#601). Before whep#601 only the two cattle
 # groups were regional and every value came from whep::ipcc_2019_n_excretion,
 # whose per-head numbers no IPCC table publishes.
-#   - A group whose region does not resolve, or which the 2019 table does
-#     not price (buffalo in North America and Oceania), takes the "Global"
-#     row of whep::ipcc_2019_n_excretion, labelled `as_shipped_global`.
-#   - species_group 'other' (rabbits, rodents, animals nes) has no
-#     IPCC entry and falls back to a small constant 2 kg N/head/year.
+#   - Missing region/category coefficients abort with `whep_missing_nex` and
+#     a `missing_coefficients` table. An absent input never becomes zero.
+#   - Only an explicit `nex_missing = "as_shipped"` requests the old Global
+#     coefficient (`as_shipped_global`) and, for groups without one, the
+#     assumed 2 kg N/head/year (`fallback_other_2kg`). To request that hybrid
+#     from prepare_livestock_inputs(), pass this explicitly built table as
+#     nex_source. It is not the fully sourced 2019 method.
 #
 # The Krausmann -> IPCC region table below covers all 11 Krausmann
-# regions; countries with no Krausmann classification fall back to
-# Global. Output is materialised to L_files/whep/outputs/n_excretion.parquet
+# regions; countries with no Krausmann classification require an explicit
+# missing-coefficient policy. Output is materialised to L_files/whep/outputs/n_excretion.parquet
 # so it can be inspected and reused outside this prep step.
 
 .species_to_ipcc_2019_category <- function() {
@@ -3839,7 +3841,8 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
   )
 }
 
-.compute_default_n_excretion <- function(keys) {
+.compute_default_n_excretion <- function(keys, nex_missing = "error") {
+  nex_missing <- rlang::arg_match(nex_missing, c("error", "as_shipped"))
   species_to_ipcc <- .species_to_ipcc_2019_category()
   krausmann_to_ipcc <- .krausmann_to_ipcc_nex_region()
 
@@ -3860,11 +3863,33 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
     dplyr::filter(region == "Global") |>
     dplyr::select(ipcc_category = category, nex_global = nex_kg_n_head_yr)
 
-  keys |>
+  matched <- keys |>
     dplyr::left_join(species_to_ipcc, by = "species_group") |>
     dplyr::left_join(area_to_region, by = "area_code") |>
     dplyr::left_join(nex_2019, by = c("ipcc_region", "ipcc_category")) |>
-    dplyr::left_join(nex_global, by = "ipcc_category") |>
+    dplyr::left_join(nex_global, by = "ipcc_category")
+  missing <- is.na(matched$nex_2019)
+  if (nex_missing == "error" && any(missing)) {
+    cli::cli_abort(
+      c(
+        "No IPCC 2019 N-excretion coefficient for {sum(missing)} row{?s}.",
+        i = "Inspect the condition's {.field missing_coefficients} table.",
+        i = "Supply a sourced {.arg nex_source} table, or explicitly build \
+          one with {.code nex_missing = 'as_shipped'} to request the legacy \
+          regional fallback and assumed 2 kg N/head/year for other animals."
+      ),
+      class = "whep_missing_nex",
+      missing_coefficients = dplyr::select(
+        matched[missing, ],
+        year,
+        area_code,
+        species_group,
+        ipcc_region,
+        ipcc_category
+      )
+    )
+  }
+  matched |>
     dplyr::mutate(
       source = dplyr::case_when(
         !is.na(nex_2019) ~ "ipcc_2019_tier1_regional",

@@ -30,7 +30,7 @@ manure N2O path consumes, and the same quantity the Tier 2 path
 derives from the energy balance. Since whep#601 the manure engine reads
 the sourced \link{ipcc_n_excretion_tier1} by default; this table is read only
 under \code{nex_source = "as_shipped"} (see \link{manure_engine_options}) and as the
-fallback for a row that table prices at nothing.
+fallback only when \code{nex_missing = "as_shipped"} is explicitly requested.
 }
 \examples{
 ipcc_2019_n_excretion

@@ -96,16 +96,25 @@
 #'   * `"ipcc_2019"` (default): [ipcc_n_excretion_tier1], the 2019
 #'     Refinement's Equation 10.30 (Updated) over the Table 10.19 (Updated)
 #'     rate and the Table 10A.5 (New) typical animal mass, by IPCC region. A
-#'     row the edition prices at nothing keeps the as-shipped value, stamped
-#'     `nex_as_shipped_fallback`.
+#'     missing coefficient aborts by default; see `nex_missing` below.
 #'   * `"as_shipped"`: [ipcc_2019_n_excretion], per-head values no IPCC table
 #'     publishes, read before whep#601. Kept so earlier figures stay
 #'     reproducible.
 #'
+#'   `nex_missing` selects what happens when the 2019 table has no
+#'   coefficient for a species and region:
+#'   * `"error"` (default): abort with class `whep_missing_nex`; the condition's
+#'     `missing_coefficients` tibble identifies input rows, species, region,
+#'     category and available population context. No partial result is returned.
+#'   * `"as_shipped"`: explicitly request the legacy coefficient for missing
+#'     2019 rows, stamped `nex_as_shipped_fallback`. This is a hybrid estimate,
+#'     not a fully 2019-derived result. Rows absent from both tables still abort.
+#'
 #'   `method_manure_n2o` records which (`nex_ipcc_2019` or
-#'   `nex_as_shipped`). On FAOSTAT 2020 heads the default lowers Tier 1 N
+#'   `nex_as_shipped`). On FAOSTAT 2020 heads the hybrid lowers Tier 1 N
 #'   excretion from 144.9 to 126.3 Tg N and Tier 1 manure N2O from 2.151 to
-#'   1.962 Tg.
+#'   1.962 Tg when `nex_missing = "as_shipped"` explicitly permits the
+#'   missing geese and regional buffalo coefficients in that population.
 #'
 #'   `mms_shares` selects which half of [regional_mms_distribution] the
 #'   split is read from: `"gleam_2_0"` (default) is the GLEAM 2.0 Supplement
@@ -234,10 +243,10 @@ NULL
   if (!rlang::has_name(data, "species_gen")) {
     data <- dplyr::mutate(data, species_gen = .get_general_species(species))
   }
-  nex_source <- .manure_options(options)$nex_source
+  nex_options <- .manure_options(options)
   data <- data |>
     dplyr::mutate(method_manure_n2o = "IPCC_2019_Tier1") |>
-    .join_n_excretion_tier1(nex_source) |>
+    .join_n_excretion_tier1(nex_options$nex_source, nex_options$nex_missing) |>
     .calc_direct_n2o(options) |>
     .calc_indirect_n2o(options)
   data |>
@@ -254,15 +263,20 @@ NULL
 #' `ipcc_2019_n_excretion`, the unsourced per-head table WHEP read before
 #' whep#601, kept so earlier figures stay reproducible.
 #'
-#' A row the 2019 edition prices at nothing keeps the as-shipped value,
-#' stamped `nex_as_shipped_fallback` in `method_manure_n2o` so it can be
-#' counted: a row whose IPCC region does not resolve (the as-shipped
+#' Missing coefficients abort unless `nex_missing = "as_shipped"` explicitly
+#' requests a legacy coefficient, stamped `nex_as_shipped_fallback`. This
+#' covers a row whose IPCC region does not resolve (the as-shipped
 #' `"Global"` row then applies), buffalo in North America and Oceania, which
 #' Table 10.19 marks NA, and a species neither table names (geese). The
 #' `region` this adds stays on the frame: the manure-management split keys on
 #' it (see `mms_region` in [manure_engine_options]).
 #' @noRd
-.join_n_excretion_tier1 <- function(data, nex_source = "ipcc_2019") {
+.join_n_excretion_tier1 <- function(
+  data,
+  nex_source = "ipcc_2019",
+  nex_missing = "error"
+) {
+  nex_missing <- rlang::arg_match(nex_missing, c("error", "as_shipped"))
   data <- data |>
     dplyr::mutate(
       manure_category = .nex_category_as_shipped(species, species_gen)
@@ -289,14 +303,60 @@ NULL
     paste(region, .nex_category_ipcc_2019(data$species, data$species_gen)),
     paste(nex$region, nex$category)
   )]
+  selected <- if (nex_missing == "as_shipped") {
+    dplyr::coalesce(nex_2019, shipped)
+  } else {
+    nex_2019
+  }
+  .check_nex_supplied(
+    data,
+    selected,
+    region,
+    .nex_category_ipcc_2019(data$species, data$species_gen)
+  )
   data |>
-    dplyr::mutate(n_excretion = dplyr::coalesce(nex_2019, shipped)) |>
+    dplyr::mutate(n_excretion = selected) |>
     .stamp_assumption("method_manure_n2o", "nex_ipcc_2019", !is.na(nex_2019)) |>
     .stamp_assumption(
       "method_manure_n2o",
       "nex_as_shipped_fallback",
       is.na(nex_2019)
     )
+}
+
+
+.check_nex_supplied <- function(data, nex, region, category) {
+  missing <- which(is.na(nex))
+  if (length(missing) == 0L) {
+    return(invisible(NULL))
+  }
+  missing_rows <- tibble::tibble(
+    row = missing,
+    species = data$species[missing],
+    region = region[missing],
+    category = category[missing]
+  ) |>
+    dplyr::bind_cols(dplyr::select(
+      data[missing, ],
+      dplyr::any_of(c(
+        "heads",
+        "year",
+        "area_code",
+        "iso3",
+        "reporting_polity_code"
+      ))
+    ))
+  cli::cli_abort(
+    c(
+      "No selected Tier 1 N-excretion coefficient for {length(missing)} row{?s}.",
+      i = "Inspect the condition's {.field missing_coefficients} table.",
+      i = "Supply supported species and regions, or explicitly request \
+        {.code options = list(nex_missing = 'as_shipped')} where legacy \
+        coefficients cover the missing rows."
+    ),
+    class = "whep_missing_nex",
+    missing_coefficients = missing_rows
+  )
 }
 
 #' The `ipcc_2019_n_excretion` category of each row.
@@ -1613,7 +1673,8 @@ NULL
     ef3_source = "ipcc_2019",
     slurry_crust = "half",
     indirect_n2o_fractions = "per_mms",
-    nex_source = "ipcc_2019"
+    nex_source = "ipcc_2019",
+    nex_missing = "error"
   )
   unknown <- setdiff(names(options), names(defaults))
   if (length(unknown) > 0) {
@@ -1638,6 +1699,7 @@ NULL
   slurry_crust <- opt$slurry_crust
   indirect_n2o_fractions <- opt$indirect_n2o_fractions
   nex_source <- opt$nex_source
+  nex_missing <- opt$nex_missing
   list(
     mms_shares = .mms_shares_arg(mms_shares),
     mms_region = rlang::arg_match(
@@ -1675,7 +1737,8 @@ NULL
       indirect_n2o_fractions,
       c("per_mms", "single")
     ),
-    nex_source = rlang::arg_match(nex_source, c("ipcc_2019", "as_shipped"))
+    nex_source = rlang::arg_match(nex_source, c("ipcc_2019", "as_shipped")),
+    nex_missing = rlang::arg_match(nex_missing, c("error", "as_shipped"))
   )
 }
 

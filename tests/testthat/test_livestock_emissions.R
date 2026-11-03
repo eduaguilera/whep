@@ -40,7 +40,7 @@ testthat::test_that("calculate_manure_emissions includes CH4 and N2O", {
 
 testthat::test_that("Tier 1 manure returns CH4 only", {
   result <- single_tier1_fixture("Sheep", 100) |>
-    calculate_manure_emissions()
+    calculate_manure_emissions(options = list(nex_missing = "as_shipped"))
 
   result |>
     pointblank::expect_col_exists("manure_ch4_tier1")
@@ -75,11 +75,19 @@ testthat::test_that("full pipeline returns enteric + manure", {
 testthat::test_that("Tier 2 gives uncovered species their Tier 1 value", {
   data <- .mixed_tier2_fixture()
   testthat::expect_message(
-    tier2 <- whep::calculate_livestock_emissions(data, tier = 2),
+    tier2 <- whep::calculate_livestock_emissions(
+      data,
+      tier = 2,
+      options = list(nex_missing = "as_shipped")
+    ),
     class = "whep_tier2_uncovered"
   )
   # Tier 1 puts cattle rows first, so align it on the species before comparing.
-  tier1 <- whep::calculate_livestock_emissions(data, tier = 1)
+  tier1 <- whep::calculate_livestock_emissions(
+    data,
+    tier = 1,
+    options = list(nex_missing = "as_shipped")
+  )
   tier1 <- tier1[match(data$species, tier1$species), ]
   cattle_only <- whep::calculate_livestock_emissions(data[2, ], tier = 2)
 
@@ -114,8 +122,8 @@ testthat::test_that("Tier 2 gives uncovered species their Tier 1 value", {
     tier1$manure_n2o_total[uncovered]
   )
   # Table 10.19 (Updated) prices N excretion by IPCC region for every species,
-  # and these rows carry none, so all three keep the as-shipped Global value
-  # and say so (whep#601).
+  # and these rows carry none, so the test explicitly requests the as-shipped
+  # Global coefficient and checks its stamp (whep#601).
   testthat::expect_true(all(
     tier2$method_manure_n2o[uncovered] ==
       paste(
@@ -143,7 +151,11 @@ testthat::test_that("a covered-only herd stays silent at Tier 2", {
 testthat::test_that("an all-uncovered herd needs no Tier 2 chain at all", {
   data <- .mixed_tier2_fixture()[c(1, 3), ]
   result <- suppressMessages(
-    whep::calculate_livestock_emissions(data, tier = 2)
+    whep::calculate_livestock_emissions(
+      data,
+      tier = 2,
+      options = list(nex_missing = "as_shipped")
+    )
   )
   testthat::expect_true(all(
     startsWith(result$method_enteric, "IPCC_2019_Tier1;")
@@ -183,8 +195,16 @@ testthat::test_that("abort names the uncovered species", {
 testthat::test_that("the enteric and manure wrappers cover the same way", {
   data <- .mixed_tier2_fixture()
   enteric <- suppressMessages(whep::calculate_enteric_ch4(data, tier = 2))
-  manure <- suppressMessages(whep::calculate_manure_emissions(data, tier = 2))
-  full <- suppressMessages(whep::calculate_livestock_emissions(data, tier = 2))
+  manure <- suppressMessages(whep::calculate_manure_emissions(
+    data,
+    tier = 2,
+    options = list(nex_missing = "as_shipped")
+  ))
+  full <- suppressMessages(whep::calculate_livestock_emissions(
+    data,
+    tier = 2,
+    options = list(nex_missing = "as_shipped")
+  ))
 
   testthat::expect_equal(enteric$enteric_ch4_tier2, full$enteric_ch4_tier2)
   testthat::expect_equal(manure$manure_ch4_tier2, full$manure_ch4_tier2)

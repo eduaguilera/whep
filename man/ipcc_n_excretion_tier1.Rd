@@ -53,8 +53,9 @@ Categories: \code{"Dairy Cattle"}, \code{"Other Cattle"}, \code{"Buffalo"},
 \code{"Chickens"} (the chicken aggregate, for a chicken that is neither),
 \code{"Turkeys"}, \code{"Ducks"}, \code{"Sheep"}, \code{"Goats"}, \code{"Horses"},
 \code{"Mules and Asses"} and \code{"Camels"}. Geese have no row in either table; a
-row this table prices at nothing keeps the as-shipped value, and
-\code{method_manure_n2o} says so (\code{nex_as_shipped_fallback}).
+missing coefficient aborts by default. Only an explicit
+\code{nex_missing = "as_shipped"} requests a legacy value, stamped in
+\code{method_manure_n2o} as \code{nex_as_shipped_fallback}.
 }
 \section{Measured effect}{
 
@@ -68,8 +69,11 @@ of the 2006 Table 10.19 rates outside North America (sheep 0.85 to 1.17,
 goats 1.28 to 1.42). FAOSTAT's 2020 Tier 1 figures for the same heads are
 22.2 Tg N for sheep and 25.3 for goats, because FAOSTAT takes its rates
 from the 2006 table (FAOSTAT Livestock Manure methodological note, 2025).
-Every row resolved an IPCC region; the only fallback rows were geese and
-163 buffalo head in North America and Oceania.
+This historical comparison uses the explicitly selectable hybrid policy
+\code{nex_missing = "as_shipped"}. Every row resolved an IPCC region; missing
+coefficients were geese and 163 buffalo head in North America and Oceania.
+The strict default now aborts on those rows, rather than returning a
+partial total or silently choosing that hybrid.
 }
 
 \section{Why the 2019 sheep and goat rates are kept}{

@@ -186,17 +186,28 @@ manure N2O terms scale with:
 \item \code{"ipcc_2019"} (default): \link{ipcc_n_excretion_tier1}, the 2019
 Refinement's Equation 10.30 (Updated) over the Table 10.19 (Updated)
 rate and the Table 10A.5 (New) typical animal mass, by IPCC region. A
-row the edition prices at nothing keeps the as-shipped value, stamped
-\code{nex_as_shipped_fallback}.
+missing coefficient aborts by default; see \code{nex_missing} below.
 \item \code{"as_shipped"}: \link{ipcc_2019_n_excretion}, per-head values no IPCC table
 publishes, read before whep#601. Kept so earlier figures stay
 reproducible.
 }
 
+\code{nex_missing} selects what happens when the 2019 table has no
+coefficient for a species and region:
+\itemize{
+\item \code{"error"} (default): abort with class \code{whep_missing_nex}; the condition's
+\code{missing_coefficients} tibble identifies input rows, species, region,
+category and available population context. No partial result is returned.
+\item \code{"as_shipped"}: explicitly request the legacy coefficient for missing
+2019 rows, stamped \code{nex_as_shipped_fallback}. This is a hybrid estimate,
+not a fully 2019-derived result. Rows absent from both tables still abort.
+}
+
 \code{method_manure_n2o} records which (\code{nex_ipcc_2019} or
-\code{nex_as_shipped}). On FAOSTAT 2020 heads the default lowers Tier 1 N
+\code{nex_as_shipped}). On FAOSTAT 2020 heads the hybrid lowers Tier 1 N
 excretion from 144.9 to 126.3 Tg N and Tier 1 manure N2O from 2.151 to
-1.962 Tg.
+1.962 Tg when \code{nex_missing = "as_shipped"} explicitly permits the
+missing geese and regional buffalo coefficients in that population.
 
 \code{mms_shares} selects which half of \link{regional_mms_distribution} the
 split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement
