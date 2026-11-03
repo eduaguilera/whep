@@ -289,6 +289,13 @@ build_cell_polity <- function(
 #'   cell_polity = NULL,
 #'   resolution = "polity_crop"
 #' )
+#' @section Territorial compatibility:
+#' This consumer still uses the numeric geography adapter. Distinct supplied
+#' reporting polities cannot share an area code within the same year; an
+#' ambiguous mapping aborts instead of pooling their observations. Native
+#' identity-keyed crop allocations are not yet consumed by this public path.
+#' Keep identity columns rather than removing them to bypass these checks;
+#' the remaining consumer migration is tracked in issues #1483 and #458.
 spatialize_country_n_to_crops <- function(
   country_totals,
   crop_shares,
@@ -301,6 +308,9 @@ spatialize_country_n_to_crops <- function(
   resolution <- rlang::arg_match(resolution)
   split <- rlang::arg_match(split)
   polity_validity <- rlang::arg_match(polity_validity)
+  .crop_alloc_legacy_check(country_totals)
+  .crop_alloc_legacy_check(crop_shares)
+  .crop_alloc_legacy_check(cell_polity)
   .n_check_totals_shares(country_totals, crop_shares)
   polity_crop <- .n_polity_crop_totals(country_totals, crop_shares)
   if (resolution == "polity_crop") {
@@ -880,6 +890,8 @@ spatialize_country_n_to_crops <- function(
     data,
     share = key
   )
+  .crop_alloc_legacy_check(polity_crop)
+  .crop_alloc_require_legacy(allocation$weights)
   pattern_weights <- .crop_allocation_cbs(allocation, item_prod_codes)
   cropland_weights <- dplyr::rename(
     allocation$fallback,

@@ -81,6 +81,8 @@
   allocation = NULL
 ) {
   resolution <- rlang::arg_match0(resolution, c("grid", "polity"))
+  .crop_alloc_legacy_check(production)
+  .crop_alloc_require_legacy(allocation$weights)
   national <- .sci_manure_crop_layer(production)
   if (resolution == "polity") {
     return(national)

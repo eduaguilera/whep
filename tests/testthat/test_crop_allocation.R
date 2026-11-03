@@ -213,11 +213,11 @@ testthat::test_that("national areas fold to the bucket only off the support", {
   )
   bucket <- whep:::.cell_polity_bucket_lookup()
   folded_code <- bucket$polity_area_code[bucket$area_code == 276L]
-  # The carbon path's support is keyed on the bucket: both fold onto it.
-  folded <- whep:::.sci_areas_to_bucket(areas, folded_code)
-  testthat::expect_identical(folded$area_code, folded_code)
-  testthat::expect_equal(folded$harvested_area_ha, 140)
-  # A support keyed on the polities' own codes meets their own areas.
+  # A bucket-only support cannot place the two territories faithfully.
+  testthat::expect_error(
+    whep:::.sci_areas_to_bucket(areas, folded_code),
+    class = "whep_crop_allocation_identity"
+  )
   kept <- whep:::.sci_areas_to_bucket(areas, c(276L, 277L))
   testthat::expect_setequal(kept$area_code, c(276L, 277L))
   testthat::expect_equal(sum(kept$harvested_area_ha), 140)
@@ -352,4 +352,196 @@ testthat::test_that("allocation weights are finite and nonnegative", {
       )
     })
   })
+})
+
+
+.ca_native_allocation <- function() {
+  list(
+    weights = tibble::tribble(
+      ~lon, ~lat, ~area_code, ~reporting_polity_code, ~item_prod_code,
+      ~year, ~crop_area_ha, ~area_weight,
+      0.25, 50.25, 999L, "FIXTURE-A", 15L, 2010L, 10, 1,
+      0.75, 50.25, 999L, "FIXTURE-B", 15L, 2010L, 10, 1
+    ),
+    fallback = tibble::tribble(
+      ~lon, ~lat, ~area_code, ~reporting_polity_code, ~year,
+      ~cropland_weight,
+      0.25, 50.25, 999L, "FIXTURE-A", 2010L, 1,
+      0.75, 50.25, 999L, "FIXTURE-B", 2010L, 1
+    )
+  )
+}
+
+.ca_native_totals <- function() {
+  tibble::tribble(
+    ~reporting_polity_code, ~area_code, ~item_prod_code, ~year, ~n_t,
+    "FIXTURE-A", 999L, 15L, 2010L, 30,
+    "FIXTURE-B", 999L, 15L, 2010L, 70
+  )
+}
+
+testthat::test_that("crop allocation keeps distinct same-bucket polities", {
+  allocation <- whep:::.crop_allocation_check(.ca_native_allocation(), 2010L)
+  result <- whep:::.crop_allocation_spread(
+    .ca_native_totals(),
+    allocation,
+    "n_t"
+  )$spread
+  testthat::expect_equal(sum(result$n_t), 100)
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_equal(result$lon, c(0.25, 0.75))
+  testthat::expect_equal(
+    result$reporting_polity_code,
+    c("FIXTURE-A", "FIXTURE-B")
+  )
+  testthat::expect_equal(result$n_t, c(30, 70))
+  mapping <- tibble::tribble(~item_prod_code, ~item_cbs_code, 15L, 2511L)
+  pooled <- whep:::.crop_allocation_cbs(allocation, mapping)
+  testthat::expect_equal(pooled$cell_share, c(1, 1))
+  testthat::expect_equal(
+    pooled$reporting_polity_code,
+    c("FIXTURE-A", "FIXTURE-B")
+  )
+})
+
+testthat::test_that("native NPP and fallback never cross polity identities", {
+  allocation <- .ca_native_allocation()
+  targets <- .ca_native_totals()
+  targets$item_prod_code[2] <- 44L
+  out <- whep:::.n_grid_npp(targets, allocation)
+  testthat::expect_equal(out$n_t, c(30, 70))
+  testthat::expect_equal(out$lon, c(0.25, 0.75))
+  testthat::expect_equal(out$reporting_polity_code, c("FIXTURE-A", "FIXTURE-B"))
+})
+
+testthat::test_that("native crop input needs no numeric geography", {
+  allocation <- purrr::map(.ca_native_allocation(), \(x) {
+    x |>
+      dplyr::select(-"area_code") |>
+      dplyr::rename(polity_code = "reporting_polity_code")
+  })
+  allocation <- whep:::.crop_allocation_check(allocation, 2010L)
+  targets <- dplyr::select(.ca_native_totals(), -"area_code")
+  result <- whep:::.crop_allocation_spread(targets, allocation, "n_t")$spread
+  testthat::expect_equal(result$n_t, c(30, 70))
+  testthat::expect_equal(result$lon, c(0.25, 0.75))
+})
+
+testthat::test_that("mixed crop geography resolves or rejects explicitly", {
+  allocation <- .ca_native_allocation()
+  legacy <- dplyr::select(.ca_native_totals(), -"reporting_polity_code")
+  testthat::expect_error(
+    whep:::.crop_allocation_spread(legacy, allocation, "n_t"),
+    class = "whep_crop_allocation_identity"
+  )
+  allocation <- purrr::map(allocation, \(x) {
+    dplyr::mutate(x, area_code = c(10L, 20L))
+  })
+  legacy$area_code <- c(10L, 20L)
+  result <- whep:::.crop_allocation_spread(legacy, allocation, "n_t")$spread
+  testthat::expect_equal(
+    result$reporting_polity_code,
+    c("FIXTURE-A", "FIXTURE-B")
+  )
+  testthat::expect_equal(result$n_t, c(30, 70))
+  legacy$area_code[1] <- 30L
+  testthat::expect_error(
+    whep:::.crop_allocation_spread(legacy, allocation, "n_t"),
+    class = "whep_crop_allocation_identity"
+  )
+})
+
+testthat::test_that("incomplete or conflicting crop identities are refused", {
+  allocation <- .ca_native_allocation()
+  allocation$weights$reporting_polity_code[1] <- NA_character_
+  testthat::expect_error(
+    whep:::.crop_allocation_check(allocation, 2010L),
+    class = "whep_crop_allocation_identity"
+  )
+  allocation <- .ca_native_allocation()
+  allocation$weights$polity_code <- c("FIXTURE-X", "FIXTURE-B")
+  testthat::expect_error(
+    whep:::.crop_allocation_check(allocation, 2010L),
+    class = "whep_crop_allocation_identity"
+  )
+})
+
+testthat::test_that("legacy crop consumers refuse identity erasure", {
+  allocation <- .ca_native_allocation()
+  testthat::expect_error(
+    whep:::.n_manure_crop_layer(
+      "grid",
+      .ca_native_totals(),
+      .ca_grid(),
+      allocation
+    ),
+    class = "whep_crop_allocation_identity"
+  )
+  testthat::expect_error(
+    whep:::.als_crop_composition(
+      list(crop_allocation = allocation),
+      .ca_grid(),
+      2010L
+    ),
+    class = "whep_crop_allocation_identity"
+  )
+  testthat::expect_error(
+    whep:::.crop_allocation(
+      2010L,
+      NULL,
+      list(gridded_crops = allocation$weights)
+    ),
+    class = "whep_crop_allocation_identity"
+  )
+})
+
+
+testthat::test_that("a successor alone cannot expand to a shared bucket", {
+  area <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2015L, 276L, 15L, 100
+  )
+  testthat::expect_error(
+    whep:::.sci_areas_to_bucket(area, 206L),
+    class = "whep_crop_allocation_identity"
+  )
+})
+
+testthat::test_that("the synthetic N caller rejects ambiguous identities", {
+  totals <- .ca_native_totals()
+  shares <- dplyr::mutate(totals, item_cbs_code = 2511L, area_share = 1)
+  testthat::expect_error(
+    whep::spatialize_country_n_to_crops(
+      totals,
+      shares,
+      .ca_grid(),
+      resolution = "grid",
+      data = list(crop_allocation = .ca_native_allocation())
+    ),
+    class = "whep_crop_allocation_identity"
+  )
+})
+
+testthat::test_that("NPP geography and commodity provenance are not scaled", {
+  targets <- dplyr::mutate(
+    .ca_native_totals(),
+    polity_area_code = 999L,
+    source_area_code = 10L,
+    item_cbs_code = 2511L
+  )
+  out <- whep:::.n_grid_npp(targets, .ca_native_allocation())
+  testthat::expect_equal(out$polity_area_code, c(999L, 999L))
+  testthat::expect_equal(out$source_area_code, c(10L, 10L))
+  testthat::expect_equal(out$item_cbs_code, c(2511L, 2511L))
+})
+
+
+testthat::test_that("out-of-scope sources are not folded into absent buckets", {
+  area <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2015L, 277L, 15L, 100
+  )
+  result <- whep:::.sci_areas_to_bucket(area, 10L)
+  testthat::expect_identical(result$area_code, 277L)
+  testthat::expect_equal(result$harvested_area_ha, 100)
 })

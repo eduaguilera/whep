@@ -19,6 +19,12 @@
 # run builds them once and every term reads the same table; it may carry
 # `share`, the name of the polity share of the cell it was built on.
 
+# Native supplied allocations use reporting_polity_code (or the producer's
+# polity_code alias) as geography; no numeric geography is required. Legacy
+# area_code remains supported only across unambiguous adapter boundaries.
+# Building native weights including fodder/support and the remaining public
+# carbon/manure/land consumers is a separate migration under #1483/#458.
+#
 # The allocation for `years` on the cell support `cell_polity`: a list of
 # `weights` (`lon`, `lat`, `area_code`, integer `item_prod_code`, `year`,
 # `crop_area_ha`, `area_weight` summing to 1 per polity-crop-year) and
@@ -31,6 +37,7 @@
   if (!is.null(data$crop_allocation)) {
     return(.crop_allocation_check(data$crop_allocation, years))
   }
+  .crop_alloc_legacy_check(data$gridded_crops)
   inputs <- data$engine_inputs %||% .sci_read_engine_inputs()
   fodder <- data$fodder_patterns %||% .sci_read_fodder_patterns()
   parts <- purrr::map(sort(unique(as.integer(years))), \(yr) {
@@ -102,25 +109,31 @@
 # still reconciled. A built one may hold no row in a year the engine placed
 # nothing in; the term spreading onto it refuses that with its own message.
 .crop_allocation_check <- function(allocation, years, supplied = TRUE) {
+  allocation$weights <- .crop_alloc_identity(allocation$weights)
+  allocation$fallback <- .crop_alloc_identity(allocation$fallback)
+  paired <- .crop_alloc_pair(allocation$weights, allocation$fallback)
+  allocation$weights <- paired$table
+  allocation$fallback <- paired$reference
+  geo <- .crop_alloc_key(allocation$weights)
   .check_columns(
     allocation$weights,
-    c("lon", "lat", "area_code", "item_prod_code", "year", "area_weight"),
+    c("lon", "lat", geo, "item_prod_code", "year", "area_weight"),
     "crop_allocation$weights"
   )
   .check_columns(
     allocation$fallback,
-    c("lon", "lat", "area_code", "year", "cropland_weight"),
+    c("lon", "lat", geo, "year", "cropland_weight"),
     "crop_allocation$fallback"
   )
   weights <- tibble::as_tibble(allocation$weights) |>
     dplyr::mutate(
-      area_code = as.integer(.data$area_code),
+      dplyr::across(dplyr::any_of("area_code"), as.integer),
       item_prod_code = .as_integer_quiet(.data$item_prod_code),
       year = as.integer(.data$year)
     )
   fallback <- tibble::as_tibble(allocation$fallback) |>
     dplyr::mutate(
-      area_code = as.integer(.data$area_code),
+      dplyr::across(dplyr::any_of("area_code"), as.integer),
       year = as.integer(.data$year)
     )
   absent <- setdiff(as.integer(years), fallback$year)
@@ -147,7 +160,7 @@
   sums <- dplyr::summarise(
     table,
     total = sum(.data[[col]]),
-    .by = dplyr::all_of(c("area_code", item, "year"))
+    .by = dplyr::all_of(c(.crop_alloc_key(table), item, "year"))
   )
   bad <- abs(sums$total - 1) > 1e-9
   if (any(bad)) {
@@ -165,7 +178,9 @@
 # Returns `lon`, `lat`, `area_code`, `year`, `item_cbs_code`, `cell_share`
 # summing to 1 per polity-item-year.
 .crop_allocation_cbs <- function(allocation, item_prod_codes) {
-  allocation$weights |>
+  weights <- .crop_alloc_identity(allocation$weights)
+  geo <- .crop_alloc_key(weights)
+  weights |>
     dplyr::inner_join(
       item_prod_codes,
       by = "item_prod_code",
@@ -173,17 +188,17 @@
     ) |>
     dplyr::summarise(
       ha = sum(.data$crop_area_ha),
-      .by = c("lon", "lat", "area_code", "year", "item_cbs_code")
+      .by = dplyr::all_of(c("lon", "lat", geo, "year", "item_cbs_code"))
     ) |>
     dplyr::filter(is.finite(.data$ha), .data$ha > 0) |>
     dplyr::mutate(
       cell_share = .data$ha / sum(.data$ha),
-      .by = c("area_code", "year", "item_cbs_code")
+      .by = dplyr::all_of(c(geo, "year", "item_cbs_code"))
     ) |>
     dplyr::select(
       "lon",
       "lat",
-      "area_code",
+      dplyr::all_of(geo),
       "year",
       "item_cbs_code",
       "cell_share"
@@ -195,18 +210,26 @@
 # it, else over the polity's cropland (`fallback`). Each extensive column's
 # polity-crop total is kept exactly; a polity-crop with no cell at all is
 # returned in the `unplaced` element for the caller to report or refuse. The
-# table's own key columns keep their types: the join runs on integer copies.
+# table's own key columns keep their types. Native joins use exact polity
+# strings and years; numeric-only inputs use temporary source-code keys.
 .crop_allocation_spread <- function(table, allocation, extensive) {
+  paired <- .crop_alloc_pair(table, allocation$weights)
+  table <- paired$table
+  allocation$weights <- paired$reference
+  paired <- .crop_alloc_pair(table, allocation$fallback)
+  table <- paired$table
+  allocation$fallback <- paired$reference
+  geo <- .crop_alloc_key(table)
   table <- dplyr::mutate(
     table,
-    .k_area = as.integer(.data$area_code),
+    .k_area = as.character(.data[[geo]]),
     .k_item = .as_integer_quiet(.data$item_prod_code),
     .k_year = as.integer(.data$year)
   )
   keys <- c(".k_area", ".k_item", ".k_year")
   weights <- dplyr::transmute(
     allocation$weights,
-    .k_area = .data$area_code,
+    .k_area = as.character(.data[[geo]]),
     .k_item = .data$item_prod_code,
     .k_year = .data$year,
     .data$lon,
@@ -215,7 +238,7 @@
   )
   fallback <- dplyr::transmute(
     allocation$fallback,
-    .k_area = .data$area_code,
+    .k_area = as.character(.data[[geo]]),
     .k_year = .data$year,
     .data$lon,
     .data$lat,
@@ -253,7 +276,14 @@
 # inputs do. Polity totals are kept exactly; a polity-crop with no cell at all
 # is left out and reported by the caller (.nbd_report_unspatialized()).
 .n_grid_npp <- function(npp, allocation) {
-  keys <- c("year", "area_code", "item_prod_code")
+  keys <- c(
+    "year",
+    "area_code",
+    "item_prod_code",
+    "item_cbs_code",
+    "polity_area_code",
+    "source_area_code"
+  )
   extensive <- setdiff(names(npp)[vapply(npp, is.numeric, TRUE)], keys)
   # .n_inputs_recycling() reads item_cbs_code straight off this table, while
   # .n_inputs_bnf() derives it from item_prod_code. Apply the package's own
@@ -264,4 +294,148 @@
     ) |>
     .crop_allocation_spread(allocation, extensive)
   out$spread
+}
+
+# The native producer (#1601/#1602) uses polity_code; consumers use the
+# canonical reporting identity. Numeric codes remain provenance, never a
+# second native geography key. Reject partial/conflicting identities.
+.crop_alloc_has_identity <- function(table) {
+  any(c("reporting_polity_code", "polity_code") %in% names(table))
+}
+
+.crop_alloc_identity <- function(table) {
+  if (rlang::has_name(table, "polity_code")) {
+    if (
+      rlang::has_name(table, "reporting_polity_code") &&
+        !identical(table$polity_code, table$reporting_polity_code)
+    ) {
+      cli::cli_abort(
+        "Conflicting polity identity columns.",
+        class = "whep_crop_allocation_identity"
+      )
+    }
+    table$reporting_polity_code <- table$polity_code
+  }
+  if (
+    rlang::has_name(table, "reporting_polity_code") &&
+      any(
+        is.na(table$reporting_polity_code) |
+          table$reporting_polity_code == ""
+      )
+  ) {
+    cli::cli_abort(
+      "Crop allocation contains a missing polity identity.",
+      class = "whep_crop_allocation_identity"
+    )
+  }
+  table
+}
+
+.crop_alloc_key <- function(table) {
+  if (rlang::has_name(table, "reporting_polity_code")) {
+    "reporting_polity_code"
+  } else {
+    "area_code"
+  }
+}
+
+# A mixed native/legacy boundary needs a one-to-one source-code/year map.
+# Never turn a bucket shared by distinct polities into a territorial match.
+.crop_alloc_pair <- function(table, reference) {
+  table <- .crop_alloc_identity(table)
+  reference <- .crop_alloc_identity(reference)
+  native <- c(
+    .crop_alloc_has_identity(table),
+    .crop_alloc_has_identity(reference)
+  )
+  if (native[1] != native[2]) {
+    if (native[1]) {
+      reference <- .crop_alloc_resolve(reference, table)
+    } else {
+      table <- .crop_alloc_resolve(table, reference)
+    }
+  }
+  list(table = table, reference = reference)
+}
+
+.crop_alloc_resolve <- function(table, reference) {
+  .check_columns(table, c("area_code", "year"), "legacy crop input")
+  .check_columns(reference, c("area_code", "year"), "identity crosswalk")
+  map <- reference |>
+    dplyr::transmute(
+      .k_area = as.character(.data$area_code),
+      .k_year = as.integer(.data$year),
+      .data$reporting_polity_code
+    ) |>
+    dplyr::distinct()
+  keyed <- table |>
+    dplyr::mutate(
+      .k_area = as.character(.data$area_code),
+      .k_year = as.integer(.data$year)
+    )
+  ambiguous <- map |>
+    dplyr::count(.data$.k_area, .data$.k_year) |>
+    dplyr::filter(.data$n > 1L)
+  missing <- dplyr::anti_join(keyed, map, by = c(".k_area", ".k_year"))
+  if (nrow(ambiguous) > 0L || nrow(missing) > 0L) {
+    cli::cli_abort(
+      "Legacy crop geography has an ambiguous or missing polity mapping.",
+      class = "whep_crop_allocation_identity"
+    )
+  }
+  keyed |>
+    dplyr::left_join(
+      map,
+      by = c(".k_area", ".k_year"),
+      relationship = "many-to-one"
+    ) |>
+    dplyr::select(-".k_area", -".k_year")
+}
+
+# Legacy callers can retain their numeric output contract only where every
+# code/year names at most one supplied identity. Native same-bucket inputs
+# must reach the identity-keyed path instead of losing their territory.
+.crop_alloc_legacy_check <- function(table) {
+  if (!.crop_alloc_has_identity(table)) {
+    return(invisible(NULL))
+  }
+  table <- .crop_alloc_identity(table)
+  if (!rlang::has_name(table, "area_code")) {
+    cli::cli_abort(
+      "Native crops require identity-keyed allocation weights and fallback.",
+      class = "whep_crop_allocation_identity"
+    )
+  }
+  keys <- c("area_code", intersect("year", names(table)))
+  ambiguous <- table |>
+    dplyr::distinct(dplyr::across(dplyr::all_of(c(
+      keys,
+      "reporting_polity_code"
+    )))) |>
+    dplyr::count(dplyr::across(dplyr::all_of(keys))) |>
+    dplyr::filter(.data$n > 1L)
+  if (nrow(ambiguous) > 0L) {
+    cli::cli_abort(
+      "Legacy crop geography would pool distinct polity identities.",
+      class = "whep_crop_allocation_identity"
+    )
+  }
+  invisible(NULL)
+}
+
+
+# A caller that has not migrated its output schema must not advertise native
+# allocation support merely because its current numeric keys are unique.
+.crop_alloc_require_legacy <- function(table) {
+  if (.crop_alloc_has_identity(table)) {
+    cli::cli_abort(
+      c(
+        "This crop consumer does not yet support native allocations.",
+        i = "Keep polity identities; do not drop them to bypass this guard.
+             The remaining consumer migration is tracked by #1483/#458."
+      ),
+      class = "whep_crop_allocation_identity"
+    )
+  }
+  invisible(NULL)
 }

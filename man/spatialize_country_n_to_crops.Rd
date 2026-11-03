@@ -119,6 +119,16 @@ Swapping the key moves \strong{where} the nitrogen lands, never how much of it
 there is. A pre-built \code{data$crop_allocation} is used as supplied, on the
 support it was built on.
 }
+\section{Territorial compatibility}{
+
+This consumer still uses the numeric geography adapter. Distinct supplied
+reporting polities cannot share an area code within the same year; an
+ambiguous mapping aborts instead of pooling their observations. Native
+identity-keyed crop allocations are not yet consumed by this public path.
+Keep identity columns rather than removing them to bypass these checks;
+the remaining consumer migration is tracked in issues #1483 and #458.
+}
+
 \examples{
 spatialize_country_n_to_crops(
   country_totals = tibble::tribble(

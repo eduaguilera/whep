@@ -1455,15 +1455,15 @@ testthat::test_that("the default runs the engine on the carbon support", {
   testthat::expect_identical(reads, 1L)
 })
 
-testthat::test_that("the engine's national table is folded onto the support's bucket", {
+testthat::test_that("the engine refuses a shared bucket and keeps source territories", {
   # Sudan (276) and South Sudan (277) report separately, but the carbon
-  # support is keyed on their shared bucket 206. Unfolded, neither finds a
-  # cell and the crop never reaches the grid.
+  # support cannot assign either observation to its territory using only
+  # their shared bucket 206. Reject that support instead of pooling totals.
   inputs <- list(
     country_areas = tibble::tribble(
       ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-      2010L, 276L,       15L,             30,
-      2010L, 277L,       15L,             10
+      2015L, 276L,       15L,             30,
+      2015L, 277L,       15L,             10
     ),
     crop_patterns = tibble::tribble(
       ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
@@ -1472,8 +1472,8 @@ testthat::test_that("the engine's national table is folded onto the support's bu
     ),
     gridded_cropland = tibble::tribble(
       ~lon,  ~lat,  ~year, ~cropland_ha,
-      30.25, 10.25, 2010L, 100,
-      30.75, 10.25, 2010L, 100
+      30.25, 10.25, 2015L, 100,
+      30.75, 10.25, 2015L, 100
     )
   )
   support <- tibble::tribble(
@@ -1481,7 +1481,13 @@ testthat::test_that("the engine's national table is folded onto the support's bu
     30.25, 10.25, 206L,       1,
     30.75, 10.25, 206L,       1
   )
-  out <- suppressMessages(whep:::.sci_engine_crops(2010L, support, inputs))
-  testthat::expect_setequal(out$area_code, 206L)
-  testthat::expect_equal(sum(out$rainfed_ha + out$irrigated_ha), 40)
+  testthat::expect_error(
+    whep:::.sci_engine_crops(2015L, support, inputs),
+    class = "whep_crop_allocation_identity"
+  )
+  support$area_code <- c(276L, 277L)
+  out <- suppressMessages(whep:::.sci_engine_crops(2015L, support, inputs)) |>
+    dplyr::arrange(.data$area_code)
+  testthat::expect_identical(out$area_code, c(276L, 277L))
+  testthat::expect_equal(out$rainfed_ha + out$irrigated_ha, c(30, 10))
 })

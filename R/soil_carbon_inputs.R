@@ -365,6 +365,7 @@ build_soil_carbon_inputs <- function(
 # rounded exactly as .sci_cell_crop_area() treats the static layer, so the two
 # methods join the components on the same keys.
 .sci_spatialized_weights <- function(layer) {
+  .crop_alloc_legacy_check(layer)
   .check_columns(
     layer,
     c(
@@ -420,22 +421,41 @@ build_soil_carbon_inputs <- function(
   )
 }
 
-# The engine's national table is keyed on raw reporting codes, while the carbon
-# support is folded onto the matrix bucket (`.carbon_fold_to_bucket()`), so
-# Sudan's 276 and South Sudan's 277 meet a support that only carries 206. Left
-# unfolded, their whole harvested area finds no cell and Sudan gets no
-# spatialized crops at all -- measured at 2010, 16.6 Tg C of Sudan's cropland
-# carbon then had no cell to land on. Folding the national side with the same
-# lookup keeps the two vocabularies one, and summing within the bucket moves
-# no hectare. A code the support itself carries is kept: a support keyed on
-# Sudan's and South Sudan's own codes (the nitrogen chain's year-aware
-# support) must meet their own areas, not the bucket's.
+# Legacy support may still use a matrix bucket where national observations
+# retain source codes. Keep a source code the support carries, and do not fold
+# into a bucket absent from a selected support. A shared bucket is not an
+# identity: reject both joint pooling and expanding a single successor over
+# a multi-territory support. Identity-keyed producer/consumer migration is
+# tracked in #1483/#458; totals alone cannot validate a territorial fold.
 .sci_areas_to_bucket <- function(country_areas, support_codes = NULL) {
+  .crop_alloc_legacy_check(country_areas)
   lookup <- .cell_polity_bucket_lookup()
   code <- as.integer(country_areas$area_code)
   bucket <- lookup$polity_area_code[match(code, lookup$area_code)]
   bucket[code %in% support_codes] <- NA_integer_
-  country_areas$area_code <- dplyr::coalesce(bucket, code)
+  # A subset support cannot justify a fold into a bucket it does not carry.
+  bucket[!is.null(support_codes) & !bucket %in% support_codes] <- NA_integer_
+  target <- dplyr::coalesce(bucket, code)
+  collisions <- tibble::tibble(
+    source = code,
+    target = target,
+    year = country_areas$year
+  ) |>
+    dplyr::distinct() |>
+    dplyr::count(.data$target, .data$year) |>
+    dplyr::filter(.data$n > 1L)
+  shared <- lookup |>
+    dplyr::distinct(.data$area_code, .data$polity_area_code) |>
+    dplyr::count(.data$polity_area_code) |>
+    dplyr::filter(.data$n > 1L)
+  expands <- target != code & target %in% shared$polity_area_code
+  if (nrow(collisions) > 0L || any(expands)) {
+    cli::cli_abort(
+      "Crop area bucket folding would pool distinct source territories.",
+      class = "whep_crop_allocation_identity"
+    )
+  }
+  country_areas$area_code <- target
   value_cols <- intersect(
     c("harvested_area_ha", "irrigated_area_ha"),
     names(country_areas)

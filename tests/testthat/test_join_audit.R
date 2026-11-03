@@ -654,7 +654,9 @@ test_that("every year-free territorial grouping is classified", {
   # 148 with whep#1448, on top of whep#1195's 146: one region row per area and
   # one ratio lookup per (crop, area) pair. Re-derived by running
   # `sum(.territorial_grouping_baseline()$n)`.
-  expect_lte(sum(full$n), 148L)
+  # Two additional dictionary-only groups guard shared bucket adapters in
+  # `.sci_areas_to_bucket()`; observations still retain their year.
+  expect_lte(sum(full$n), 150L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

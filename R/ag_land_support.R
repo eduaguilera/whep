@@ -88,6 +88,13 @@
 #' @export
 #' @examples
 #' build_ag_land_support(example = TRUE)
+#' @section Territorial compatibility:
+#' This consumer still uses the numeric geography adapter. Distinct supplied
+#' reporting polities cannot share an area code within the same year; an
+#' ambiguous mapping aborts instead of pooling their observations. Native
+#' identity-keyed crop allocations are not yet consumed by this public path.
+#' Keep identity columns rather than removing them to bypass these checks;
+#' the remaining consumer migration is tracked in issues #1483 and #458.
 build_ag_land_support <- function(
   years = NULL,
   grassland = c("gridded_pasture", "luh2", "none"),
@@ -184,6 +191,9 @@ build_ag_land_support <- function(
 # commodity balance items. Harvested hectares are used only to apportion the
 # physical hectares, never as an area themselves.
 .als_crop_composition <- function(data, cell_polity, years) {
+  .crop_alloc_legacy_check(cell_polity)
+  .crop_alloc_require_legacy(data$crop_allocation$weights)
+  .crop_alloc_legacy_check(data$harvested_area)
   allocation <- .crop_allocation(
     years,
     .normalize_carbon_support(cell_polity, "cell_polity"),

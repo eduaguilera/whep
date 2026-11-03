@@ -74,6 +74,16 @@ short of the cropland surface, as \code{"luh2"} does after 2015) keep their
 cropland support and raise a warning naming the affected years; supply
 \code{data$grassland_ha} to cover them.
 }
+\section{Territorial compatibility}{
+
+This consumer still uses the numeric geography adapter. Distinct supplied
+reporting polities cannot share an area code within the same year; an
+ambiguous mapping aborts instead of pooling their observations. Native
+identity-keyed crop allocations are not yet consumed by this public path.
+Keep identity columns rather than removing them to bypass these checks;
+the remaining consumer migration is tracked in issues #1483 and #458.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in

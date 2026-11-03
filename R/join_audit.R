@@ -1086,6 +1086,14 @@
     "The (crop, area) pairs the pin carries, so the residue:product ratio is
      looked up once per pair rather than once per year; the ratio has no
      year (whep#1448).",
+    ".sci_areas_to_bucket", "distinct", "area_code, polity_area_code", 1L,
+    "identity_lookup",
+    "The source-code/bucket dictionary, not observations. Used only to reject
+     shared bucket adapters; source observations retain their year.",
+    ".sci_areas_to_bucket", "count", "polity_area_code", 1L,
+    "identity_lookup",
+    "Counts distinct source codes in that static dictionary to reject
+     expanding one source territory over a shared bucket support.",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
