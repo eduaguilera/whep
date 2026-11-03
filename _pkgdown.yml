@@ -75,6 +75,8 @@ reference:
   contents:
   - build_polycell_land_uses
   - build_polycell_support
+  - build_reporting_support
+  - read_reporting_support
   - expand_polycell_years
   - polycell_example_geometries
   - read_polycell_support

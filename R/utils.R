@@ -2756,6 +2756,19 @@ utils::globalVariables(
     "ipcc_n_excretion_tier1",
     # polity_source_targets.R -- source-specific territorial interval join.
     "source_area_code",
+    # reporting_support.R -- source footprints and physical domain audit.
+    "domain_area_ha",
+    "domain_land_area_ha",
+    "domain_water_ha",
+    "domain_ice_free_ha",
+    "domain_water_excess_ha",
+    "water_fraction_ice_free",
+    "reporting_land_ha",
+    "unrepresented_land_ha",
+    "measured_land_area_ha",
+    "measured_reporting_land_ha",
+    "area_adjustment_ha",
+    "overlap_ha",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     # cbs_coverage.R — bucket source-policy stamp (whep#1481).

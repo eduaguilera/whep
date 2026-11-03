@@ -108,7 +108,13 @@ testthat::test_that("native reader rejects overlap roles and partial epochs", {
 
 testthat::test_that("native default reader is injectable and empty data refuse", {
   testthat::local_mocked_bindings(
-    read_polycell_support = function(...) .polity_grid_fixture(),
+    read_polycell_support = function(...) {
+      dplyr::mutate(
+        .polity_grid_fixture(),
+        partition_method = "explicit_reporting_inventory",
+        domain_land_area_ha = 100
+      )
+    },
     .package = "whep"
   )
   grid <- whep::read_level_country_grid(geographic_key = "polity")
