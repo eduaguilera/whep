@@ -268,9 +268,33 @@ build_cell_polity <- function(
 #'   absent. `item_cbs_code` in `crop_shares`/`country_totals` is matched to
 #'   the allocation's `item_prod_code` via [whep::items_prod_full] (the same
 #'   crosswalk [build_crop_land_extension()] uses).
+#'   Supply `primary_prod` with `year`, geography, `item_prod_code`, `unit`
+#'   and `value` to check each production component's harvested-area target.
+#'   Source and flag columns are retained in the coverage diagnostic.
+#'   `component_policy = "error"` (default) rejects missing/conflicting
+#'   component mappings, invalid or missing targets, or a
+#'   positive crop component absent from a partly represented CBS group.
+#'   `"legacy_pool"` explicitly retains placed-hectare pooling despite those
+#'   gaps and warns with class `whep_crop_component_coverage`; its
+#'   `missing_components` field identifies the affected source rows.
+#'   Whole-CBS cropland fallback remains separately reported. Neither policy
+#'   invents crop-specific support or fills a missing source area with zero.
+#'   Without production-item targets, coverage is stamped
+#'   `"targets_unavailable"`, never asserted complete.
+#' @section Annual keys:
+#' Supplied totals, crop shares, allocation tables and primary inventories
+#' require finite, nonmissing whole numeric years representable as R integers.
+#' Character years are rejected rather than coerced; validate and parse source
+#' dates before supplying them. Invalid years cannot be truncated or filtered
+#' away to conceal a missing crop component.
+#'
 #' @return A tibble. For `resolution = "polity_crop"`: `year`, `area_code`,
 #'   `item_cbs_code`, `n_t`. For `resolution = "grid"`: `lon`, `lat`,
-#'   `area_code`, `year`, `item_cbs_code`, `n_t` and `method_polity_split`.
+#'   `area_code`, `year`, `item_cbs_code`, `n_t`, `method_polity_split` and
+#'   `method_crop_components`. Grid output carries a
+#'   `crop_component_coverage` attribute with the supplied targets and their
+#'   coverage status. `"supplied_targets_covered"` checks only the supplied
+#'   component list, not completeness or correctness of the source inventory.
 #'   Either gains `reporting_polity_out_of_span` when
 #'   `polity_validity = "flag"`; this output carries no reporting-polity
 #'   columns, so the flag is attached directly rather than derived from them.
@@ -720,6 +744,7 @@ spatialize_country_n_to_crops <- function(
 # excluded), the shared numerator of both the area-share and the Coello
 # rate-weighted share.
 .n_crop_area_ha <- function(primary_prod) {
+  .crop_alloc_table_years(primary_prod)
   grass <- c(3000L, 3002L, 3003L)
   primary_prod |>
     dplyr::filter(
@@ -833,6 +858,8 @@ spatialize_country_n_to_crops <- function(
 
 # Polity-total N (one fert_type) x crop-area-share -> polity x crop N.
 .n_polity_crop_totals <- function(country_totals, crop_shares) {
+  .crop_alloc_table_years(country_totals)
+  .crop_alloc_table_years(crop_shares)
   # A total of zero has nothing to spread, so a polity with no crop-area share
   # and no nitrogen is not a spatialization failure -- it is a country that used
   # no fertiliser that year. Guarding on those aborted a real 2010 run on seven
@@ -892,6 +919,16 @@ spatialize_country_n_to_crops <- function(
   )
   .crop_alloc_legacy_check(polity_crop)
   .crop_alloc_require_legacy(allocation$weights)
+  audit <- .crop_component_audit(
+    allocation,
+    data$primary_prod,
+    item_prod_codes,
+    polity_crop
+  )
+  component_stamp <- .crop_component_check(
+    audit,
+    data$component_policy %||% "error"
+  )
   pattern_weights <- .crop_allocation_cbs(allocation, item_prod_codes)
   cropland_weights <- dplyr::rename(
     allocation$fallback,
@@ -904,7 +941,10 @@ spatialize_country_n_to_crops <- function(
     cropland_weights,
     key
   )
-  dplyr::bind_rows(matched, unmatched)
+  out <- dplyr::bind_rows(matched, unmatched) |>
+    dplyr::mutate(method_crop_components = .env$component_stamp)
+  attr(out, "crop_component_coverage") <- audit
+  out
 }
 
 # Polity-crops that have crop-pattern weights: distribute by cell_share.

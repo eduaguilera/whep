@@ -250,6 +250,11 @@
 #'   * `synthetic_method`: how the synthetic-N country total is split across
 #'     crops, `"coello"` (default; Coello 2025 rate-weighted, FAOSTAT-
 #'     conserving) or `"area_share"` (harvested-area shares only).
+#'   * `component_policy`: `"error"` (default) or explicitly `"legacy_pool"`,
+#'     passed with `primary_prod` to [spatialize_country_n_to_crops()] for
+#'     synthetic and FAOSTAT-manure component-coverage checks. The latter
+#'     warns and retains the former mixture when a CBS group has an absent
+#'     production component; it does not establish that mixture as correct.
 #'   * `coello_rates`: crop-specific synthetic-N rate table shaped like
 #'     [coello_synthetic_n] (`year`, `area_code`, `item_cbs_code`,
 #'     `kg_n_ha`); defaults to `whep::coello_synthetic_n`. Used only when
@@ -309,6 +314,8 @@
 #'   (`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
 #'   manure booked as solid for want of an engine split) and is `NA` for every
 #'   other `fert_type`.
+#'   `method_crop_components` records the gridded synthetic/FAOSTAT-manure
+#'   component-coverage treatment; other input streams carry `NA`.
 #'   `excreta_cpp_share` is the share of an `"excreta"` row's N deposited by
 #'   cattle, poultry and pigs, the animals of the IPCC 2019 EF3PRP,CPP factor
 #'   (Vol 4, Ch 11, Table 11.1 (Updated), p. 11.13); sheep and other animals
@@ -389,6 +396,8 @@ build_n_inputs <- function(
       .ni_manure_methods()
     )
   }
+  .crop_alloc_check_years(years)
+  .crop_alloc_table_years(data$primary_prod)
   .crop_alloc_refuse_patterns(data, "build_n_inputs")
   data$.n_input_resolution <- resolution
   data$.polity_validity <- polity_validity
@@ -548,6 +557,7 @@ build_n_inputs <- function(
     "n_input_t",
     "method_recycling_n",
     "method_synthetic",
+    "method_crop_components",
     "method_deposition",
     "method_deposition_scope",
     "method_human_population",
@@ -701,7 +711,9 @@ build_n_inputs <- function(
     crop_allocation = data$crop_allocation,
     gridded_crops = data$gridded_crops,
     engine_inputs = data$engine_inputs,
-    fodder_patterns = data$fodder_patterns
+    fodder_patterns = data$fodder_patterns,
+    primary_prod = data$primary_prod,
+    component_policy = data$component_policy
   )
 }
 
@@ -734,6 +746,7 @@ build_n_inputs <- function(
         "fert_type",
         "method_recycling_n",
         "method_synthetic",
+        "method_crop_components",
         "method_deposition",
         "method_deposition_scope",
         "method_human_population",
@@ -1728,6 +1741,7 @@ build_n_inputs <- function(
     "fert_type",
     "method_recycling_n",
     "method_synthetic",
+    "method_crop_components",
     "method_deposition_scope",
     "method_human_population",
     "method_human_kgn_cap",
@@ -1938,7 +1952,8 @@ build_n_inputs <- function(
       item_cbs_code = .data$item_cbs_code,
       year = .data$year,
       fert_type = "synthetic",
-      n_input_t = .data$n_t
+      n_input_t = .data$n_t,
+      method_crop_components = .data$method_crop_components
     )
 }
 
@@ -1955,6 +1970,7 @@ build_n_inputs <- function(
     n_input_t = double(),
     method_recycling_n = character(),
     method_synthetic = character(),
+    method_crop_components = character(),
     method_deposition = character(),
     method_deposition_scope = character(),
     method_human_population = character(),

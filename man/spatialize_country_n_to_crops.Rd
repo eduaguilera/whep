@@ -71,12 +71,29 @@ already-built table.}
 \code{fodder_patterns} (the fodder layer), each read from its pin when
 absent. \code{item_cbs_code} in \code{crop_shares}/\code{country_totals} is matched to
 the allocation's \code{item_prod_code} via \link{items_prod_full} (the same
-crosswalk \code{\link[=build_crop_land_extension]{build_crop_land_extension()}} uses).}
+crosswalk \code{\link[=build_crop_land_extension]{build_crop_land_extension()}} uses).
+Supply \code{primary_prod} with \code{year}, geography, \code{item_prod_code}, \code{unit}
+and \code{value} to check each production component's harvested-area target.
+Source and flag columns are retained in the coverage diagnostic.
+\code{component_policy = "error"} (default) rejects missing/conflicting
+component mappings, invalid or missing targets, or a
+positive crop component absent from a partly represented CBS group.
+\code{"legacy_pool"} explicitly retains placed-hectare pooling despite those
+gaps and warns with class \code{whep_crop_component_coverage}; its
+\code{missing_components} field identifies the affected source rows.
+Whole-CBS cropland fallback remains separately reported. Neither policy
+invents crop-specific support or fills a missing source area with zero.
+Without production-item targets, coverage is stamped
+\code{"targets_unavailable"}, never asserted complete.}
 }
 \value{
 A tibble. For \code{resolution = "polity_crop"}: \code{year}, \code{area_code},
 \code{item_cbs_code}, \code{n_t}. For \code{resolution = "grid"}: \code{lon}, \code{lat},
-\code{area_code}, \code{year}, \code{item_cbs_code}, \code{n_t} and \code{method_polity_split}.
+\code{area_code}, \code{year}, \code{item_cbs_code}, \code{n_t}, \code{method_polity_split} and
+\code{method_crop_components}. Grid output carries a
+\code{crop_component_coverage} attribute with the supplied targets and their
+coverage status. \code{"supplied_targets_covered"} checks only the supplied
+component list, not completeness or correctness of the source inventory.
 Either gains \code{reporting_polity_out_of_span} when
 \code{polity_validity = "flag"}; this output carries no reporting-polity
 columns, so the flag is attached directly rather than derived from them.
@@ -119,6 +136,15 @@ Swapping the key moves \strong{where} the nitrogen lands, never how much of it
 there is. A pre-built \code{data$crop_allocation} is used as supplied, on the
 support it was built on.
 }
+\section{Annual keys}{
+
+Supplied totals, crop shares, allocation tables and primary inventories
+require finite, nonmissing whole numeric years representable as R integers.
+Character years are rejected rather than coerced; validate and parse source
+dates before supplying them. Invalid years cannot be truncated or filtered
+away to conceal a missing crop component.
+}
+
 \section{Territorial compatibility}{
 
 This consumer still uses the numeric geography adapter. Distinct supplied

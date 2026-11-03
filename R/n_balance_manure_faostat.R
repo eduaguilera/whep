@@ -231,7 +231,8 @@
       .data$area_code,
       .data$item_cbs_code,
       .data$year,
-      n_input_t = .data$n_t
+      n_input_t = .data$n_t,
+      method_crop_components = .data$method_crop_components
     )
 }
 

@@ -34,6 +34,8 @@
 # picks it, unless the caller names it). A built allocation goes through the
 # same checks as a supplied one.
 .crop_allocation <- function(years, cell_polity, data = list(), share = NULL) {
+  .crop_alloc_check_years(years)
+
   if (!is.null(data$crop_allocation)) {
     return(.crop_allocation_check(data$crop_allocation, years))
   }
@@ -109,6 +111,8 @@
 # still reconciled. A built one may hold no row in a year the engine placed
 # nothing in; the term spreading onto it refuses that with its own message.
 .crop_allocation_check <- function(allocation, years, supplied = TRUE) {
+  .crop_alloc_check_years(years)
+
   allocation$weights <- .crop_alloc_identity(allocation$weights)
   allocation$fallback <- .crop_alloc_identity(allocation$fallback)
   paired <- .crop_alloc_pair(allocation$weights, allocation$fallback)
@@ -296,6 +300,8 @@
 }
 
 .crop_alloc_identity <- function(table) {
+  .crop_alloc_table_years(table)
+
   if (rlang::has_name(table, "polity_code")) {
     if (
       rlang::has_name(table, "reporting_polity_code") &&
@@ -351,6 +357,9 @@
 }
 
 .crop_alloc_resolve <- function(table, reference) {
+  .crop_alloc_table_years(table)
+  .crop_alloc_table_years(reference)
+
   .check_columns(table, c("area_code", "year"), "legacy crop input")
   .check_columns(reference, c("area_code", "year"), "identity crosswalk")
   map <- reference |>
@@ -388,6 +397,8 @@
 # code/year names at most one supplied identity. Native same-bucket inputs
 # must reach the identity-keyed path instead of losing their territory.
 .crop_alloc_legacy_check <- function(table) {
+  .crop_alloc_table_years(table)
+
   if (!.crop_alloc_has_identity(table)) {
     return(invisible(NULL))
   }
@@ -459,4 +470,32 @@
     ))
   }
   columns[quantity]
+}
+
+# Annual keys must be checked before integer coercion or scope filtering:
+# truncation can assign a component to another year or conceal its absence.
+# Match the native producer's numeric whole-year contract; the integer range
+# is required by this consumer's integer normalization, not a date assumption.
+.crop_alloc_check_years <- function(years) {
+  if (is.null(years)) {
+    return(invisible(NULL))
+  }
+  if (
+    !.valid_native_years(years) ||
+      any(abs(years) > .Machine$integer.max)
+  ) {
+    cli::cli_abort(
+      "Crop allocation requires finite, nonmissing whole numeric years
+       representable as R integers; character years are not accepted.",
+      class = "whep_crop_allocation_year"
+    )
+  }
+  invisible(NULL)
+}
+
+.crop_alloc_table_years <- function(table) {
+  if (!is.null(table) && rlang::has_name(table, "year")) {
+    .crop_alloc_check_years(table$year)
+  }
+  invisible(NULL)
 }

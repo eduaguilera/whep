@@ -212,6 +212,11 @@ whose output \code{n_t} is the \code{"synthetic"} term's \code{n_input_t}.
 \item \code{synthetic_method}: how the synthetic-N country total is split across
 crops, \code{"coello"} (default; Coello 2025 rate-weighted, FAOSTAT-
 conserving) or \code{"area_share"} (harvested-area shares only).
+\item \code{component_policy}: \code{"error"} (default) or explicitly \code{"legacy_pool"},
+passed with \code{primary_prod} to \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}} for
+synthetic and FAOSTAT-manure component-coverage checks. The latter
+warns and retains the former mixture when a CBS group has an absent
+production component; it does not establish that mixture as correct.
 \item \code{coello_rates}: crop-specific synthetic-N rate table shaped like
 \link{coello_synthetic_n} (\code{year}, \code{area_code}, \code{item_cbs_code},
 \code{kg_n_ha}); defaults to \code{whep::coello_synthetic_n}. Used only when
@@ -272,6 +277,8 @@ A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code
 (\code{"livestock_intake"}, \code{"faostat"}, or \code{"faostat_all_solid"} on applied
 manure booked as solid for want of an engine split) and is \code{NA} for every
 other \code{fert_type}.
+\code{method_crop_components} records the gridded synthetic/FAOSTAT-manure
+component-coverage treatment; other input streams carry \code{NA}.
 \code{excreta_cpp_share} is the share of an \code{"excreta"} row's N deposited by
 cattle, poultry and pigs, the animals of the IPCC 2019 EF3PRP,CPP factor
 (Vol 4, Ch 11, Table 11.1 (Updated), p. 11.13); sheep and other animals

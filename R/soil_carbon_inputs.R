@@ -211,6 +211,7 @@ build_soil_carbon_inputs <- function(
   weights = "spatialized",
   manure = "livestock"
 ) {
+  .crop_alloc_check_years(years)
   d <- .sci_resolve_inputs(data, years, weights, method, manure)
   components <- .sci_assemble_components(d$npp, d$manure)
   .sci_grid_and_finalise(components, d, resolution, reduce, method)
@@ -558,6 +559,10 @@ build_soil_carbon_inputs <- function(
   method = "fodder_pattern",
   manure = "livestock"
 ) {
+  purrr::walk(
+    data[c("npp", "manure", "harvested_area", "gridded_crops")],
+    .crop_alloc_table_years
+  )
   harvested_area <- data$harvested_area %||%
     (if (is.null(data$npp)) .sci_read_harvested_area(years) else NULL)
   fodder_patterns <- if (method == "fodder_pattern") {
@@ -656,6 +661,7 @@ build_soil_carbon_inputs <- function(
 }
 
 .sci_check_npp <- function(npp) {
+  .crop_alloc_table_years(npp)
   required <- c("residue_soil_c_t", "root_c_t", "weed_npp_c_t")
   missing <- required[
     !purrr::map_lgl(required, \(col) rlang::has_name(npp, col))
@@ -706,6 +712,7 @@ build_soil_carbon_inputs <- function(
 }
 
 .sci_manure_components <- function(manure) {
+  .crop_alloc_table_years(manure)
   .sci_warn_dropped_manure_c(manure)
   manure |>
     # Same rule as the crop components: a manure stream with no nitrogen is
@@ -876,6 +883,7 @@ build_soil_carbon_inputs <- function(
 # The FAOSTAT national harvested area in the key types the joins use. NULL when
 # no table was supplied, which is the offline bring-your-own-inputs path.
 .sci_faostat_area <- function(harvested_area) {
+  .crop_alloc_table_years(harvested_area)
   if (is.null(harvested_area) || nrow(harvested_area) == 0) {
     return(NULL)
   }
@@ -1339,6 +1347,7 @@ build_soil_carbon_inputs <- function(
 }
 
 .sci_harvested_area <- function(primary_prod) {
+  .crop_alloc_table_years(primary_prod)
   grass <- c(3000L, 3002L, 3003L)
   primary_prod |>
     dplyr::filter(
@@ -1365,7 +1374,7 @@ build_soil_carbon_inputs <- function(
 .sci_npp_from_primary_prod <- function(primary_prod, years = NULL) {
   primary_prod |>
     .sci_crop_prod_wide(years) |>
-    calculate_crop_npp() |>
+    .sci_crop_npp() |>
     calculate_residue_destinies(method = "recovery_regional") |>
     calculate_npp_carbon_nitrogen() |>
     dplyr::transmute(
@@ -1394,11 +1403,74 @@ build_soil_carbon_inputs <- function(
     )
 }
 
+# The crop-NPP chain on the straw the commodity balance books (whep#1519).
+# The recovered and the soil-returned residue are two parts of the same straw
+# (whep#1003), so cereals take the cereal method of get_primary_residues()
+# and rice is priced per tonne of paddy, as the CBS prices it on the
+# `crop_residues` pin's production. Before this, the soil chain ran the
+# `"ensemble"` default on milled rice and booked 16% (2010) less cereal
+# straw than the CBS. Non-cereals keep the `"ensemble"` default: the CBS's
+# non-cereal line is a separate choice (whep#1518), not part of this one.
+.sci_crop_npp <- function(wide) {
+  cereal <- as.character(wide$item_prod_code) %in% .residue_cereal_codes()
+  cereals <- wide[cereal, ] |>
+    .sci_paddy_basis(1 / .rice_milled_extraction_rate()) |>
+    calculate_crop_npp(residue_method = .cbs_cereal_residue_method()) |>
+    .sci_paddy_basis(.rice_milled_extraction_rate()) |>
+    dplyr::mutate(
+      crop_npp_dm_t = .data$product_dm_t + .data$residue_dm_t + .data$root_dm_t
+    )
+  dplyr::bind_rows(cereals, calculate_crop_npp(wide[!cereal, ]))
+}
+
+# The cereal residue method the commodity balance prices straw with: the
+# default of get_primary_residues()'s `cereal_residue` (`"ipcc"`; PR #1522).
+# This shares the current model between the two chains; it is not independent
+# validation of its crop, regional or historical applicability.
+.cbs_cereal_residue_method <- function() {
+  eval(formals(get_primary_residues)$cereal_residue)[[1]]
+}
+
+# Rescale rice's product columns by `factor`. get_primary_production()
+# carries rice milled, its paddy tonnes times .rice_milled_extraction_rate()
+# (.fix_rice_milled_equiv(); the CBS-imputed rows are milled by the CBS
+# harmonizer at the same rate). The IPCC rice residue line (2006 Table 11.2,
+# p. 11.17: slope 0.95, intercept 2.46 Mg DM/ha) takes the harvested yield
+# (Equation 11.7, p. 11.15), and harvested rice is paddy: FAOSTAT's item
+# 0027 is "rice in the husk" (FAO 1994, Definition and Classification of
+# Commodities, ch. 1) and rice yield "is usually reported as rough rice
+# (paddy)" (Yoshida 1981, Fundamentals of Rice Crop Science, s. 1.12.1).
+# Decision whep-soil-chain-rice-residue-paddy-basis. It is also the basis
+# the CBS reads off the pin. So `.sci_crop_npp()` divides by that rate to
+# price the straw and the root, then multiplies back: the product stays the
+# milled rice the rest of WHEP books, and the residue and root keep the
+# paddy pricing. Hectares are never touched. The existing bio_coefs rice
+# dry-matter fraction (0.864) is retained in both chains, rather than the
+# Table 11.2 default (0.89). IPCC p. 11.14 allows reporting-specific moisture
+# corrections; this change does not validate that fraction for every row.
+# Roots retain the existing ensemble, not the complete IPCC root method.
+.sci_paddy_basis <- function(x, factor) {
+  rice <- as.character(x$item_prod_code) == "27"
+  cols <- intersect(
+    c("production_t", "product_dm_t", "yield_dm_t_ha"),
+    names(x)
+  )
+  dplyr::mutate(
+    x,
+    dplyr::across(
+      dplyr::all_of(cols),
+      ~ dplyr::if_else(rice, .x * factor, .x)
+    )
+  )
+}
+
 # Reshape the long primary-production table to one crop-polity-year row carrying
 # production tonnage and harvested area, plus the regional groupings the
 # residue-destiny split needs. Grassland and livestock rows are dropped; only
 # crop production (tonnes) and area (ha) are kept.
 .sci_crop_prod_wide <- function(primary_prod, years = NULL) {
+  .crop_alloc_table_years(primary_prod)
+  .crop_alloc_check_years(years)
   grass <- c(3000L, 3002L, 3003L)
   crop_rows <- primary_prod |>
     dplyr::filter(
@@ -1508,7 +1580,7 @@ build_soil_carbon_inputs <- function(
 .sci_bedding_supply <- function(production, years = NULL) {
   production |>
     .sci_crop_prod_wide(years) |>
-    calculate_crop_npp() |>
+    .sci_crop_npp() |>
     calculate_residue_destinies(method = "recovery_regional") |>
     dplyr::transmute(
       year = as.integer(.data$year),
@@ -1528,6 +1600,7 @@ build_soil_carbon_inputs <- function(
 # .sci_join_weights() re-grids by); the fixed_ceiling cap needs only crop_area_ha.
 # Grassland and livestock rows are excluded, matching .sci_crop_prod_wide().
 .sci_manure_crop_layer <- function(production) {
+  .crop_alloc_table_years(production)
   grass <- c(3000L, 3002L, 3003L)
   production |>
     dplyr::filter(

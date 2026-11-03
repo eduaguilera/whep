@@ -2454,7 +2454,12 @@ testthat::test_that("the default manure source reproduces the pre-option output"
   data$recycling_residue_basis <- "total_residue"
   # The excreta species mix is added beside the golden columns; every column
   # the golden pins must stay identical.
-  added <- c("method_manure", "excreta_cpp_share", "method_excreta_species")
+  added <- c(
+    "method_manure",
+    "excreta_cpp_share",
+    "method_excreta_species",
+    "method_crop_components"
+  )
   for (resolution in c("grid", "polity")) {
     out <- suppressMessages(
       whep::build_n_inputs(data = data, resolution = resolution)
