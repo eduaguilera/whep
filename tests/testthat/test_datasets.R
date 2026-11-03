@@ -842,9 +842,11 @@ test_that("gleam_dressing_percentages is a clean tibble", {
     "gleam_dressing_percentages",
     "dressing_percent"
   )
-  # Dressing percent should be 0–100 range
+  # A dressing percentage (carcass / live weight) is strictly positive. GLEAM
+  # S.9.1 prints 0 for Monaco pigs as a "no value" placeholder; stored as a
+  # number it dragged the Western Europe pig mean from 75.3 to 73.1 (whep#1572).
   non_na <- obj$dressing_percent[!is.na(obj$dressing_percent)]
-  expect_true(all(non_na >= 0 & non_na <= 100))
+  expect_true(all(non_na > 0 & non_na <= 100))
   # Has both regional (country = NA) and country-specific rows
   expect_true(any(is.na(obj$country)))
   expect_true(any(!is.na(obj$country)))
