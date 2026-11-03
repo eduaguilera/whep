@@ -26,7 +26,7 @@
 # far more on the import side than on the export side -- cashew kernels (230)
 # 9.8 vs 3.8, almond kernels (231) 4.9 vs 1.6, hazelnut kernels (233) 5.8 vs
 # 1.1, prepared nuts (235) 9.7 vs 3.0. One flow lands on two bases, and the
-# importer's excess goes on into its food.
+# proposed allocation of the discrepancy to food remains a model.
 #
 # The correction, per (area, year) of the new vintage, 2010 on:
 #
@@ -40,9 +40,9 @@
 #   pineapple and 296 kt of nut imports, and the ceiling leaves 2,387 kt of
 #   tomato and 628 kt of lemon imports uncut;
 # * the net trade it removes (import cut minus export cut) comes out of food
-#   and domestic supply, where the excess went. Production, stock variation
-#   and the other destinies are not touched, so the row's own supply-use
-#   identity holds exactly as published;
+#   and domestic supply as a provisional allocation. At this selected-row
+#   stage, production, stocks and other destinations are not touched, so
+#   the incoming supply gap is preserved;
 # * a row whose net cut is not positive, or is not smaller than its food, is
 #   left as published: there the old vintage is not a credible anchor (Viet
 #   Nam's cashew imports are 274 kt in the new vintage and about 20 kt in the
@@ -58,7 +58,12 @@
 # pineapples, 50% for nuts and 36% for tomatoes (at most 87%, Austria's
 # pineapples). Row by row that lands on the old vintage's food (median
 # rebased/old 0.96 to 1.05, against 1.16 to 3.5 as published), which is the
-# anchor, so it shows consistency, not independent evidence.
+# anchor, so it shows consistency, not independent evidence. The public
+# fbs_trade_basis documentation records the national-account appraisal:
+# US pineapple supports the direction, while German tomato evidence warns
+# that the old anchor overcorrects relative to a different annual period.
+# The nonmilk default remains provisional; neither comparison establishes
+# source-specific product conversion factors or validates the clamps.
 #
 # Measured on the pins at 2010, world imports fall from 13.57 to 6.88 Mt
 # against exports of 6.37 Mt (1.08x; 1.01x at 2016) and food from 19.47 to
@@ -299,7 +304,9 @@
 # never grew: Netherlands pineapples, 0 to 112 kt at 2009. Applied to the
 # scaled row instead, the cut takes the same amount from net trade and from
 # food, so every row keeps the supply gap the published scaling gives it,
-# and no production, stock change or other destiny moves in any year.
+# and this selected-row stage leaves production, stocks and other uses
+# untouched. Later processing/gapfilling can change final outputs; the
+# build_commodity_balances() documentation quantifies those spillovers.
 .rebase_selected_fbs <- function(wide, factors) {
   if (is.null(factors) || nrow(factors) == 0L) {
     return(wide)
