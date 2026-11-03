@@ -857,8 +857,12 @@
 # fao56_root_depth) of the row's production items, pooled by WHEP's own
 # hectares of each in the row's water regime, the rule the irrigation depth
 # of a pooled item follows. "by_regime" takes the upper end of each range on
-# rainfed rows and the lower end on irrigated rows (Table 22, footnote 1:
-# the smaller values hold where water is applied frequently). An item whose
+# rainfed rows and the lower end on irrigated rows. Table 22, footnote 1:
+# "The smaller values for Zr may be used for irrigation scheduling and the
+# larger values for modeling soil water stress or for rainfed conditions."
+# The footnote names a purpose (scheduling), not a shallower irrigated root
+# system, so the lower end on irrigated rows is a provisional reading;
+# "upper" applies the modelling end to both regimes. An item whose
 # production items hold no hectares in the regime takes the plain mean over
 # them, stamped. A row without a crop item takes the HWSD topsoil depth.
 .nld_join_root_depth <- function(rows, data, years, point) {
