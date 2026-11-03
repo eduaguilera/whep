@@ -55,10 +55,14 @@ the version has not been bumped yet: the last dev-checkout run gave 0 errors,
   networks we checked from (a Spanish research network and a remote fetch
   service), `apisidra.ibge.gov.br` answers every automated client with a
   403 bot challenge titled "Just a moment...", and
-  `servicodados.ibge.gov.br` times out or refuses the connection. Both pages
-  are live: Internet Archive captures show "Home Page da API Sidra" on
-  2026-10-19 and "API de dados agregados do IBGE", version 3.0.0, on
-  2026-10-14. The links are the provider's own documentation, so they stay.
+  `servicodados.ibge.gov.br` times out or refuses the connection. Internet
+  Archive captures verify the original pages historically: "Home Page da API
+  Sidra" on 2026-10-19 and "API de dados agregados do IBGE", version 3.0.0,
+  on 2026-10-14. A separate web fetch on 2026-11-03 retrieved the original
+  aggregates documentation with the expected version and endpoint descriptions;
+  the SIDRA home page returned 403. These observations do not establish
+  current accessibility from every network or a successful local URL check.
+  The links are the provider's own documentation, so they stay.
   They have not been replaced with an unrelated page that happens to load
   (whep#1603).
 
