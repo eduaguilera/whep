@@ -543,9 +543,9 @@
 # would otherwise be named as covered.
 .bucket_members <- function(dt) {
   reported <- !is.na(dt$value) & dt$value != 0
-  unique(
-    dt[reported, .(polity_area_code, year, area_code)]
-  )
+  out <- unique(dt[reported, .(polity_area_code, year, area_code)])
+  data.table::setorderv(out, c("polity_area_code", "year", "area_code"))
+  out
 }
 
 # A bucket that folds several reporting areas (whep#414) is a *sum*, and the

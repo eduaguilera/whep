@@ -791,7 +791,9 @@ testthat::test_that("CBS readers carry the historical mix into scoped intake", {
     .primary_to_cbs_area = .cbs_empty_reader,
     .read_land_areas_wide = .cbs_empty_reader,
     get_primary_residues = .fi_residue_history,
-    .cbs_combine_sources = function(inputs) inputs$residue_backcast,
+    .cbs_combine_sources = function(inputs, bucket_coverage) {
+      inputs$residue_backcast
+    },
     .prepare_historical_cbs = .cbs_empty_reader,
     .cbs_extend_historical = .cbs_skip_transform,
     .aggregate_fao_trade_to_cbs = .cbs_skip_transform,

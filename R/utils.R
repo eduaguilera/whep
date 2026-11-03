@@ -2758,6 +2758,8 @@ utils::globalVariables(
     "source_area_code",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
+    # cbs_coverage.R — bucket source-policy stamp (whep#1481).
+    "method_cbs_coverage",
     NULL
   )
 )
