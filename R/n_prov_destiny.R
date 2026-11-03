@@ -94,7 +94,11 @@ create_n_prov_destiny <- function(
       .prepare_livestock_production(livestock_prod_ygps)
     )
 
-  national_production <- .national_item_production(prod_combined_boxes)
+  # Processing spends post-seed supply; use that same denominator for shares
+  # and excess so seed removal cannot silently shrink observed processing.
+  prod_combined_boxes_no_seeds <- biomass_item_merged |>
+    .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes)
+  national_production <- .national_item_production(prod_combined_boxes_no_seeds)
   first_year <- min(national_production$Year, na.rm = TRUE)
   last_year <- max(national_production$Year, na.rm = TRUE)
 
@@ -112,9 +116,6 @@ create_n_prov_destiny <- function(
     .forwardfill_processing_shares(last_year)
   .calculate_processing_excess(spain_coefs_observed, national_production) |>
     .warn_processing_excess()
-
-  prod_combined_boxes_no_seeds <- biomass_item_merged |>
-    .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes)
 
   processed <- .calculate_processed_amounts(
     prod_combined_boxes_no_seeds,
