@@ -561,7 +561,7 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
 # `n_balance_leaching_drivers` in `data`, build_nitrogen_balance() calls
 # build_n_loss_drivers() on the split balance's own rows. Every row gets the
 # IPCC 2019 wet/dry class of its cell, crop and water regime
-# (build_cell_moisture_regime(): CRU climate, LPJmL irrigation depth, the
+# (build_cell_moisture_regime(): CRU climate on precipitation alone, the
 # trailing 30-year window), says in `method_moisture_regime` how it was
 # obtained, and `method_drivers` is "whep_built". That needs the grid split
 # (WHEP_NBD_REGIME other than `none`) and grid resolution: a polity balance

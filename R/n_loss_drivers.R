@@ -1,5 +1,6 @@
 # The per-row drivers of the nitrogen loss cascade, built by WHEP itself from
-# its own crop land use, CRU climate and LPJmL irrigation depth.
+# its own crop land use and CRU climate (and the LPJmL irrigation depth, only
+# under `water = "precip_irrig"`).
 #
 # Every IPCC 2019 Tier 1 factor the cascade prices with is keyed on the wet/dry
 # class of IPCC 2019 Vol 4 Ch 11 Table 11.1, footnote 4 (p. 11.13), which
@@ -137,7 +138,7 @@
 build_n_loss_drivers <- function(
   rows = NULL,
   window = c("trailing_30", "annual", "normal"),
-  water = c("precip_irrig", "precip"),
+  water = c("precip", "precip_irrig"),
   data = NULL,
   config = list(),
   example = FALSE

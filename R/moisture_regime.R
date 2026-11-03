@@ -19,8 +19,17 @@
 # 2. The window: `annual` (the year itself), `trailing_30` (the mean of years
 #    y-29..y) or `normal_<first>_<last>` (the mean of one fixed period, the
 #    same for every year).
-# 3. The water term: `precip` (precipitation) or `precip_irrig`
+# 3. The water term: `precip` (precipitation, the default) or `precip_irrig`
 #    (precipitation plus the irrigation depth of the row's crop and regime).
+#    The default follows footnote 4, which defines the classes on
+#    precipitation only; Annex 11A.2 (p. 11.30) says 63% of the dry-climate
+#    EF1 cases were irrigated, so the dry factors already price irrigated dry
+#    land and `precip_irrig` would price irrigation twice (#1531). This
+#    default is provisional (wiki decision
+#    whep-wet-dry-class-on-precipitation-only): IPCC 2019 is its one
+#    independent source, since Cayuela et al. (2017), which agrees (irrigated
+#    Mediterranean EF 0.63%), is among the databases the IPCC EF1 was fitted
+#    on (Annex 11A.2, p. 11.29).
 # 4. Optional, one per side of the record a window reaches past:
 #    `climatology_<first>_<last>_<n>of<m>`, meaning n of the window's m years
 #    lie outside the climate record and took the held climatology of years
@@ -60,9 +69,19 @@
 #' the disaggregation on long-term averages, so by default the inputs are
 #' averaged over the 30 years ending in each year before they are classified.
 #'
-#' The water term is precipitation plus, on irrigated rows, the irrigation
-#' depth of the row's crops (`water = "precip_irrig"`, the default), or
-#' precipitation alone (`water = "precip"`). Rainfed rows get no irrigation.
+#' The water term is precipitation alone (`water = "precip"`, the default),
+#' as footnote 4 defines the classes, or precipitation plus, on irrigated
+#' rows, the irrigation depth of the row's crops (`water = "precip_irrig"`).
+#' Precipitation alone is the default because the IPCC dry factors already
+#' price irrigated dry land: 63% of the dry-climate cases the dry EF1 was
+#' fitted on were irrigated, and irrigated dry fields alone give an EF1 of
+#' 0.004 (n = 94) against 0.005 for all dry and 0.014 for wet climates
+#' (Volume 4, Chapter 11, Annex 11A.2, p. 11.30, and Table 2A.2, p. 11.31).
+#' The leaching fraction treats "dry climate regions where irrigation ... is
+#' used" as a dry-climate case of its own (p. 11.25). Counting irrigation as
+#' precipitation would put irrigated dry land on the wet factors, pricing
+#' irrigation twice (issue #1531). Rainfed rows get no irrigation in either
+#' case, and only `"precip_irrig"` reads the LPJmL irrigation depth.
 #'
 #' @details
 #' Inputs:
@@ -83,18 +102,20 @@
 #'   the classifier, which reports the years without it. The distance is
 #'   `climate_fill_km`, and a message of class
 #'   `whep_moisture_regime_nearest_climate` counts the cells by the variables
-#'   they took. The cell's own water term, irrigation included, is then
-#'   applied.
-#' - Irrigation depth is LPJmL's applied irrigation per crop stand, pooled to
-#'   the commodity balance item by WHEP's irrigated hectares. LPJmL's paddy
+#'   they took. The cell's own water term, irrigation included under
+#'   `water = "precip_irrig"`, is then applied.
+#' - Irrigation depth (`water = "precip_irrig"` only) is LPJmL's applied
+#'   irrigation per crop stand, pooled to the commodity balance item by
+#'   WHEP's irrigated hectares. LPJmL's paddy
 #'   water on its rainfed rice stand is not counted: rainfed rows get none.
 #'
 #' @param years Integer vector of the years to classify.
 #' @param window How the inputs are averaged before they are classified:
 #'   `"trailing_30"` (default, the 30 years ending in each year), `"annual"`
 #'   or `"normal"` (one fixed period, `config$normal_period`).
-#' @param water The water term: `"precip_irrig"` (default, precipitation plus
-#'   the irrigation depth of the row's crops and regime) or `"precip"`.
+#' @param water The water term: `"precip"` (default, precipitation alone, as
+#'   IPCC defines the classes) or `"precip_irrig"` (precipitation plus the
+#'   irrigation depth of the row's crops and regime).
 #' @param data Optional list of inputs used in place of reading them. Each
 #'   element is optional:
 #'   - `climate`: `lon`, `lat`, `year`, `mean_annual_temp_c`,
@@ -250,7 +271,7 @@
 build_cell_moisture_regime <- function(
   years = NULL,
   window = c("trailing_30", "annual", "normal"),
-  water = c("precip_irrig", "precip"),
+  water = c("precip", "precip_irrig"),
   data = NULL,
   config = list(),
   example = FALSE
@@ -323,7 +344,7 @@ build_cell_moisture_regime <- function(
   data,
   years = NULL,
   window = c("trailing_30", "annual", "normal"),
-  water = c("precip_irrig", "precip"),
+  water = c("precip", "precip_irrig"),
   # 1991-2020 is an assumed choice, the most recent complete 30-year period;
   # no source used here prescribes it.
   normal_period = 1991:2020,
