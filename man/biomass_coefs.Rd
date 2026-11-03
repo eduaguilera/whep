@@ -203,6 +203,10 @@ as an exact value. USDA FoodData Central SR Legacy, FDC 173021 \verb{Figs, raw},
 nutrient 1004 gives 0.3 g fat/100 g: the lipid cell is \strong{3 g/kg}.
 That legacy entry has zero recorded data points and no derivation code;
 it is a reference value, not a demonstrated direct lipid measurement.
+The calcium choice is provisional: USDA's raw-fig reference is 350 mg/kg,
+versus Ciqual's 570 mg/kg. These populations do not establish a universal
+composition; the alternative is 220 mg/kg lower (38.6\%). Ciqual supplies
+the selected raw-food reference, not a cross-source consensus.
 
 The fig vitamin A cell stays at \strong{70 micrograms/kg}, interpreted for this
 row as retinol activity equivalents (RAE): USDA nutrient 1106 is
