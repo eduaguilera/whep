@@ -40,10 +40,10 @@
       class = "whep_n_loss_drivers_methods"
     )
   }
-  leaching <- methods$leaching %||% "ipcc_fracleach"
-  som_source <- methods$som_source %||% "carbon_balance"
-  som_factor <- methods$som_factor %||% "pribyl_2010"
-  root_depth <- methods$root_depth %||% "by_regime"
+  leaching <- methods[["leaching"]] %||% "ipcc_fracleach"
+  som_source <- methods[["som_source"]] %||% "carbon_balance"
+  som_factor <- methods[["som_factor"]] %||% "pribyl_2010"
+  root_depth <- methods[["root_depth"]] %||% "by_regime"
   list(
     leaching = rlang::arg_match(
       leaching,

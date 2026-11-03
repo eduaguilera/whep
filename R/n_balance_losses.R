@@ -286,16 +286,33 @@ calculate_soil_n2o <- function(
 #'   exclusion fraction `theta_e = 0.5` (Neitsch et al. 2011, SWAT 2009
 #'   Theoretical Documentation, TR-406, eqs. 4:2.1.2 to 4:2.1.8, pp. 269-270;
 #'   `theta_e` default from the SWAT Input/Output File Documentation,
-#'   Version 2012, ch. 22, p. 304).
+#'   Version 2012, ch. 22, p. 304). The source equation is daily; applied to
+#'   nitrate present before the year drains, with no other exit, the daily
+#'   shares compound exactly to this form on the year's drainage, so the
+#'   annual form assumes the surplus is in the root zone before the
+#'   drainage season and that lateral flow is negligible.
+#' - `"swat_uniform"`: the same daily equation for a surplus that arrives in
+#'   proportion to the drainage through the year, integrated exactly:
+#'   `f_new = 1 - (1 - exp(-D / M)) / (D / M)`, `M = (1 - theta_e) phi h`,
+#'   for the surplus, and the `"swat_mixing"` `f` for the carried pool,
+#'   which is in the profile before the year drains. It bounds the input
+#'   timing from the other side: on 2010 LPJmL monthly seepage, an explicit
+#'   monthly iteration with equal monthly inputs gives a surplus-weighted
+#'   mean within 2 percentage points of it (root zones of 30 to 150 cm).
 #' - `"burns"`: Burns' displacement for a solute incorporated uniformly
 #'   through the root zone, `f = (P / (P + theta_fc))^(h / 2)`, with `P` the
 #'   drainage and `h` the depth, both in cm (Burns 1976, J. Agric. Sci.
 #'   86:305-313, doi:10.1017/S0021859600054769).
+#' - `"unlimited"`: no transport limit, `f = 1` wherever the row drains: the
+#'   Meisinger cascade as it stood before transport was added, kept to
+#'   measure what the transport limit changes. Nothing is retained on a
+#'   drained row.
 #'
 #' Every constant is read from [n_attenuation_constants]. The columns a
 #' transport reads must be present and non-missing on every row:
-#' `"swat_mixing"` reads `root_depth_cm` and `soil_porosity`, and `"burns"`
-#' `root_depth_cm` and `soil_field_capacity`.
+#' `"swat_mixing"` and `"swat_uniform"` read `root_depth_cm` and
+#' `soil_porosity`, `"burns"` `root_depth_cm` and `soil_field_capacity`, and
+#' `"unlimited"` neither.
 #'
 #' ## Zero drainage and deep vadose storage
 #'
@@ -337,9 +354,15 @@ calculate_soil_n2o <- function(
 #' first row starts at the steady state of that year's fluxes,
 #' `C_in = S r / (1 - r)`, where the share of the pool's input that stays is
 #' `(1 - d) (1 - a_cn) (1 - f)`, written `r` (field
-#' `initial_pool_steady_state`); a key
-#' whose first year does not drain has no finite steady state and starts at
-#' 0 (field `initial_vadose_zero`). Later rows carry the field
+#' `initial_pool_steady_state`; under `"swat_uniform"` the surplus feeds the
+#' pool with `(1 - d) (1 - a_cn) (1 - f_new)` instead, so
+#' `C_in = S (1 - d) (1 - a_cn) (1 - f_new) / (1 - r)`). `initial_pool =
+#' "zero"` starts every key empty instead (field `initial_pool_zero`), the
+#' lower bound of a run with no legacy nitrate: in a one-year run under a
+#' transport other than `"swat_uniform"` it leaches `1 - r` times what the
+#' steady state does. A key whose first year does not
+#' drain has no finite steady state and starts at 0 (field
+#' `initial_vadose_zero`) under either. Later rows carry the field
 #' `carried_pool`. A key absent from a year of the run keeps its pool on the
 #' key: the pool is neither moved to another key nor dropped, and re-enters
 #' when the key reappears. The row whose pool waits that way, the key's last
@@ -520,7 +543,8 @@ calculate_soil_n2o <- function(
 #' count): dry irrigated and dry rainfed land leach 0.24 and 0 of their
 #' surplus, so a dry row of unknown regime has no defensible fraction. Wet
 #' rows need no `water_regime`. `"fracleach_surplus"` checks the same.
-#' `transport`, `none_class` and `carry_over_by` do not apply to either.
+#' `transport`, `none_class`, `carry_over_by` and `initial_pool` do not apply
+#' to either.
 #'
 #' Under `"ipcc_fracleach"` leaching is capped at `n_surplus_t`, so it never
 #' exceeds the nitrogen left after crop uptake. IPCC Tier 1 has no such cap;
@@ -554,12 +578,16 @@ calculate_soil_n2o <- function(
 #' @param method `"meisinger_drainage"` (default), `"ipcc_fracleach"`,
 #'   `"fracleach_surplus"` or `"image_gnm"`.
 #' @param transport The transport factor of `"meisinger_drainage"`:
-#'   `"swat_mixing"` (default) or `"burns"`.
+#'   `"swat_mixing"` (default), `"swat_uniform"`, `"burns"` or
+#'   `"unlimited"`.
 #' @param none_class How `"meisinger_drainage"` prices Meisinger's `None`
 #'   drainage class: `"retention"` (default) or `"waterlogged"`.
 #' @param carry_over_by Character vector of the columns that key a row
 #'   across years (every key column but `year`), or `NULL` (default) to treat
 #'   each row as a single year.
+#' @param initial_pool The nitrate a key's first year of `"meisinger_drainage"`
+#'   starts with: `"steady_state"` (default), the pool of that year's fluxes
+#'   repeated, or `"zero"`.
 #' @param example If `TRUE`, return a small fixture instead of computing
 #'   from `x`. Defaults to `FALSE`.
 #' @return `x` with `no3_n_t`, `denitrification_n_t`,
@@ -588,14 +616,16 @@ calculate_n_leaching <- function(
     "fracleach_surplus",
     "image_gnm"
   ),
-  transport = c("swat_mixing", "burns"),
+  transport = c("swat_mixing", "swat_uniform", "burns", "unlimited"),
   none_class = c("retention", "waterlogged"),
   carry_over_by = NULL,
+  initial_pool = c("steady_state", "zero"),
   example = FALSE
 ) {
   method <- rlang::arg_match(method)
   transport <- rlang::arg_match(transport)
   none_class <- rlang::arg_match(none_class)
+  initial_pool <- rlang::arg_match(initial_pool)
   if (isTRUE(example)) {
     return(.example_n_leaching())
   }
@@ -609,7 +639,11 @@ calculate_n_leaching <- function(
     return(.leaching_image_gnm(x))
   }
   drainage <- .leaching_drainage_values(x, drainage_mm)
-  options <- list(transport = transport, none_class = none_class)
+  options <- list(
+    transport = transport,
+    none_class = none_class,
+    initial_pool = initial_pool
+  )
   .leaching_meisinger(x, drainage, options, carry_over_by)
 }
 
@@ -1317,7 +1351,7 @@ calculate_indirect_n2o_nh3 <- function(
   drainage_mm <- .leaching_check_drainage(drainage_mm, nrow(x))
   .leaching_check_soil(x, options$transport)
   rates <- .leaching_rates(x, drainage_mm, options)
-  pool <- .leaching_thread_pool(x, rates, carry_over_by)
+  pool <- .leaching_thread_pool(x, rates, carry_over_by, options$initial_pool)
   flows <- .leaching_cascade(x$n_surplus_t, pool$carried_in, rates)
   ef5 <- .n_constant("ef5_no3_to_n2o")
   x |>
@@ -1551,8 +1585,10 @@ calculate_indirect_n2o_nh3 <- function(
 .leaching_soil_cols <- function(transport) {
   switch(
     transport,
-    swat_mixing = c("root_depth_cm", "soil_porosity"),
-    burns = c("root_depth_cm", "soil_field_capacity")
+    swat_mixing = ,
+    swat_uniform = c("root_depth_cm", "soil_porosity"),
+    burns = c("root_depth_cm", "soil_field_capacity"),
+    unlimited = character()
   )
 }
 
@@ -1618,19 +1654,45 @@ calculate_indirect_n2o_nh3 <- function(
 .leaching_rates_meisinger <- function(x, drainage_mm, options) {
   fert_cat <- dplyr::if_else(x$fert_type == "Synthetic", "Synthetic", "Manure")
   .leaching_check_tillage(x, fert_cat)
-  list(
-    denit_share = .leaching_denit_share(
-      x,
-      fert_cat,
-      drainage_mm,
-      options$none_class
+  c(
+    list(
+      denit_share = .leaching_denit_share(
+        x,
+        fert_cat,
+        drainage_mm,
+        options$none_class
+      )
     ),
-    transport = if (options$transport == "swat_mixing") {
-      .leaching_f_swat(drainage_mm, x$soil_porosity, x$root_depth_cm)
-    } else {
-      .leaching_f_burns(drainage_mm, x$soil_field_capacity, x$root_depth_cm)
-    }
+    .leaching_transport(x, drainage_mm, options$transport)
   )
+}
+
+# The transport factors of a row: `transport` for the nitrate already in the
+# profile when the year drains (the carried pool), `transport_new` for the
+# year's surplus. They differ only under "swat_uniform", where the surplus
+# arrives with the drainage instead of before it.
+.leaching_transport <- function(x, drainage_mm, transport) {
+  pulse <- switch(
+    transport,
+    swat_mixing = ,
+    swat_uniform = .leaching_f_swat(
+      drainage_mm,
+      x$soil_porosity,
+      x$root_depth_cm
+    ),
+    burns = .leaching_f_burns(
+      drainage_mm,
+      x$soil_field_capacity,
+      x$root_depth_cm
+    ),
+    unlimited = dplyr::if_else(drainage_mm > 0, 1, 0)
+  )
+  new <- if (transport == "swat_uniform") {
+    .leaching_f_swat_uniform(drainage_mm, x$soil_porosity, x$root_depth_cm)
+  } else {
+    pulse
+  }
+  list(transport = pulse, transport_new = new)
 }
 
 # SWAT 2009 well-mixed layer (Neitsch et al. 2011, TR-406, eqs. 4:2.1.2 to
@@ -1639,10 +1701,37 @@ calculate_indirect_n2o_nh3 <- function(
 # depth, mm), and carries 1 - exp(-percolate / mobile water) of its nitrate.
 # theta_e is the ANION_EXCL default 0.5 (SWAT Input/Output File
 # Documentation, Version 2012, ch. 22, p. 304). No drainage, no transport.
+# The source equation is daily; for nitrate present before the year drains
+# and no other exit, the daily shares compound exactly to this form on the
+# year's total drainage (tested in test_n_balance_losses.R).
 .leaching_f_swat <- function(drainage_mm, soil_porosity, root_depth_cm) {
-  theta_e <- .n_constant("swat_anion_exclusion")
-  mobile_mm <- (1 - theta_e) * soil_porosity * root_depth_cm * 10
+  mobile_mm <- .leaching_mobile_mm(soil_porosity, root_depth_cm)
   dplyr::if_else(drainage_mm > 0, 1 - exp(-drainage_mm / mobile_mm), 0)
+}
+
+# The same daily SWAT equation for nitrate that arrives in proportion to the
+# drainage instead of before it: the pool p obeys dp/dD = 1/D - p/M, so the
+# year's leached share is 1 - (1 - exp(-D/M)) / (D/M). This is the source
+# equation integrated under a stated input timing, not a new coefficient.
+# expm1() keeps small D/M exact; D/M below 1e-8 leaches D/(2M) to first
+# order, which also avoids 0 / 0.
+.leaching_f_swat_uniform <- function(
+  drainage_mm,
+  soil_porosity,
+  root_depth_cm
+) {
+  ratio <- pmax(drainage_mm, 0) /
+    .leaching_mobile_mm(soil_porosity, root_depth_cm)
+  dplyr::case_when(
+    drainage_mm <= 0 ~ 0,
+    ratio < 1e-8 ~ ratio / 2,
+    .default = 1 + expm1(-ratio) / ratio
+  )
+}
+
+.leaching_mobile_mm <- function(soil_porosity, root_depth_cm) {
+  theta_e <- .n_constant("swat_anion_exclusion")
+  (1 - theta_e) * soil_porosity * root_depth_cm * 10
 }
 
 # Burns (1976, J. Agric. Sci. 86:305-313, doi:10.1017/S0021859600054769),
@@ -1663,11 +1752,13 @@ calculate_indirect_n2o_nh3 <- function(
 # doi:10.1038/s41467-017-01321-w): neither denitrified nor leached that year,
 # it stays retained. Denitrification is the residual of every sink.
 .leaching_cascade <- function(surplus, carried_in, rates) {
-  through <- surplus + dplyr::if_else(rates$drained, carried_in, 0)
-  available <- through * (1 - rates$denit_share) * (1 - rates$a_cn)
-  leached <- available * rates$transport * (1 - rates$no3_red)
+  kept <- (1 - rates$denit_share) * (1 - rates$a_cn)
+  new <- surplus * kept
+  pool <- dplyr::if_else(rates$drained, carried_in, 0) * kept
+  moved <- new * rates$transport_new + pool * rates$transport
+  leached <- moved * (1 - rates$no3_red)
   held <- dplyr::if_else(rates$drained, 0, carried_in)
-  retained <- available * (1 - rates$transport) + held
+  retained <- new + pool - moved + held
   list(
     leached = leached,
     retained = retained,
@@ -1676,24 +1767,31 @@ calculate_indirect_n2o_nh3 <- function(
 }
 
 # The pool a key starts with: the steady state of its first year's fluxes,
-# pool = S r / (1 - r), r the share of the pool's input that stays. Every
-# meisinger_denitrification share is at least 0.02, so r < 1 on a drained
-# row. A store with no exit (no drainage) has no finite steady state and
-# starts at 0.
-.leaching_steady_pool <- function(surplus, rates) {
-  stays <- (1 - rates$denit_share) * (1 - rates$a_cn) * (1 - rates$transport)
-  dplyr::if_else(rates$drained, surplus * stays / (1 - stays), 0)
+# pool = S k (1 - f_new) / (1 - k (1 - f)), with k = (1 - d) (1 - a_cn) the
+# share that escapes the year's sinks, f_new the surplus's transport and f
+# the pool's (equal except under "swat_uniform", when this is S r / (1 - r)
+# with r = k (1 - f)). Every meisinger_denitrification share is at least
+# 0.02, so k (1 - f) < 1 on a drained row. A store with no exit (no
+# drainage) has no finite steady state and starts at 0, as does every key
+# under initial_pool = "zero".
+.leaching_steady_pool <- function(surplus, rates, initial_pool) {
+  kept <- (1 - rates$denit_share) * (1 - rates$a_cn)
+  steady <- surplus *
+    kept *
+    (1 - rates$transport_new) /
+    (1 - kept * (1 - rates$transport))
+  dplyr::if_else(rates$drained & initial_pool == "steady_state", steady, 0)
 }
 
 # Each row's carried-in pool, its pool field and whether its pool waits on an
 # absent key. Without `carry_over_by` every row is a first year.
-.leaching_thread_pool <- function(x, rates, carry_over_by) {
-  steady <- .leaching_steady_pool(x$n_surplus_t, rates)
+.leaching_thread_pool <- function(x, rates, carry_over_by, initial_pool) {
+  steady <- .leaching_steady_pool(x$n_surplus_t, rates, initial_pool)
   n <- nrow(x)
   if (is.null(carry_over_by)) {
     return(list(
       carried_in = steady,
-      field = .leaching_pool_field(rep(TRUE, n), rates$drained),
+      field = .leaching_pool_field(rep(TRUE, n), rates$drained, initial_pool),
       held = rep(FALSE, n)
     ))
   }
@@ -1715,7 +1813,7 @@ calculate_indirect_n2o_nh3 <- function(
   )
   list(
     carried_in = state$carried_in,
-    field = .leaching_pool_field(state$first, rates$drained),
+    field = .leaching_pool_field(state$first, rates$drained, initial_pool),
     held = .leaching_held_rows(key_id, x$year)
   )
 }
@@ -1780,11 +1878,11 @@ calculate_indirect_n2o_nh3 <- function(
   !is.na(next_year) & !present
 }
 
-.leaching_pool_field <- function(first, drained) {
+.leaching_pool_field <- function(first, drained, initial_pool) {
   dplyr::case_when(
     !first ~ "carried_pool",
-    drained ~ "initial_pool_steady_state",
-    .default = "initial_vadose_zero"
+    !drained ~ "initial_vadose_zero",
+    .default = paste0("initial_pool_", initial_pool)
   )
 }
 

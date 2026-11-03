@@ -72,12 +72,13 @@
 #'   FracLEACH-(H) of Section 11.2.2.2 p. 11.25 applied to the N added;
 #'   `"fracleach_surplus"`, the same fractions on the surplus; or
 #'   `"image_gnm"`, the IMAGE-GNM root zone of Beusen et al. 2015,
-#'   eqs. 10-14 p. 4052), `leaching_transport` and
-#'   `leaching_none_class` (forwarded to [calculate_n_leaching()] as
-#'   `transport`, default `"swat_mixing"`, and `none_class`, default
-#'   `"retention"`; read only under `"meisinger_drainage"`, which threads
-#'   the retained nitrate through the years of the balance on each key
-#'   without its year) and `regime`, how each grid
+#'   eqs. 10-14 p. 4052), `leaching_transport`, `leaching_none_class` and
+#'   `leaching_initial_pool` (forwarded to [calculate_n_leaching()] as
+#'   `transport`, default `"swat_mixing"`, `none_class`, default
+#'   `"retention"`, and `initial_pool`, default `"steady_state"`; read only
+#'   under `"meisinger_drainage"`, which threads the retained nitrate
+#'   through the years of the balance on each key without its year) and
+#'   `regime`, how each grid
 #'   row is split into a rainfed and an irrigated part (see Details):
 #'   `"yield_split"` (default), `"area_split"` or `"none"`. The IPCC 2019
 #'   wet/dry methods read `moisture_regime` from the driver tables in `data`.
@@ -565,6 +566,7 @@ build_nitrogen_balance <- function(
     "leaching",
     "leaching_transport",
     "leaching_none_class",
+    "leaching_initial_pool",
     "regime"
   )
   unknown <- setdiff(names(methods), valid_names)
@@ -578,13 +580,16 @@ build_nitrogen_balance <- function(
        {.val {unknown}}. Use {.val {valid_names}}."
     )
   }
-  nh3 <- methods$nh3 %||% "manner"
-  n2o <- methods$n2o %||% "ipcc2019"
-  n2o_indirect <- methods$n2o_indirect %||% "ipcc2019"
-  leaching <- methods$leaching %||% "meisinger_drainage"
-  transport <- methods$leaching_transport %||% "swat_mixing"
-  none_class <- methods$leaching_none_class %||% "retention"
-  regime <- methods$regime %||% "yield_split"
+  # [[ ]], not $: `$` partial-matches on a list, so methods$n2o read
+  # n2o_indirect's value whenever n2o itself was not given.
+  nh3 <- methods[["nh3"]] %||% "manner"
+  n2o <- methods[["n2o"]] %||% "ipcc2019"
+  n2o_indirect <- methods[["n2o_indirect"]] %||% "ipcc2019"
+  leaching <- methods[["leaching"]] %||% "meisinger_drainage"
+  transport <- methods[["leaching_transport"]] %||% "swat_mixing"
+  none_class <- methods[["leaching_none_class"]] %||% "retention"
+  initial_pool <- methods[["leaching_initial_pool"]] %||% "steady_state"
+  regime <- methods[["regime"]] %||% "yield_split"
   list(
     nh3 = rlang::arg_match(nh3, c("manner", "ipcc", "manner_default")),
     n2o = rlang::arg_match(
@@ -606,11 +611,15 @@ build_nitrogen_balance <- function(
     ),
     leaching_transport = rlang::arg_match(
       transport,
-      c("swat_mixing", "burns")
+      c("swat_mixing", "swat_uniform", "burns", "unlimited")
     ),
     leaching_none_class = rlang::arg_match(
       none_class,
       c("retention", "waterlogged")
+    ),
+    leaching_initial_pool = rlang::arg_match(
+      initial_pool,
+      c("steady_state", "zero")
     ),
     regime = rlang::arg_match(
       regime,
@@ -1340,6 +1349,7 @@ build_nitrogen_balance <- function(
     method = m$leaching,
     transport = m$leaching_transport,
     none_class = m$leaching_none_class,
+    initial_pool = m$leaching_initial_pool,
     carry_over_by = setdiff(key, "year")
   )
 }
@@ -1600,6 +1610,7 @@ build_nitrogen_balance <- function(
     method = "meisinger_drainage",
     transport = m$leaching_transport,
     none_class = m$leaching_none_class,
+    initial_pool = m$leaching_initial_pool,
     carry_over_by = c(stay, "fert_type")
   ) |>
     dplyr::summarise(

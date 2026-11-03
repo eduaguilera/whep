@@ -845,10 +845,164 @@ testthat::test_that("a first-year row starts at the steady-state pool, by hand",
   .expect_leaching_closes(out)
 })
 
+# SWAT 2009 eqs. 4:2.1.2 to 4:2.1.8 are daily: each day the layer's mobile
+# water M mixes with the day's percolation w and carries 1 - exp(-w / M) of
+# its nitrate away. A season of daily percolation, mostly in the wet months.
+.leach_daily_percolation <- function() {
+  c(rep(0, 150), rep(4, 60), rep(0.5, 90), rep(1.5, 65))
+}
+
+testthat::test_that("swat_mixing is the daily SWAT equation on a pool present before drainage", {
+  # A pool with no new input loses exp(-w / M) of itself each day; the daily
+  # losses compound to the annual form on the season's total percolation.
+  daily <- .leach_daily_percolation()
+  mobile <- 0.5 * 0.45 * 1000
+  kept <- purrr::reduce(daily, \(pool, w) pool * exp(-w / mobile), .init = 1)
+  testthat::expect_equal(
+    whep:::.leaching_f_swat(sum(daily), 0.45, 100),
+    1 - kept,
+    tolerance = 1e-12
+  )
+})
+
+testthat::test_that("swat_uniform is the daily SWAT equation on input arriving with the drainage", {
+  # Nitrate supplied in proportion to each day's percolation (1 / D per mm)
+  # mixes as it arrives. Integrated exactly within each day, the pool ends
+  # the day at p exp(-w / M) + (w / D) (M / w) (1 - exp(-w / M)), whatever
+  # the daily split; the season's leached share is the annual form
+  # 1 - (1 - exp(-D / M)) / (D / M).
+  daily <- .leach_daily_percolation()
+  total <- sum(daily)
+  mobile <- 0.5 * 0.45 * 1000
+  day <- function(pool, w) {
+    if (w == 0) {
+      return(pool)
+    }
+    pool * exp(-w / mobile) + (mobile / total) * (1 - exp(-w / mobile))
+  }
+  kept <- purrr::reduce(daily, day, .init = 0)
+  f <- whep:::.leaching_f_swat_uniform(total, 0.45, 100)
+  testthat::expect_equal(f, 1 - kept, tolerance = 1e-12)
+  ratio <- total / mobile
+  testthat::expect_equal(f, 1 - (1 - exp(-ratio)) / ratio, tolerance = 1e-12)
+  # Below the pulse form, and both vanish without drainage.
+  testthat::expect_lt(f, whep:::.leaching_f_swat(total, 0.45, 100))
+  testthat::expect_identical(
+    whep:::.leaching_f_swat_uniform(c(0, -0.05), 0.45, 100),
+    c(0, 0)
+  )
+  # A vanishing drainage leaches a vanishing share, without 0 / 0.
+  testthat::expect_lt(whep:::.leaching_f_swat_uniform(1e-9, 0.45, 100), 1e-11)
+})
+
+testthat::test_that("swat_uniform leaches the surplus uniformly and the pool as a pulse", {
+  # D = 600 mm (High class, d = 0.12), red = 0.35, a_cn = 0. From a zero
+  # pool only the year's surplus moves: S (1 - d) f_u (1 - red).
+  x <- .leach_rows()
+  f_u <- whep:::.leaching_f_swat_uniform(600, 0.45, 100)
+  out <- whep::calculate_n_leaching(
+    x,
+    drainage_mm = 600,
+    transport = "swat_uniform",
+    initial_pool = "zero"
+  )
+  testthat::expect_equal(out$retained_carried_in_n_t, 0)
+  testthat::expect_equal(
+    out$no3_n_t,
+    100 * 0.88 * f_u * 0.65,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(out$retained_profile_n_t, 100 * 0.88 * (1 - f_u))
+  testthat::expect_equal(
+    out$method_leaching,
+    "meisinger_drainage;swat_uniform;none_retention;initial_pool_zero"
+  )
+  .expect_leaching_closes(out)
+  # The steady state of the two transports: the pool is fed by the
+  # surplus's unleached share and drained as a pulse,
+  # C = S (1 - d)(1 - f_u) / (1 - (1 - d)(1 - f)), and the row retains it.
+  steady <- whep::calculate_n_leaching(
+    x,
+    drainage_mm = 600,
+    transport = "swat_uniform"
+  )
+  f <- .leach_f_swat_600()
+  pool <- 100 * 0.88 * (1 - f_u) / (1 - 0.88 * (1 - f))
+  testthat::expect_equal(
+    steady$retained_carried_in_n_t,
+    pool,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(steady$retained_profile_n_t, pool, tolerance = 1e-12)
+  testthat::expect_equal(
+    steady$no3_n_t,
+    (100 * f_u + pool * f) * 0.88 * 0.65,
+    tolerance = 1e-12
+  )
+  .expect_leaching_closes(steady)
+})
+
+testthat::test_that("unlimited transport is the Meisinger cascade without a root-zone limit", {
+  # Every drained row loses all its available nitrate: no3 = S (1 - d)
+  # (1 - red) and nothing is retained, the cascade before transport.
+  x <- .leach_rows(2L, n_surplus_t = c(100, 40))
+  out <- whep::calculate_n_leaching(
+    x,
+    drainage_mm = c(600, 0),
+    transport = "unlimited"
+  )
+  testthat::expect_equal(out$no3_n_t[1], 100 * 0.88 * 0.65, tolerance = 1e-12)
+  testthat::expect_equal(out$retained_profile_n_t[1], 0)
+  testthat::expect_equal(out$retained_carried_in_n_t[1], 0)
+  testthat::expect_equal(
+    out$method_leaching[1],
+    "meisinger_drainage;unlimited;none_retention;initial_pool_steady_state"
+  )
+  # Without drainage nothing moves, whatever the transport.
+  testthat::expect_equal(out$no3_n_t[2], 0)
+  testthat::expect_equal(out$retained_profile_n_t[2], 20, tolerance = 1e-12)
+  .expect_leaching_closes(out)
+})
+
+testthat::test_that("a zero initial pool starts every key empty and says so", {
+  x <- .leach_rows()
+  out <- whep::calculate_n_leaching(x, drainage_mm = 600, initial_pool = "zero")
+  f <- .leach_f_swat_600()
+  testthat::expect_equal(out$retained_carried_in_n_t, 0)
+  testthat::expect_equal(out$no3_n_t, 100 * 0.88 * f * 0.65, tolerance = 1e-12)
+  testthat::expect_equal(
+    out$method_leaching,
+    "meisinger_drainage;swat_mixing;none_retention;initial_pool_zero"
+  )
+  .expect_leaching_closes(out)
+  # Later years of a key still carry their pool.
+  three <- .leach_rows(
+    2L,
+    cell = "a",
+    year = c(2001L, 2002L)
+  )
+  run <- whep::calculate_n_leaching(
+    three,
+    drainage_mm = 600,
+    initial_pool = "zero",
+    carry_over_by = "cell"
+  )
+  testthat::expect_equal(run$retained_carried_in_n_t[1], 0)
+  testthat::expect_equal(
+    run$retained_carried_in_n_t[2],
+    run$retained_profile_n_t[1]
+  )
+  testthat::expect_match(run$method_leaching[2], "carried_pool")
+  testthat::expect_error(
+    whep::calculate_n_leaching(x, drainage_mm = 600, initial_pool = "spun"),
+    class = "rlang_error"
+  )
+})
+
 testthat::test_that("the composition identity holds for every transport", {
   x <- .leach_rows(4L, n_surplus_t = c(100, 0, 37.5, 250))
   drainage <- c(600, 0.05, 2500, 40)
-  for (transport in c("swat_mixing", "burns")) {
+  for (transport in c("swat_mixing", "swat_uniform", "burns", "unlimited")) {
     out <- whep::calculate_n_leaching(
       x,
       drainage_mm = drainage,

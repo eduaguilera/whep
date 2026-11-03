@@ -2539,6 +2539,20 @@ testthat::test_that("Meisinger leaching carries retained nitrate across the bala
   )
 })
 
+testthat::test_that("a methods name is read exactly, never by its prefix", {
+  # `$` on a list partial-matches: methods$n2o read n2o_indirect's value
+  # when n2o was not given, and methods$leaching read leaching_transport's.
+  only_indirect <- whep:::.nb_methods(list(n2o_indirect = "ipcc2019_atl_med"))
+  testthat::expect_identical(only_indirect$n2o, "ipcc2019")
+  testthat::expect_identical(only_indirect$n2o_indirect, "ipcc2019_atl_med")
+  only_transport <- whep:::.nb_methods(list(leaching_transport = "burns"))
+  testthat::expect_identical(only_transport$leaching, "meisinger_drainage")
+  testthat::expect_identical(only_transport$leaching_transport, "burns")
+  only_none <- whep:::.nb_methods(list(leaching_none_class = "waterlogged"))
+  testthat::expect_identical(only_none$leaching, "meisinger_drainage")
+  testthat::expect_identical(only_none$leaching_none_class, "waterlogged")
+})
+
 testthat::test_that("the leaching transport and None class are validated methods", {
   m <- whep:::.nb_methods(list(
     leaching_transport = "burns",
@@ -2549,6 +2563,23 @@ testthat::test_that("the leaching transport and None class are validated methods
   defaults <- whep:::.nb_methods(list())
   testthat::expect_identical(defaults$leaching_transport, "swat_mixing")
   testthat::expect_identical(defaults$leaching_none_class, "retention")
+  testthat::expect_identical(defaults$leaching_initial_pool, "steady_state")
+  alternatives <- whep:::.nb_methods(list(
+    leaching_transport = "swat_uniform",
+    leaching_initial_pool = "zero"
+  ))
+  testthat::expect_identical(alternatives$leaching_transport, "swat_uniform")
+  testthat::expect_identical(alternatives$leaching_initial_pool, "zero")
+  testthat::expect_identical(
+    whep:::.nb_methods(list(
+      leaching_transport = "unlimited"
+    ))$leaching_transport,
+    "unlimited"
+  )
+  testthat::expect_error(
+    whep:::.nb_methods(list(leaching_initial_pool = "spun_up")),
+    class = "rlang_error"
+  )
   testthat::expect_error(
     whep:::.nb_methods(list(leaching_transport = "piston")),
     class = "rlang_error"
