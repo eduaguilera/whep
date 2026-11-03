@@ -702,6 +702,16 @@
   purrr::walk(list(national, grid), .check_crop_polity_column)
   keys <- c("polity_code", "year", "item_prod_code")
   .check_columns(national, keys, "country_areas")
+  if (
+    !is.numeric(national$year) ||
+      any(!is.finite(national$year)) ||
+      any(national$year != trunc(national$year))
+  ) {
+    cli::cli_abort(
+      "Native crop targets require finite, nonmissing whole-number years.",
+      class = "whep_polity_key"
+    )
+  }
   if (anyDuplicated(national[keys])) {
     cli::cli_abort(
       "Crop targets repeat a polity, year and item; resolve the observations.",

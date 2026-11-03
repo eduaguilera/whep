@@ -27,6 +27,14 @@
   do.call(whep::build_gridded_landuse, c(fixture, list(config = config)))
 }
 
+testthat::test_that("native targets cannot silently lose an undated territory", {
+  purrr::walk(list(NA_integer_, Inf, 1900.5, "1900"), \(invalid) {
+    fix <- .polity_crop_fixture()
+    fix$country_areas$year[1] <- invalid
+    testthat::expect_error(.run_polity_crop(fix), class = "whep_polity_key")
+  })
+})
+
 testthat::test_that("crop allocation uses polity identity without FAOSTAT", {
   out <- .run_polity_crop(.polity_crop_fixture())
   testthat::expect_setequal(
