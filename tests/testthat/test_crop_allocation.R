@@ -545,3 +545,24 @@ testthat::test_that("out-of-scope sources are not folded into absent buckets", {
   testthat::expect_identical(result$area_code, 277L)
   testthat::expect_equal(result$harvested_area_ha, 100)
 })
+
+testthat::test_that("NPP densities survive cell allocation unchanged", {
+  npp <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~crop_npp_n_t, ~area_ha,
+    ~yield_dm_t_ha,
+    2010L, 10L, 15L, 40, 600, 2
+  )
+  result <- whep:::.n_grid_npp(npp, .ca_allocation()) |>
+    dplyr::arrange(.data$lon)
+  testthat::expect_equal(result$crop_npp_n_t, c(30, 10))
+  testthat::expect_equal(result$area_ha, c(450, 150))
+  testthat::expect_equal(result$yield_dm_t_ha, c(2, 2))
+})
+
+testthat::test_that("NPP allocation refuses an unclassified numeric unit", {
+  npp <- dplyr::mutate(.ca_native_totals(), unknown_quantity = 1)
+  testthat::expect_error(
+    whep:::.n_grid_npp(npp, .ca_native_allocation()),
+    "neither a quantity"
+  )
+})

@@ -176,6 +176,28 @@ testthat::test_that("applied manure adds via the FracGASM volatilisation factor"
   testthat::expect_equal(wheat / sum(result$impact_u), 0.7)
 })
 
+testthat::test_that("grazing deposition is left to the livestock chain", {
+  # F_PRP is priced by build_livestock_ghg_extension() (EF3PRP, FracGASM,
+  # FracLEACH-(H)) and the two extensions are summed in the GHG footprint, so
+  # pasture manure here would count it twice (whep#1524).
+  f <- .soil_n2o_fixture()
+  f$manure <- tibble::tribble(
+    ~Item, ~Element, ~Year, ~`Area Code`, ~Value,
+    "All Animals", "Manure applied to soils (N content)", 2010, 10, 1e7
+  )
+  applied_only <- whep::build_crop_soil_n2o_extension(data = f)
+  f$manure <- dplyr::bind_rows(
+    f$manure,
+    tibble::tribble(
+      ~Item, ~Element, ~Year, ~`Area Code`, ~Value,
+      "All Animals", "Manure left on pasture (N content)", 2010, 10, 5e7,
+      "Cattle", "Manure left on pasture (N content)", 2010, 10, 4e7
+    )
+  )
+  with_grazing <- whep::build_crop_soil_n2o_extension(data = f)
+  testthat::expect_equal(with_grazing$impact_u, applied_only$impact_u)
+})
+
 testthat::test_that("GWP standard rescales soil N2O proportionally", {
   f <- .soil_n2o_fixture()
   ar6 <- whep::build_crop_soil_n2o_extension(gwp = "ar6", data = f)

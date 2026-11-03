@@ -68,6 +68,8 @@ calculate_uncertainty_bounds <- function(data) {
     list(col = "manure_ch4_tier2", param = "MCF"),
     list(col = "manure_n2o_direct", param = "EF_N2O"),
     list(col = "manure_n2o_indirect", param = "EF_N2O"),
+    list(col = "manure_n2o_direct_pasture", param = "EF_N2O"),
+    list(col = "manure_n2o_indirect_pasture", param = "EF_N2O"),
     list(col = "manure_n2o_total", param = "EF_N2O")
   )
 

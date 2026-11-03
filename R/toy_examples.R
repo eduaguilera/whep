@@ -584,7 +584,10 @@
 # area_code is the one the spatialize-country-grid pin assigns to that cell
 # (whep#686): 79 Germany, 21 Brazil, 114 Kenya, 203 Spain.
 .example_water_balance <- function() {
-  label <- "aet:components|drain:seepage|bg:cft_native"
+  label <- paste0(
+    "aet:components|drain:seepage|runoff:total_minus_seepage|",
+    "bg:cft_native"
+  )
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~water_input_mm, ~prec_mm, ~irrig_mm,
     ~pet_mm, ~aet_mm, ~aet_blue_mm, ~aet_green_mm, ~blue_consump_mm,
@@ -2457,4 +2460,90 @@
     excluded = .admin_shares_excluded(shares),
     not_shipped = character()
   )
+}
+
+# Ten rows of `build_cell_moisture_regime(years = 2009:2010)` run on the
+# offline fixture of its tests: one cell shared by two polities, a second
+# cell, maize and a vegetables item pooling green corn with cabbages. The
+# default water term is precipitation alone, so the irrigation and LPJmL
+# columns are empty and irrigated rows take their cell's class. The columns
+# the fixture holds constant (latitude, temperature, frost days, PET, the
+# rule and window) are set once below.
+.example_cell_moisture_regime <- function() {
+  tibble::tribble(
+    ~lon, ~area_code, ~item_cbs_code, ~water_regime, ~year, ~prec_mm,
+    ~moisture_regime,
+    9.25, 79L,  2514L, "irrigated", 2009L, 600,  "dry",
+    9.25, 79L,  2514L, "rainfed",   2009L, 600,  "dry",
+    9.25, 79L,  2605L, "irrigated", 2009L, 600,  "dry",
+    9.25, 79L,  2605L, "rainfed",   2009L, 600,  "dry",
+    9.25, 211L, 2514L, "rainfed",   2009L, 600,  "dry",
+    9.75, 79L,  2514L, "rainfed",   2009L, 1200, "wet",
+    9.25, 79L,  2514L, "irrigated", 2010L, 600,  "dry",
+    9.25, 79L,  2514L, "rainfed",   2010L, 600,  "dry",
+    9.25, 79L,  2605L, "irrigated", 2010L, 600,  "dry",
+    9.25, 211L, 2514L, "rainfed",   2010L, 600,  "dry"
+  ) |>
+    dplyr::mutate(
+      lat = 47.75,
+      mat_c = 12,
+      frost_days = 40,
+      pet_mm = 1000,
+      water_mm = .data$prec_mm,
+      moisture_ratio = .data$water_mm / .data$pet_mm,
+      tropical = FALSE,
+      method_moisture_regime = "ipcc2019_wet_dry;trailing_30;precip"
+    ) |>
+    ensure_columns(.cmr_prototype(), extra = "drop") |>
+    .add_reporting_polity_columns() |>
+    tibble::as_tibble()
+}
+
+# Five balance keys of build_n_loss_drivers() on the offline three-cell
+# fixture of its tests (2010, annual window): irrigated maize in a dry cell,
+# a row with no crop, grass and rice rows with no regime land, and maize in a
+# cell off CRU's land mask that took its climate from its nearest CRU cell.
+# The loss table carries each key with its synthetic N row.
+.example_n_loss_drivers <- function() {
+  leaching <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~water_regime,
+    ~moisture_regime, ~method_moisture_regime, ~climate_fill_km,
+    9.25, 47.75, 79L, 2514L, 2010L, "irrigated", "dry",
+    "ipcc2019_wet_dry;annual;precip", NA,
+    9.25, 47.75, 79L, NA, 2010L, "rainfed", "dry",
+    "ipcc2019_wet_dry;annual;precip;cell_rainfed_class=no_crop_item", NA,
+    9.75, 47.75, 79L, 3000L, 2010L, "rainfed", "wet",
+    "ipcc2019_wet_dry;annual;precip;cell_rainfed_class=no_regime_area", NA,
+    9.75, 47.75, 79L, 2807L, 2010L, "irrigated", "wet",
+    "ipcc2019_wet_dry;annual;precip;cell_rainfed_class=no_regime_area", NA,
+    10.25, 47.75, 79L, 2514L, 2010L, "rainfed", "wet",
+    paste0(
+      "ipcc2019_wet_dry;annual;precip;",
+      "nearest_cru_cell=mat_c+frost_days+prec_mm+pet_mm"
+    ), 37.38188
+  ) |>
+    dplyr::mutate(climate_fill_km = as.numeric(.data$climate_fill_km))
+  loss <- leaching |>
+    dplyr::mutate(
+      fert_type = "Synthetic",
+      climate = c("MED", "MED", "ATL", "ATL", "ATL"),
+      irrig_type = c("Med_average", "Rainfed", "Tier_1", "Flooded", "Tier_1"),
+      method_climate = "from_moisture_regime"
+    ) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "item_cbs_code",
+      "year",
+      "water_regime",
+      "fert_type",
+      "moisture_regime",
+      "climate",
+      "irrig_type",
+      "method_moisture_regime",
+      "method_climate",
+      "climate_fill_km"
+    )
+  list(n_balance_drivers = loss, n_balance_leaching_drivers = leaching)
 }

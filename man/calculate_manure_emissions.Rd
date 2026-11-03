@@ -226,6 +226,18 @@ how it was keyed, \code{"<shares>/<keying>"} (e.g.
 \code{n_excretion}, \code{manure_n2o_direct},
 \code{manure_n2o_indirect}, \code{manure_n2o_total}. Tier 1 uses default per-head
 excretion rates; Tier 2 uses the energy/nitrogen balance.
+\item \code{manure_n2o_direct_pasture}, \code{manure_n2o_indirect_pasture}: the part of
+\code{manure_n2o_direct} and \code{manure_n2o_indirect} (kg N2O) from the N
+deposited by grazing animals on pasture, range and paddock, priced at
+EF3PRP and the Ch 11 FracGASM and FracLEACH-(H). Both are already inside
+\code{manure_n2o_total}, never added to it. The IPCC reports this N under
+managed soils (2019 Refinement Vol 4 Ch 11, F_PRP), not manure
+management, and \code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} prices the same N as a field
+loss on its excreta rows. WHEP's GHG footprint takes it from this chain
+only (\code{\link[=build_livestock_ghg_extension]{build_livestock_ghg_extension()}}; \code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}}
+leaves F_PRP out), so subtract these columns from \code{manure_n2o_total} before
+adding any managed-soils figure that includes grazing N, or for a
+manure-management-only total comparable to an inventory's.
 }
 }
 \description{

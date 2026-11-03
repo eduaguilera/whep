@@ -7,7 +7,7 @@
     # higher-share-weighted average with texture 9's pH (5.0).
     1L, 7L, 60, 6.5,
     1L, 9L, 40, 5.0,
-    # Unit 2: dominant texture's pH is missing -> defaults to 7.0.
+    # Unit 2: dominant texture's pH is missing -> the unit carries no pH.
     2L, 12L, 80, NA_real_,
     2L, 1L, 20, 8.2,
     # Unit 3: single texture class, single row.
@@ -98,7 +98,7 @@ testthat::test_that(".derive_dominant_soil picks dominant texture's pH", {
   result <- whep:::.derive_dominant_soil(.hwsd_attr_fixture())
 
   pointblank::expect_col_exists(result, c("mu_global", "t_ph_h2o"))
-  testthat::expect_equal(nrow(result), 3L)
+  testthat::expect_equal(nrow(result), 2L)
   testthat::expect_equal(
     result$t_ph_h2o[result$mu_global == 1L],
     6.5
@@ -109,13 +109,16 @@ testthat::test_that(".derive_dominant_soil picks dominant texture's pH", {
   )
 })
 
-testthat::test_that(".derive_dominant_soil defaults missing pH to 7.0", {
+# A unit whose dominant texture has no pH used to be handed a neutral 7.0,
+# which then averaged into its block as if it had been measured (whep#1034).
+# It is left out instead, as the hydraulic lookup already leaves out a unit its
+# crosswalk cannot reach: the block mean is taken over the pixels that do carry
+# a pH, and a cell with none is gap-filled from its neighbours.
+testthat::test_that(".derive_dominant_soil leaves out a unit with no pH", {
   result <- whep:::.derive_dominant_soil(.hwsd_attr_fixture())
 
-  testthat::expect_equal(
-    result$t_ph_h2o[result$mu_global == 2L],
-    7.0
-  )
+  testthat::expect_false(2L %in% result$mu_global)
+  pointblank::expect_col_vals_not_null(result, "t_ph_h2o")
 })
 
 testthat::test_that(".derive_dominant_soil drops rows with NA texture", {
@@ -334,6 +337,56 @@ testthat::test_that("read_soil_ph aggregates HWSD raster + attributes", {
   result <- whep::read_soil_ph(hwsd_dir = dir)
 
   pointblank::expect_col_exists(result, c("lon", "lat", "soil_ph"))
+  testthat::expect_true(all(result$soil_ph == 6.5))
+})
+
+# A 2 x 2 degree HWSD fixture at 1/6 degree, one map-unit id per pixel, laid
+# out by `values` (row-major, 12 x 12).
+.write_hwsd_raster <- function(dir, values) {
+  rast <- terra::rast(
+    nrows = 12,
+    ncols = 12,
+    xmin = -1,
+    xmax = 1,
+    ymin = -1,
+    ymax = 1,
+    resolution = 1 / 6
+  )
+  terra::values(rast) <- values
+  terra::writeRaster(
+    rast,
+    file.path(dir, "hwsd.bil"),
+    filetype = "EHdr",
+    overwrite = TRUE
+  )
+  dir
+}
+
+testthat::test_that("a unit with no pH does not pull its block towards 7", {
+  testthat::skip_if_not_installed("terra")
+  dir <- .write_hwsd_extract(withr::local_tempdir())
+  # Every 0.5-degree block mixes unit 1 (pH 6.5) with unit 2 (no pH).
+  .write_hwsd_raster(dir, rep(c(1L, 2L), 72))
+
+  result <- whep::read_soil_ph(hwsd_dir = dir)
+
+  testthat::expect_equal(nrow(result), 16L)
+  testthat::expect_true(all(result$soil_ph == 6.5))
+})
+
+testthat::test_that("a block with no pH at all is gap-filled, not set to 7", {
+  testthat::skip_if_not_installed("terra")
+  dir <- .write_hwsd_extract(withr::local_tempdir())
+  # Western half unit 1 (pH 6.5), eastern half unit 2 (no pH).
+  .write_hwsd_raster(dir, rep(rep(c(1L, 2L), each = 6), 12))
+  cells <- tidyr::expand_grid(
+    lon = c(-0.75, -0.25, 0.25, 0.75),
+    lat = c(-0.75, -0.25, 0.25, 0.75)
+  )
+
+  result <- whep::read_soil_ph(hwsd_dir = dir, data = list(cell_polity = cells))
+
+  testthat::expect_equal(nrow(result), 16L)
   testthat::expect_true(all(result$soil_ph == 6.5))
 })
 

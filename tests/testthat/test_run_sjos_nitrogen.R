@@ -1116,10 +1116,10 @@ testthat::test_that("pathway mode is refused and arguments are checked", {
 
 testthat::test_that("food comes from the tonnes rows of the balances only", {
   cbs <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~unit, ~food,
-    2015L, 1L, 2511L, "tonnes", 10,
-    2015L, 1L, 866L, "heads", 0,
-    2014L, 1L, 2511L, "tonnes", 99
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~food, ~import,
+    2015L, 1L, 2511L, "tonnes", 10, 4,
+    2015L, 1L, 866L, "heads", 0, 0,
+    2014L, 1L, 2511L, "tonnes", 99, 4
   )
   food <- whep:::.sjr_cbs_food(2015L, cbs)
   testthat::expect_equal(food$food_t, 10)
@@ -1129,6 +1129,49 @@ testthat::test_that("food comes from the tonnes rows of the balances only", {
     whep:::.sjr_cbs_food(2015L, cbs),
     class = "whep_sjr_food_units"
   )
+})
+
+# whep#1514: FAOSTAT carries no trade for the French overseas departments
+# (zeros 2000-2006, nothing otherwise) and no Food Balance Sheet, so their food
+# is production less exports, and from 2007 only the livestock products the
+# production fill carries forward: 103 kcal per person per day for Guadeloupe
+# in 2010. Their balance still closes, because an import of zero satisfies it.
+testthat::test_that("an area-year whose balance carries no imports has no food", {
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~production, ~import, ~export,
+    ~food,
+    2010L, 68L, 2511L, "tonnes", 30, 5, 10, 25,
+    2010L, 68L, 2731L, "tonnes", 2, 0, 0, 2,
+    2010L, 87L, 2731L, "tonnes", 2647, 0, 0, 2645,
+    2010L, 87L, 2744L, "tonnes", 1800, NA, 0, 1661,
+    2010L, 87L, 866L, "heads", 900, 0, 0, 0
+  ) |>
+    dplyr::mutate(
+      domestic_supply = production + dplyr::coalesce(import, 0) - export
+    )
+  tonnes <- dplyr::filter(cbs, unit == "tonnes")
+  expect_supplied_guard(
+    identity = all(tonnes$food <= tonnes$domestic_supply),
+    guard = whep:::.sjr_cbs_food(2010L, cbs),
+    class = "whep_sjr_food_untraded",
+    condition = "warning"
+  )
+  food <- suppressWarnings(whep:::.sjr_cbs_food(2010L, cbs))
+  testthat::expect_setequal(food$area_code, 68L)
+  # An area imports something: an item it imports none of keeps its food.
+  testthat::expect_equal(sum(food$food_t), 27)
+  testthat::expect_warning(
+    whep:::.sjr_cbs_food(2010L, cbs),
+    "Guadeloupe \\(87, 1 area-year\\)"
+  )
+})
+
+testthat::test_that("the balances must carry imports to be read as food", {
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~food,
+    2015L, 1L, 2511L, "tonnes", 10
+  )
+  testthat::expect_error(whep:::.sjr_cbs_food(2015L, cbs), "import")
 })
 
 testthat::test_that("arm ids carry the cut at fixed precision", {

@@ -657,9 +657,10 @@ build_energy_co2_extension <- function(
 # resolve, with nothing saying so (whep#1034).
 #
 # So abort, naming the group. This is not hypothetical arithmetic:
-# `gleam_dressing_percentages` already ships one missing `dressing_percent`
-# (1 of 193 rows, Pigs/Industrial/WE), absorbed today only because sibling rows
-# cover the same (grp, reg). See whep#972.
+# `gleam_dressing_percentages` already ships two missing `dressing_percent`
+# (2 of 193 rows, Pigs/Industrial/WE and Monaco's 0 placeholder, whep#1572),
+# absorbed today only because sibling rows cover the same (grp, reg). See
+# whep#972.
 .energy_check_coef_mean <- function(x, value_col, key_cols, what) {
   bad <- dplyr::filter(x, !is.finite(.data[[value_col]]))
   if (nrow(bad) == 0L) {

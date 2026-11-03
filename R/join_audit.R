@@ -66,6 +66,11 @@
      year predicate that follows disposes of them.",
     ".add_polity_columns_dt", "[", "area_code, <dynamic>", 1L, "identity_lookup",
     "Same resolver, joining back the caller's own rows by row id.",
+    ".add_rebase_factor", "[", "area_code, item_cbs_code", 1L,
+    "time_invariant",
+    "One ratio per area, the median over the 2010-2013 vintage overlap, put on
+     the new food balance sheets, which begin in 2010; it never reaches a year
+     before the overlap (whep#1495).",
     ".adjust_food_for_leftovers", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "`cbs_yr` is one year of the CBS; the IO model is built per
      year.",
@@ -136,6 +141,10 @@
      disagrees, so a year predicate cannot change the answer.",
     ".cells_to_polity_area", "left_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, as above.",
+    ".cmr_fill_outside_run", "left_join", "area_code, item_cbs_code", 1L,
+    "single_year",
+    "Runs once per requested year: the country table is the mean depth over
+     that one year's window, so the window stands for the year in the key.",
     ".compute_su_used", "full_join", "area_code, item_cbs_code", 1L,
     "single_year", "Both sides are one year's supply-use.",
     ".cpy_key", "left_join", "polity_code", 1L, "single_year",
@@ -336,12 +345,18 @@
      alone. The year is applied BEFORE this join, not after: the label is
      resolved per (label, year) by `resolve_polity_label()`, which is what
      keeps pre-union Tanganyika out of the United Republic.",
-    ".residue_cereal_from_products", "left_join", "area_code", 1L,
+    ".residue_from_yield", "left_join", "area_code", 1L,
     "time_invariant",
     "Attaches the area's HANPP region, which keys the modern-variety
-     harvest-index correction of `calculate_crop_residues()` (whep#1448). The
-     region is published once per area in `regions_full`, as for
-     `.sci_crop_regions`; the production rows carry `year` through the join.",
+     harvest-index correction of `calculate_crop_residues()` (whep#1448,
+     whep#1518). The region is published once per area in `regions_full`, as
+     for `.sci_crop_regions`; the production rows carry `year` through the
+     join.",
+    ".residue_basis_values", "left_join", "area_code", 1L, "time_invariant",
+    "The same HANPP-region attach, for the pre-1961 production the cereal
+     residue back-cast spends the estimator on (whep#1508). The region is
+     published once per area in `regions_full`; the production rows carry
+     `year` through the join.",
     ".residue_cereal_wirsenius", "left_join", "item_prod, area_code", 1L,
     "time_invariant",
     "Attaches the Wirsenius (2000) Table 3.16 residue:product ratios of a
@@ -406,6 +421,15 @@
      by construction, so a year in the key would return the year; and the join
      feeds only a warning -- the reporter class is never dropped and never
      aborts, so no published value passes through it.",
+    ".rr_model_rows", "left_join", "area_code", 1L, "time_invariant",
+    "Attaches the HANPP region of the modern-variety term to each regime
+     part the residue model is re-evaluated for. It is `.sci_crop_regions()`,
+     the same year-free Krausmann/HANPP/UN sub-region groupings the crop-NPP
+     chain attaches to the crop's own residue (see `.sci_crop_prod_wide`);
+     the part's factor divides by the model at the crop's mean yield, so the
+     region must be the one that chain used, and keying it on the year would
+     need a region table that varies in time. Every part keeps its own
+     `year`, which the model reads directly.",
     ".ryr_anomaly", "left_join", "area_code, lpjml_crop", 1L,
     "time_invariant",
     "Attaches LPJmL's irrigated:rainfed normaliser for the crop and country,
@@ -634,6 +658,10 @@
     "area_code, item_prod_code, treatment", 1L, "year_axis",
     "The longest such run per series, decision T31(e)'s visibility rule. A
      year in the key would return one year per year.",
+    ".fbs_rebase_factors", "[", "area_code, item_cbs_code, element", 1L,
+    "year_axis",
+    "The median old/new ratio over the 2010-2013 overlap years: the reduction
+     over those years is the factor itself (whep#1495).",
     ".alloc_straddle", "distinct", "lon, lat, area_code, level_polity_code",
     1L, "diagnostic",
     "The allocation layer's distinct compartment-cells, for the straddling
@@ -741,6 +769,11 @@
     ".cells_to_polity_area", "distinct", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, one row per code; same crosswalk, same
      absence of a year.",
+    ".cmr_fill_outside_run", "summarise", "area_code, item_cbs_code", 1L,
+    "year_axis",
+    "The country's mean depth over the run years of ONE requested year's
+     window: the reduction over the year axis is the fill itself, and a year
+     in the key would return one value per window year.",
     ".chain_link_land", "[", "area_code, land_use", 2L, "year_axis",
     "The chain-link: after `setorder(area_code, land_use, year)` the group is
      the SERIES and the operation runs along it -- a log ratio between
@@ -977,6 +1010,10 @@
     ".missing_denominator_areas", "summarise", "area_code", 1L, "diagnostic",
     "Totals the mass and the area-year count that have no population
      denominator, for the warning that names them.",
+    ".sjr_warn_untraded_food", "summarise", "area_code", 1L, "diagnostic",
+    "Totals the food and the area-year count whose balance imports nothing,
+     for the warning that names them (whep#1514). The rows it reports are
+     dropped on (year, area_code) by its caller.",
     ".n_check_area_key", "count", "lon, lat, area_code", 1L, "diagnostic",
     "The same duplicate-cell guard as the carbon one, for the gridded nitrogen
      support; it aborts rather than fold two polities into one cell.",

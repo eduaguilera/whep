@@ -975,6 +975,162 @@ testthat::test_that("split inputs are checked", {
   )
 })
 
+# -- Inputs that do not depend on the cells: read once per cache ---------------
+
+# The readers a build reaches when `data` does not carry the input, serving
+# the fixtures and counting their calls (the returned environment, by input).
+# `cropland` and `lpjml` stay in `data`: they depend on the years of `cells`.
+.ryr_counted_readers <- function(env = parent.frame()) {
+  calls <- new.env(parent = emptyenv())
+  count <- function(name) {
+    assign(name, (calls[[name]] %||% 0L) + 1L, envir = calls)
+  }
+  luh2_cft <- whep:::.read_luh2_cft
+  testthat::local_mocked_bindings(
+    read_spam_yields = function(...) {
+      count("spam")
+      .ryr_spam_fixture()
+    },
+    whep_read_file = function(file_alias, ...) {
+      count(file_alias)
+      switch(
+        file_alias,
+        "faostat-fertilizer-nutrients" = .ryr_fert_fixture(),
+        "faostat-production" = .ryr_production_fixture(),
+        rlang::abort(paste("unexpected read of", file_alias))
+      )
+    },
+    .read_luh2_cft = function(...) {
+      count("luh2")
+      luh2_cft(.ryr_luh2_fixture())
+    },
+    .ryr_read_lpjml_window = function(run_dir) {
+      count("window")
+      .ryr_window_fixture()
+    },
+    .ryr_read_lpjml_grid = function(run_dir) {
+      count("grid")
+      .ryr_grid_fixture()
+    },
+    .package = "whep",
+    .env = env
+  )
+  calls
+}
+
+# How often each reader was called, 0 for one never reached.
+.ryr_call_counts <- function(calls) {
+  inputs <- c(
+    "spam",
+    "faostat-fertilizer-nutrients",
+    "faostat-production",
+    "window",
+    "grid",
+    "luh2"
+  )
+  vapply(inputs, \(input) calls[[input]] %||% 0L, integer(1)) |>
+    unname()
+}
+
+# Two builds that differ in their cells alone: the first has one Spanish
+# cell, the second both, so Spain's LPJmL maize normaliser is not the same
+# in the two. Both reach the SPAM totals, the synthetic N, the Linum
+# dominance, the USSR's LUH2 back-cast, the window and the grid.
+.ryr_two_builds <- function() {
+  list(
+    dplyr::bind_rows(
+      .ryr_cell(203, 56, 2010),
+      .ryr_cell(203, 772, 2010),
+      .ryr_cell(68, 772, 2010),
+      .ryr_cell(228, 56, 1950)
+    ),
+    dplyr::bind_rows(
+      .ryr_cell(203, 56, 2000),
+      tibble::tibble(
+        lon = -3.75,
+        lat = 40.25,
+        area_code = 203L,
+        item_prod_code = 56L,
+        year = 2000L
+      ),
+      .ryr_cell(203, 772, 2000),
+      .ryr_cell(228, 15, 1950)
+    )
+  )
+}
+
+testthat::test_that("a shared cache reads each input that ignores the cells once", {
+  calls <- .ryr_counted_readers()
+  data <- list(
+    cropland = .ryr_cropland_fixture(),
+    lpjml = .ryr_lpjml_fixture()
+  )
+  builds <- .ryr_two_builds()
+  alone <- purrr::map(builds, \(cells) {
+    whep::build_regime_yield_ratio(cells, data = data)
+  })
+  testthat::expect_identical(.ryr_call_counts(calls), rep(2L, 6L))
+  rm(list = ls(calls), envir = calls)
+  data$cache <- new.env(parent = emptyenv())
+  shared <- purrr::map(builds, \(cells) {
+    whep::build_regime_yield_ratio(cells, data = data)
+  })
+  testthat::expect_identical(.ryr_call_counts(calls), rep(1L, 6L))
+  testthat::expect_identical(shared, alone)
+  # The injected-input build the other tests check by hand gives the same.
+  injected <- purrr::map(builds, \(cells) {
+    whep::build_regime_yield_ratio(cells, data = .ryr_data())
+  })
+  testthat::expect_identical(shared, injected)
+})
+
+testthat::test_that("the country LPJmL normaliser follows the cells of each call", {
+  .ryr_counted_readers()
+  data <- list(
+    cropland = .ryr_cropland_fixture(),
+    lpjml = .ryr_lpjml_fixture(),
+    cache = new.env(parent = emptyenv())
+  )
+  builds <- .ryr_two_builds()
+  one_cell <- whep::build_regime_yield_ratio(builds[[1]], data = data)
+  two_cells <- whep::build_regime_yield_ratio(builds[[2]], data = data)
+  maize_2010 <- one_cell[
+    one_cell$item_prod_code == 56L & one_cell$year == 2010L,
+  ]
+  maize_2000 <- two_cells[
+    two_cells$item_prod_code == 56L & two_cells$year == 2000L,
+  ]
+  # Alone in Spain the cell is the country, so its spatial part is 1; with
+  # its dry neighbour the country's maize is 2.5 and the cell's 4 is 1.6.
+  testthat::expect_equal(maize_2010$ratio_spatial, 1)
+  testthat::expect_equal(max(maize_2000$ratio_spatial), 1.6)
+})
+
+testthat::test_that("a cache is an environment and an absent one reads each call", {
+  testthat::expect_error(
+    whep::build_regime_yield_ratio(
+      .ryr_cell(203, 15, 2010),
+      data = list(cache = list())
+    ),
+    class = "whep_regime_yield_data"
+  )
+  reads <- 0L
+  read <- function() {
+    reads <<- reads + 1L
+    "table"
+  }
+  cache <- new.env(parent = emptyenv())
+  stored <- c(
+    whep:::.ryr_once(list(cache = cache), "key", read()),
+    whep:::.ryr_once(list(cache = cache), "key", read())
+  )
+  testthat::expect_identical(stored, c("table", "table"))
+  testthat::expect_identical(reads, 1L)
+  whep:::.ryr_once(list(), "key", read())
+  whep:::.ryr_once(list(), "key", read())
+  testthat::expect_identical(reads, 3L)
+})
+
 # -- Constants and example ----------------------------------------------------
 
 testthat::test_that("the Linum and Hemp products match primary_double.csv", {

@@ -27,11 +27,10 @@
 #
 # 1. The harvest-removal surplus is loss-free. `calculate_n_surplus()`'s
 #    default method is net inputs minus harvested exports, all four terms
-#    computed before the loss cascade runs. That matters operationally: the
-#    cascade still has no global per-cell drivers (#359), so a driver must feed
-#    it a placeholder `climate`. If the identity holds, the surplus is immune
-#    to that placeholder; if it ever stops holding, every surplus quoted from a
-#    placeholder run silently becomes a function of an invented value.
+#    computed before the loss cascade runs. If the identity holds, the surplus
+#    is immune to the loss drivers and methods; if it ever stops holding,
+#    every surplus quoted from a run silently becomes a function of whichever
+#    loss configuration that run used.
 #
 # 2. No cell-crop-year is duplicated. The balance key is the grain the
 #    boundary comparison and the footprint both join on.

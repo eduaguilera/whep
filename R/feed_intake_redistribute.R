@@ -1007,7 +1007,7 @@ build_feed_demand <- function(
   production,
   cbs,
   demand_tier,
-  data = .feed_demand_data(),
+  data = .raw_national_feed_data(cbs),
   options = list(),
   feed_eligibility = "feed_table"
 ) {
@@ -1019,6 +1019,23 @@ build_feed_demand <- function(
     options,
     feed_eligibility
   )$result
+}
+
+# Match the public/local conversion (whep#1215, whep#1599). Prefer the
+# CBS-owned mix, including its historical method, when available (whep#1556).
+# Otherwise use the same residue reader as those paths, scoped to the CBS
+# years. An explicit `data` argument bypasses this default entirely.
+.raw_national_feed_data <- function(cbs) {
+  data <- .feed_demand_data()
+  kgdm <- attr(cbs, "residue_feed_kgdm")
+  if (!is.null(kgdm)) {
+    data$residue_kgdm <- kgdm
+    return(data)
+  }
+  .with_residue_kgdm(
+    data,
+    .filter_years(get_primary_residues(), unique(cbs$year))
+  )
 }
 
 # Run the national-grain engine, returning both the raw redistribute result and
@@ -1299,13 +1316,11 @@ build_feed_demand <- function(
 }
 
 # Why one CBS feed item failed to classify, so the warning says which table to
-# repair. A `Name_biomass` of "0" is the upstream placeholder carried by three
-# items_full rows, not a biomass name (whep#970).
+# repair.
 .feed_gap_reason <- function(feed_quality, name_biomass) {
   dplyr::case_when(
     is.na(feed_quality) ~ "absent from feed_taxonomy",
     is.na(name_biomass) ~ "no Name_biomass in items_full",
-    name_biomass == "0" ~ "placeholder Name_biomass '0'",
     .default = paste0("no biomass_coefs row named ", name_biomass)
   )
 }

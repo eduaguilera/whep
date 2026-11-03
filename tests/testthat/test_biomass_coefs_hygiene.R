@@ -448,3 +448,18 @@ testthat::test_that("additive fresh-matter nitrogen is its dry-matter nitrogen",
     sources$shipped_kgN_kgDM * sources$Product_kgDM_kgFM
   )
 })
+
+testthat::test_that("oil palm residue carries fresh-frond dry matter", {
+  # whep#1516. The oil palm residue is fronds and trunks (46 and 14 Mt DM in
+  # Malaysia, 2010), and its Residue_kgDM_kgFM was the fruit's 0.65. Fresh
+  # fronds are 39.6% dry matter as fed (Feedipedia, "Oil palm (Elaeis
+  # guineensis), fronds, fresh"; Heuze, Tran, Sauvant & Lebas 2015,
+  # https://www.feedipedia.org/node/6916), and trunks, at 75-80% sap by
+  # weight, are wetter still. The anchored dry matter is booked to Firewood
+  # as fresh mass through this coefficient.
+  palm <- whep::biomass_coefs |>
+    dplyr::filter(.data$Name_biomass == "Oil palm")
+  testthat::expect_equal(nrow(palm), 1L)
+  testthat::expect_equal(palm$Residue_kgDM_kgFM, 0.396)
+  testthat::expect_lt(palm$Residue_kgDM_kgFM, palm$Product_kgDM_kgFM)
+})

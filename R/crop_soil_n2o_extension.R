@@ -43,9 +43,14 @@
 #' `EF5 = 0.011`. N2O-N is converted to N2O by 44/28 and to CO2e with the chosen
 #' GWP100.
 #'
-#' Manure deposited by grazing animals (F_PRP, which uses the grazing EF3 on
-#' pasture) and below-ground residue N are further Tier 1 inputs not yet
-#' included.
+#' Manure deposited by grazing animals (F_PRP) is left out on purpose, not
+#' pending: [build_livestock_ghg_extension()] already prices it, direct at
+#' EF3PRP and indirect at FracGASM and FracLEACH-(H), and the two extensions
+#' are summed in the GHG footprint, so adding it here would count it twice
+#' (whep#1524). The livestock chain reports that part apart as
+#' `manure_n2o_direct_pasture` and `manure_n2o_indirect_pasture` (see
+#' [calculate_manure_emissions()]). Below-ground residue N is a further Tier 1
+#' input not yet included.
 #'
 #' @param gwp 100-year global warming potential standard for N2O, `"ar6"`
 #'   (default, 273), `"ar5"` (265) or `"ar4"` (298).

@@ -586,6 +586,93 @@ test_that("gridded_fallow_weights default reads the grid-aez pin", {
   expect_equal(w$weight, 50)
 })
 
+# The zone propensities a cell is scored against: tropical_humid and subhumid
+# differ, so a cell's weight says which zone it was booked to.
+.zone_propensity <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~zone, ~fallow_propensity,
+    2511L, "arid", 1.0,
+    2511L, "tropical_humid", 0.9,
+    2511L, "subhumid", 0.2
+  )
+}
+
+# An AEZ grid on another lattice classifies no crop cell. Every cell then took
+# the assumed subhumid zone, and the weights still came out positive for every
+# crop, so nothing downstream could see that no climate was read (whep#1034).
+test_that("gridded_fallow_weights refuses an AEZ grid that classifies nothing", {
+  gridded_crops <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,
+    0.25, 50.25, 1L, 2511L, 100,
+    0.75, 50.25, 1L, 2511L, 100
+  )
+  grid_aez <- tibble::tribble(
+    ~lon, ~lat, ~lgp, ~thermal,
+    0.3, 50.3, 60, 7L,
+    0.8, 50.3, 60, 7L
+  )
+  unguarded <- testthat::with_mocked_bindings(
+    suppressWarnings(
+      whep::gridded_fallow_weights(gridded_crops, grid_aez, .zone_propensity())
+    ),
+    .check_aez_joined = function(joined) joined,
+    .package = "whep"
+  )
+
+  expect_supplied_guard(
+    identity = all(unguarded$weight > 0),
+    guard = whep::gridded_fallow_weights(
+      gridded_crops,
+      grid_aez,
+      .zone_propensity()
+    )
+  )
+})
+
+test_that("a crop cell with no AEZ class is booked as subhumid, and says so", {
+  gridded_crops <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,
+    0.25, 50.25, 1L, 2511L, 100, # arid
+    0.75, 50.25, 1L, 2511L, 40 # not in the AEZ grid
+  )
+  grid_aez <- tibble::tribble(~lon, ~lat, ~lgp, ~thermal, 0.25, 50.25, 60, 7L)
+
+  expect_warning(
+    w <- whep::gridded_fallow_weights(
+      gridded_crops,
+      grid_aez,
+      .zone_propensity()
+    ),
+    class = "whep_assumed_aez_zone"
+  )
+  expect_equal(w$weight, 100 * 1.0 + 40 * 0.2)
+})
+
+test_that("an unknown growing period is not read as 200 days", {
+  # A tropical cell with no LGP used to take 200 days, which is >= 180 and so
+  # tropical_humid -- the rice-fallow zone -- on no evidence at all.
+  gridded_crops <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~item_cbs_code, ~rainfed_ha,
+    0.25, 10.25, 1L, 2511L, 100, # arid
+    0.75, 10.25, 1L, 2511L, 100 # tropical, no LGP
+  )
+  grid_aez <- tibble::tribble(
+    ~lon, ~lat, ~lgp, ~thermal,
+    0.25, 10.25, 60, 2L,
+    0.75, 10.25, NA, 2L
+  )
+
+  expect_warning(
+    w <- whep::gridded_fallow_weights(
+      gridded_crops,
+      grid_aez,
+      .zone_propensity()
+    ),
+    class = "whep_assumed_aez_zone"
+  )
+  expect_equal(w$weight, 100 * 1.0 + 100 * 0.2)
+})
+
 test_that("the grid-aez pin is registered", {
   expect_true("grid-aez" %in% whep::whep_inputs$alias)
 })

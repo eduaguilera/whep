@@ -2002,3 +2002,76 @@ test_that("create_n_prov_destiny rejects an unknown wood_n_method", {
     class = "rlang_error"
   )
 })
+
+# Exercise the builder's orchestration while keeping all external inputs offline.
+# Stop after the real seed and share helpers, before unrelated destination work.
+.test_seed_processing_builder <- function(seed, target) {
+  production <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~prod_type, ~production_fm,
+    2000L, "A", "Example crop", "Cropland", "Product", 100
+  )
+  npp <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~LandUse, ~Area_ygpit_ha,
+    2000L, "A", "Example crop", "Cropland", 1
+  )
+  seed_uses <- tibble::tibble(
+    Year = 2000L,
+    Item = "Example crop",
+    Element = "Domestic_supply",
+    Destiny = "Seed",
+    Value_destiny = seed
+  )
+  observed <- tibble::tibble(
+    Year = 2000L,
+    Item = "Example crop",
+    value_to_process = target,
+    ProcessedItem = "Example output",
+    cf = 0.5
+  )
+  available <- 100 - seed
+  testthat::local_mocked_bindings(
+    whep_read_file = \(name, ...) {
+      switch(
+        name,
+        codes_coefs_items_full = tibble::tibble(
+          group = "Crop",
+          item = "Example crop"
+        ),
+        pie_full_destinies_fm = seed_uses,
+        intake_ygiac = tibble::tibble(item_cbs = "Example crop"),
+        tibble::tibble()
+      )
+    },
+    .merge_items_biomass = \(...) npp,
+    .calculate_n_soil_inputs = \(...) tibble::tibble(),
+    .add_feed = \(...) list(),
+    .aggregate_crop_seminatural = \(...) production,
+    .combine_production_boxes = \(...) production,
+    get_processing_coefs = \(...) observed,
+    .spain_processing_coefs = \(x) x,
+    .warn_processing_excess = \(excess) {
+      testthat::expect_equal(excess$excess_fm, max(target - available, 0))
+    },
+    .calculate_processed_amounts = \(
+      prod_combined_boxes,
+      processing_shares,
+      ...
+    ) {
+      row <- dplyr::filter(processing_shares, Year == 2000L)
+      testthat::expect_equal(prod_combined_boxes$production_fm, available)
+      testthat::expect_equal(
+        available * row$share_processing,
+        min(target, available)
+      )
+      rlang::abort("Processing boundary reached", class = "test_boundary")
+    },
+    .package = "whep"
+  )
+  testthat::expect_error(whep::create_n_prov_destiny(), class = "test_boundary")
+}
+
+testthat::test_that("builder uses post-seed supply for processing and excess", {
+  .test_seed_processing_builder(seed = 0, target = 50)
+  .test_seed_processing_builder(seed = 10, target = 50)
+  .test_seed_processing_builder(seed = 10, target = 95)
+})

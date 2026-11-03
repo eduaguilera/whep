@@ -158,6 +158,16 @@ test_that("build_commodity_balances returns expected columns", {
   expect_equal(names(result), expected_cols)
 })
 
+test_that("build_commodity_balances warns that nut_basis is unused", {
+  expect_warning(
+    whep::build_commodity_balances(
+      nut_basis = "as_published",
+      .fixed_data = cbs_fixed_fixture()
+    ),
+    "nut_basis"
+  )
+})
+
 test_that("build_commodity_balances has no duplicate keys", {
   result <- whep::build_commodity_balances(
     .fixed_data = cbs_fixed_fixture()
@@ -207,6 +217,7 @@ test_that("build_commodity_balances sources are from known set", {
   known_sources <- c(
     "FAOSTAT_prod",
     "FAOSTAT_FBS_New",
+    "FAOSTAT_FBS_New_rebased",
     "FAOSTAT_FBS_Old",
     "FAOSTAT_FBS_Old_scaled",
     "FAOSTAT_CBS",

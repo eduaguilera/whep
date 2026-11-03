@@ -58,8 +58,8 @@ test_that("feed N lookup resolves nitrogen for feed items via bio_coefs", {
     lk,
     item_cbs_code %in% as.integer(feed_items$item_cbs_code)
   )
-  # bio_coefs now carries the feed byproducts; only the junk Name_biomass="0"
-  # item fails to resolve.
+  # bio_coefs now carries the feed byproducts and, since whep#970, the
+  # aquatic plants.
   expect_gt(mean(!is.na(fl$feed_n_kgn_kgdm)), 0.99)
 
   # Non-negative; <= 0.5 accommodates urea / non-protein-N feed additives.

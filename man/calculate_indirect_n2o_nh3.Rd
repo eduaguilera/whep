@@ -3,26 +3,51 @@
 \name{calculate_indirect_n2o_nh3}
 \alias{calculate_indirect_n2o_nh3}
 \title{Estimate indirect N2O from volatilised ammonia.}
+\source{
+IPCC (2019) 2019 Refinement to the 2006 IPCC Guidelines for
+National Greenhouse Gas Inventories, Vol 4, Ch 11, Table 11.3
+(Updated), p. 11.26.
+}
 \usage{
-calculate_indirect_n2o_nh3(x, example = FALSE)
+calculate_indirect_n2o_nh3(
+  x,
+  method = c("ipcc2019", "ipcc2019_atl_med"),
+  example = FALSE
+)
 }
 \arguments{
-\item{x}{A tibble with \code{nh3_n_t}, \code{climate} and (for MED rows) the
-\code{irrig_type} column \link{n2o_efs_disaggregated} is keyed on.}
+\item{x}{A tibble with \code{nh3_n_t}. \code{method = "ipcc2019"} requires
+\code{moisture_regime} (\code{"wet"} or \code{"dry"}); \code{method = "ipcc2019_atl_med"}
+requires \code{climate} and, for MED rows, the \code{irrig_type} column
+\link{n2o_efs_disaggregated} is keyed on.}
+
+\item{method}{\code{"ipcc2019"} (default, IPCC 2019 Tier 1 wet/dry) or
+\code{"ipcc2019_atl_med"} (ATL flat EF4, MED disaggregated by irrigation).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of computing
 from \code{x}. Defaults to \code{FALSE}.}
 }
 \value{
-\code{x} with \code{n2o_indirect_nh3_n_t} appended.
+\code{x} with \code{n2o_indirect_nh3_n_t} and \code{method_n2o_indirect_nh3}
+appended.
 }
 \description{
 Converts the ammonia-N already volatilised (\code{\link[=calculate_nh3]{calculate_nh3()}}'s
-\code{nh3_n_t}) into indirect nitrous oxide. Atlantic rows
-use the flat IPCC EF4 factor (\code{ef4_nh3_to_n2o_atl}, 0.014) and touch no
-emission-factor lookup; Mediterranean rows use the disaggregated
-\link{n2o_efs_disaggregated} \code{ef} on \verb{(irrig_type, climate)} alone (\code{NH3_MgN * N2O_EF}), WITHOUT the \link{fertiliser_n2o_modifiers} \code{mf} that
-\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}'s \code{method = "aguilera"} applies to direct N2O.
+\code{nh3_n_t}) into indirect nitrous oxide. \code{"ipcc2019"} (the default) is
+the IPCC 2019 Tier 1 wet/dry \code{EF4}, read from \link{ipcc_2019_soil_n_ef} on
+each row's \code{moisture_regime}: 0.014 wet and 0.005 dry (IPCC 2019
+Refinement Vol 4 Ch 11 Table 11.3 (Updated) p. 11.26), stamped
+\code{"ipcc2019_wet_dry"}. \code{"ipcc2019_atl_med"} is the Atlantic/Mediterranean
+option: Atlantic rows use the flat EF4 wet factor (\code{ef4_nh3_to_n2o_atl},
+0.014) and touch no emission-factor lookup; Mediterranean rows use the
+disaggregated \link{n2o_efs_disaggregated} \code{ef} on \verb{(irrig_type, climate)}
+alone (\code{NH3_MgN * N2O_EF}), WITHOUT the \link{fertiliser_n2o_modifiers} \code{mf}
+that \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}'s \code{method = "aguilera"} applies to direct
+N2O. It is stamped \code{"ipcc2019_atl_med"}.
+}
+\details{
+\code{method = "ipcc2019"} aborts on an absent, missing or invalid
+\code{moisture_regime} exactly as \code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}} does.
 }
 \examples{
 calculate_indirect_n2o_nh3(example = TRUE)

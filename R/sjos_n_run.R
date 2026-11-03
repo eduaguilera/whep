@@ -574,10 +574,25 @@
 # Food tonnes per country and crop from the commodity balances, the
 # `data$cbs_food` input of build_food_supply(). Live-animal rows are counted
 # in heads and must carry no food: tonnes and heads are never added.
+#
+# An area-year whose tonnes rows carry no import at all has no food here
+# (whep#1514). Its balance closes -- an import of zero satisfies production +
+# import - export = domestic supply -- but the zero is an absent input, not a
+# measurement: no populated territory imports nothing. FAOSTAT has no trade
+# and no Food Balance Sheet for the French overseas departments (69, 87, 135,
+# 182; its trade rows for 2000-2006 are all zero), nor for Puerto Rico (177),
+# so their food is production less exports, and from 2007, when FAOSTAT stops
+# reporting their production, only the livestock products the production fill
+# carries forward: 103 kcal per person per day for Guadeloupe in 2010, 40 for
+# French Guiana. Dropped, the area-year is absent from the per-capita output
+# and named in a warning -- the treatment an area with no population row
+# already gets (#543) -- rather than present in it with a value nobody eats.
+# This is the only point where the import column is still in reach: the food
+# table below carries none.
 .sjr_cbs_food <- function(year, cbs = get_wide_cbs(years = year)) {
   .check_columns(
     cbs,
-    c("year", "area_code", "item_cbs_code", "unit", "food"),
+    c("year", "area_code", "item_cbs_code", "unit", "food", "import"),
     "cbs"
   )
   cbs <- dplyr::filter(cbs, .data$year == .env$year)
@@ -595,12 +610,57 @@
   }
   cbs |>
     dplyr::filter(.data$unit == "tonnes") |>
+    .sjr_drop_untraded_food() |>
     dplyr::transmute(
       year = .data$year,
       area_code = .data$area_code,
       item_cbs_code = .data$item_cbs_code,
       food_t = .data$food
     )
+}
+
+# The tonnes rows of the area-years that import something, with a warning
+# naming the area-years that carry food and import nothing, and the share of
+# food that leaves with them.
+.sjr_drop_untraded_food <- function(tonnes) {
+  by_area <- dplyr::summarise(
+    tonnes,
+    traded = any(dplyr::coalesce(.data$import, 0) != 0),
+    food_t = sum(.data$food, na.rm = TRUE),
+    .by = c("year", "area_code")
+  )
+  untraded <- dplyr::filter(by_area, !.data$traded, .data$food_t != 0)
+  if (nrow(untraded) == 0L) {
+    return(tonnes)
+  }
+  .sjr_warn_untraded_food(untraded, sum(by_area$food_t))
+  dplyr::anti_join(tonnes, untraded, by = c("year", "area_code"))
+}
+
+.sjr_warn_untraded_food <- function(untraded, total_food_t) {
+  dropped <- untraded |>
+    dplyr::summarise(
+      food_t = sum(.data$food_t),
+      area_years = dplyr::n(),
+      .by = "area_code"
+    ) |>
+    dplyr::arrange(dplyr::desc(.data$food_t)) |>
+    .missing_denominator_labels()
+  share <- if (total_food_t != 0) sum(dropped$food_t) / total_food_t else NA
+  cli::cli_warn(
+    c(
+      "!" = "{nrow(dropped)} area{?s} carrying food
+             {cli::qty(nrow(dropped))}{?imports/import} nothing, so
+             {cli::qty(sum(dropped$area_years))}{sum(dropped$area_years)}
+             area-year{?s} {?is/are} dropped from the food table rather than
+             read as production alone.",
+      stats::setNames(dropped$label, rep("*", nrow(dropped))),
+      "i" = "{.val {signif(100 * share, 3)}}% of the food tonnes in range goes
+             with them. FAOSTAT reports no trade for these areas, so their
+             food balance has no import side (whep#1514)."
+    ),
+    class = c("whep_sjr_food_untraded", "whep_absent_input")
+  )
 }
 
 # ---- Diagnostics -----------------------------------------------------------

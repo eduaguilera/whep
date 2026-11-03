@@ -63,24 +63,20 @@ published values. See \link{folded_reporting_areas} and issue 556.
 \item \code{region_labour}: Labour-focused region.
 \item \code{region_labour_agg}: Aggregated labour region, one of \code{"SAA"}, \code{"LACA"},
 \code{"Europe"}, \code{"AUS"}, \code{"SE-Asia"}, \code{"MENA"}, \code{"FSU"}, \code{"NAME"} or \code{"RoW"}.
-Northern Mariana Islands (code 163) instead holds \code{"Micronesia"}, its own
-\code{region_UN_sub} value.
 \item \code{region_labour_mech}: Labour mechanisation region, \code{"mech"} or
-\code{"no_mech"}. Two cells hold a sub-region name instead -- Angola (code 7)
-\code{"Middle Africa"} and Northern Mariana Islands (163) \code{"Micronesia"}, each
-its own \code{region_labour}-family value -- which looks like a column shift in
-the source spreadsheet. At code 163 the shift is two columns wide, since
-\code{region_labour_agg} is damaged in the same row; Angola's
-\code{region_labour_agg} is intact. Nothing here reads either column, so
-nothing computes on the bad cells; which class each belongs in is not
-recoverable from anything shipped with the package, and no public
-taxonomy defines this mechanised/not-mechanised split, so they are pinned
-in \code{test_region_classifications.R} rather than guessed at (whep#855).
-Group agreement is suggestive but not deductive: the other eight
-\code{region_labour == "Middle Africa"} rows are all \code{"no_mech"} and the other
-eight \code{region_UN_sub == "Micronesia"} rows are all \code{"mech"}, yet the
-column is not a function of either grouping -- \code{"Pacific"}, \code{"FSU"} and
-\code{"South America - South Cone"} each split across both classes.
+\code{"no_mech"}. Three cells held the row's UN M49 region name instead of
+a class, in the source spreadsheet too: Angola (code 7)
+\code{region_labour_mech} \code{"Middle Africa"}, and Northern Mariana Islands
+(163) \code{"Micronesia"} in both \code{region_labour_agg} and
+\code{region_labour_mech}. They were filled with the class every other member
+of that region carries: Angola \code{"no_mech"} (the other eight Middle
+Africa countries), Northern Mariana Islands \code{"mech"} and \code{"AUS"} (the
+other Micronesia rows, all \code{"mech"} and all \code{"AUS"} except the US Minor
+Outlying Islands, \code{"NAME"}). The column is not strictly a function of
+region -- \code{"Pacific"}, \code{"FSU"} and \code{"South America - South Cone"} each
+split across both classes -- so this is a region-analogy fill, not a
+recovered source value (whep#855). Nothing in the package reads either
+column.
 }
 }
 \source{

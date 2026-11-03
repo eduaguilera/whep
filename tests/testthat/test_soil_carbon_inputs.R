@@ -655,14 +655,8 @@ test_that(".sci_manure_crop_layer emits the manure-engine crops contract", {
   testthat::expect_equal(crop15$crop_area_ha, 40)
 })
 
-# The only two pin-backed reads in .sci_read_manure() are its default inputs,
-# get_primary_production() and get_wide_cbs(). Both are stubbed here, so the
-# turnkey wiring is exercised offline on a fixture: everything downstream of
-# the two readers -- feed demand, national redistribution, excretion, manure
-# allocation and the crop layer -- runs for real. Doing this on real data
-# instead needs the network and builds the full 1850-2023 series to keep one
-# year (get_wide_cbs() takes no year argument), which cost >16 GB and broke the
-# r-universe check; the year-scoping fix is tracked in #367.
+# Stub production, CBS and residue readers so the turnkey manure chain runs
+# offline. Demand, allocation, excretion and the crop layer run for real.
 
 # A herd large enough to excrete, the CBS feed that sustains it, and the
 # harvested-area rows the crop layer allocates that manure onto. `area` must be
@@ -698,7 +692,8 @@ test_that(".sci_read_manure wires the turnkey chain to cropland applied_c", {
   area <- .sci_manure_turnkey_area()
   testthat::local_mocked_bindings(
     get_primary_production = function(...) .sci_manure_turnkey_prod(area),
-    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area)
+    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area),
+    get_primary_residues = function(...) whep:::.example_get_primary_residues()
   )
   applied <- suppressWarnings(suppressMessages(
     whep:::.sci_read_manure(years = 1970L)
@@ -738,7 +733,8 @@ test_that(".sci_read_manure beds the housed manure by default", {
   area <- .sci_manure_turnkey_area()
   testthat::local_mocked_bindings(
     get_primary_production = function(...) .sci_manure_turnkey_prod(area),
-    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area)
+    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area),
+    get_primary_residues = function(...) whep:::.example_get_primary_residues()
   )
   seen <- NULL
   testthat::local_mocked_bindings(
@@ -825,6 +821,36 @@ testthat::test_that("the input C:N is formed from matched carbon and nitrogen", 
   per_ha <- whep:::.sci_per_hectare(out)
   # 1100 / 30, NOT 1300 / 30.
   testthat::expect_equal(per_ha$input_cn, 1100 / 30)
+})
+
+testthat::test_that("the layer carries the residue, root and input nitrogen per hectare", {
+  # The regime split re-forms each part's input C:N from its own residue and
+  # root, so the layer has to say how much of the input nitrogen is theirs.
+  # A component whose nitrogen is unknown stays unknown, not zero.
+  gridded <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2000L,
+    crop_area_ha = 10,
+    input_type = c("crop_residue", "root", "manure"),
+    c_mass_mg = c(800, 200, 300),
+    n_mass_mg = c(10, NA, 20)
+  )
+  keys <- c("lon", "lat", "area_code", "item_prod_code", "year")
+  out <- whep:::.sci_sum_components(gridded, keys) |>
+    whep:::.sci_per_hectare() |>
+    whep:::.sci_humified_fraction(keys, whep::residue_humification)
+  testthat::expect_equal(out$residue_n_mgn_ha_yr, 1)
+  testthat::expect_true(is.na(out$root_n_mgn_ha_yr))
+  testthat::expect_equal(out$input_n_mgn_ha_yr, 3)
+  # The input C:N is still the matched ratio, now readable from the layer.
+  testthat::expect_equal(out$input_cn, 1100 / 30)
+  testthat::expect_equal(
+    out$input_cn * out$input_n_mgn_ha_yr,
+    (800 + 300) / 10
+  )
 })
 
 testthat::test_that("components with no nitrogen at all give an absent ratio", {

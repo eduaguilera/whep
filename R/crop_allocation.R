@@ -276,15 +276,7 @@
 # inputs do. Polity totals are kept exactly; a polity-crop with no cell at all
 # is left out and reported by the caller (.nbd_report_unspatialized()).
 .n_grid_npp <- function(npp, allocation) {
-  keys <- c(
-    "year",
-    "area_code",
-    "item_prod_code",
-    "item_cbs_code",
-    "polity_area_code",
-    "source_area_code"
-  )
-  extensive <- setdiff(names(npp)[vapply(npp, is.numeric, TRUE)], keys)
+  extensive <- .n_npp_extensive_columns(npp)
   # .n_inputs_recycling() reads item_cbs_code straight off this table, while
   # .n_inputs_bnf() derives it from item_prod_code. Apply the package's own
   # mapping once here so all three consumers of this table see the same codes.
@@ -438,4 +430,33 @@
     )
   }
   invisible(NULL)
+}
+
+
+# Preserve the quantity/density distinction introduced by main's nitrogen
+# driver (#1527) when its allocation moves into the package (#1002). Codes
+# remain metadata; tonnes/hectares split by cell share, densities do not.
+.n_npp_extensive_columns <- function(npp) {
+  keys <- c(
+    "year",
+    "area_code",
+    "item_prod_code",
+    "item_cbs_code",
+    "polity_area_code",
+    "source_area_code"
+  )
+  columns <- setdiff(names(npp)[vapply(npp, is.numeric, TRUE)], keys)
+  quantity <- columns == "area_ha" | stringr::str_detect(columns, "_t$")
+  per_hectare <- stringr::str_detect(columns, "_t_ha$")
+  unknown <- columns[!quantity & !per_hectare]
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "{length(unknown)} numeric column{?s} of the NPP table {?is/are} neither
+       a quantity in tonnes or hectares nor a per-hectare density:
+       {.field {unknown}}.",
+      i = "Classify the quantity in {.fn .n_npp_extensive_columns} before
+           allocating it to cells."
+    ))
+  }
+  columns[quantity]
 }

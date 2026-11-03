@@ -493,6 +493,103 @@ test_that(".extract_cb keeps the old CBS Meat Meal balance", {
     expect_equal(285000)
 })
 
+# -- .extract_cb drops a pin code only on purpose ------------------------------
+
+# Keyed on the code, `.extract_cb()` drops every row whose code `items_full`
+# does not carry, and it did so without a word: Meat Meal (2749) lost its whole
+# balance that way (whep#1450), and Brans, Whey and Fish Meal were found the
+# same way (whep#1506). A code is now dropped only if it is a FAOSTAT group
+# total (29xx) or listed in `.cb_codes_not_carried()` with the WHEP item that
+# already holds its mass; anything else is a new vocabulary and aborts.
+.cb_codes_fixture <- function(code, label) {
+  tibble::tribble(
+    ~`Area Code`, ~Area,      ~`Item Code`, ~Item,                      ~Element,     ~Unit,    ~Year, ~Value,
+    203L,         "Testland", 2511,         "Wheat and products",       "Food",       "tonnes", 2010L, 445,
+    203L,         "Testland", 2905,         "Cereals - Excluding Beer", "Food",       "tonnes", 2010L, 998,
+    203L,         "Testland", code,         label,                      "Feed",       "tonnes", 2010L, 120
+  ) |>
+    data.table::as.data.table()
+}
+
+.extract_cb_from <- function(fixture, pin_alias) {
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+  whep:::.extract_cb(pin_alias)
+}
+
+test_that(".extract_cb aborts on a pin code it neither maps nor excludes", {
+  .cb_codes_fixture(2599, "Brand-new item") |>
+    .extract_cb_from("faostat-cbs-old-crops") |>
+    expect_error(class = "whep_error_cb_code_unmapped")
+})
+
+test_that(".extract_cb names the unmapped code and the pin", {
+  err <- .cb_codes_fixture(2599, "Brand-new item") |>
+    .extract_cb_from("faostat-cbs-old-crops") |>
+    expect_error(class = "whep_error_cb_code_unmapped")
+  expect_match(conditionMessage(err), "2599")
+  expect_match(conditionMessage(err), "Brand-new item")
+  expect_match(conditionMessage(err), "faostat-cbs-old-crops")
+})
+
+test_that(".extract_cb drops Brans, Whey and Fish Meal on purpose", {
+  by_products <- tibble::tribble(
+    ~code, ~label,      ~pin,
+    2600,  "Brans",     "faostat-cbs-old-crops",
+    2742,  "Whey",      "faostat-cbs-old-animal",
+    2855,  "Fish Meal", "faostat-cbs-old-animal"
+  )
+  purrr::pwalk(by_products, function(code, label, pin) {
+    out <- .cb_codes_fixture(code, label) |>
+      .extract_cb_from(pin) |>
+      expect_no_error()
+    expect_setequal(out$item_cbs_code, 2511)
+  })
+})
+
+test_that("every code .extract_cb drops on purpose names where its mass is", {
+  registry <- whep:::.cb_codes_not_carried()
+  items <- whep::items_full
+
+  pointblank::expect_col_vals_not_null(registry, "item_cbs_code")
+  expect_false(anyDuplicated(registry$item_cbs_code) > 0L)
+  # A code `items_full` carries is never dropped, so listing it here would be
+  # dead; a group total is dropped by its range and needs no entry.
+  expect_false(any(registry$item_cbs_code %in% items$item_cbs_code))
+  expect_false(any(registry$item_cbs_code >= 2900))
+  # The item said to hold the mass must exist, or the exclusion loses it.
+  carried <- registry$carried_by[!is.na(registry$carried_by)]
+  expect_true(all(carried %in% items$item_cbs_code))
+  expect_true(all(c(2600, 2742, 2855) %in% registry$item_cbs_code))
+})
+
+# The registry says where a by-product's mass is; the trade vocabulary already
+# says the same thing for the by-product's traded forms. If the two ever part
+# -- bran trade booked as Brans while the CBS rows still fold into wheat -- one
+# of them is double counting.
+test_that("the by-product exclusions agree with the trade vocabulary", {
+  trade <- whep::cbs_trade_codes |>
+    dplyr::filter(
+      stringr::str_detect(item_trade, "^Bran, |^Whey|Fish meal")
+    ) |>
+    dplyr::distinct(item_cbs) |>
+    dplyr::pull(item_cbs)
+  expect_false(any(c("Brans", "Whey", "Fish meal") %in% trade))
+
+  carried <- whep:::.cb_codes_not_carried() |>
+    dplyr::filter(item_cbs_code %in% c(2742, 2855)) |>
+    dplyr::left_join(
+      dplyr::distinct(whep::items_full, item_cbs_code, item_cbs),
+      by = c(carried_by = "item_cbs_code")
+    ) |>
+    dplyr::pull(item_cbs)
+  expect_true(all(carried %in% trade))
+})
+
 # -- .extract_fao row order ----------------------------------------------------
 
 # The same defect one stage earlier, and the stage the CBS build consumes

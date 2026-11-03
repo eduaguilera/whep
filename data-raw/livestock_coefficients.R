@@ -153,7 +153,10 @@ parse_dressing_percentages <- function(raw) {
     country_data <- country_data |>
       dplyr::filter(!is.na(country)) |>
       dplyr::mutate(
-        dressing_percent = as.numeric(dressing_percent),
+        dressing_percent = purrr::map_dbl(
+          as.character(dressing_percent),
+          .parse_dressing_value
+        ),
         species = "Pigs",
         production_system = "Industrial",
         cohort = NA_character_
@@ -203,11 +206,17 @@ parse_dressing_percentages <- function(raw) {
   }
 }
 
+# A dressing percentage (carcass / live weight) is strictly positive, so a
+# non-positive cell is GLEAM's "no value" placeholder, not a measurement:
+# Table S.9.1 prints 0 for Monaco pigs, which has no pig sector. Kept as a
+# number it entered the Western Europe pig mean and moved it from 75.3 to
+# 73.1 (whep#1572).
 .parse_dressing_value <- function(x) {
   if (is.na(x) || x == "" || stringr::str_detect(x, "^-")) {
     return(NA_real_)
   }
-  suppressWarnings(as.numeric(x))
+  v <- suppressWarnings(as.numeric(x))
+  if (!is.na(v) && v <= 0) NA_real_ else v
 }
 
 .parse_dressing_subrow <- function(

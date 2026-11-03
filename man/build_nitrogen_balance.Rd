@@ -5,7 +5,8 @@
 \title{Build the full nitrogen balance: inputs, outputs, losses and NUE.}
 \usage{
 build_nitrogen_balance(
-  methods = list(nh3 = "manner", n2o = "ipcc2019", leaching = "meisinger_drainage"),
+  methods = list(nh3 = "manner", n2o = "ipcc2019", n2o_indirect = "ipcc2019", leaching =
+    "meisinger_drainage"),
   resolution = c("grid", "polity"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
@@ -16,11 +17,18 @@ build_nitrogen_balance(
 \arguments{
 \item{methods}{A named list of method choices: \code{nh3} (forwarded to
 \code{\link[=calculate_nh3]{calculate_nh3()}}, default \code{"manner"}), \code{n2o} (forwarded to
-\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, default \code{"ipcc2019"}, the globally applicable
-IPCC 2019 Tier 1 method), \code{leaching} (forwarded to
-\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default \code{"meisinger_drainage"}) and \code{regime},
-how each grid row is split into a rainfed and an irrigated part (see
-Details): \code{"yield_split"} (default), \code{"area_split"} or \code{"none"}.}
+\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}, default \code{"ipcc2019"}, the IPCC 2019 Tier 1
+wet/dry factors of Table 11.1 (Updated) p. 11.13; \code{"ipcc2019_atl_med"},
+\code{"aguilera"} and \code{"ipcc2006"} are selectable), \code{n2o_indirect}
+(forwarded to \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}}, default \code{"ipcc2019"}, the
+wet/dry EF4 of Table 11.3 (Updated) p. 11.26, or \code{"ipcc2019_atl_med"}),
+\code{leaching} (forwarded to \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}, default
+\code{"meisinger_drainage"}, or \code{"ipcc_fracleach"}, the wet/dry
+FracLEACH-(H) of Section 11.2.2.2 p. 11.25 applied to the N added, or
+\code{"fracleach_surplus"}, the same fractions on the surplus) and \code{regime}, how each grid
+row is split into a rainfed and an irrigated part (see Details):
+\code{"yield_split"} (default), \code{"area_split"} or \code{"none"}. The IPCC 2019
+wet/dry methods read \code{moisture_regime} from the driver tables in \code{data}.}
 
 \item{resolution}{\code{"grid"} (default) or \code{"polity"}, as in
 \code{\link[=build_n_inputs]{build_n_inputs()}}; \code{"polity"} sums every term (and re-derives every
@@ -53,31 +61,75 @@ derivable, \code{area_ha} falls back to the harvested area the NPP input
 carries.
 \item \code{residue_destiny_input}: \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}'s required
 input (\code{item_prod_code}, \code{residue_dm_t}, plus whatever the chosen
-\code{residue_destiny_method} needs), for \code{used_residue_n_t}/
-\code{bedding_residue_n_t}/\code{burnt_residue_n_t}. \code{residue_destiny_method}
-selects the method (default \code{"recovery_regional"}), \code{residue_bedding}
+\code{residue_destiny_method} needs; the polity's \code{region_krausmann} and
+\code{region_un_sub} are taken from \code{area_code} when absent), for
+\code{used_residue_n_t}/\code{bedding_residue_n_t}/\code{burnt_residue_n_t}.
+\code{residue_destiny_method} selects the method (default
+\code{"recovery_regional"}), \code{residue_destiny_recovery} its recovery-rate
+variant (default \code{"wirsenius"}, the package default), \code{residue_bedding}
 the bedding rule (default \code{"wirsenius"}, 12.4\% of the recovered cereal
 straw) and, under \code{residue_bedding = "fraction"},
 \code{residue_bedding_fraction} the share of the recovered non-feed residue
 used as bedding (default \code{0}; see \code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}}).
+The same arguments split the
+residue of \code{npp_n_input} for the \code{"recycling"} input of
+\code{\link[=build_n_inputs]{build_n_inputs()}}, which returns to the soil only the residue left on
+the field (\code{recycling_residue_basis}, default
+\code{"residue_soil_returned"}; \code{"total_residue"} recycles the gross
+residue and is recorded in \code{method_recycling_n}). An \code{npp_n_input}
+that already carries \code{residue_soil_dm_t} keeps it: the recycling then
+uses the caller's destinies while the removal outputs use
+\code{residue_destiny_input} and these arguments, so the
+soil-returned and removed residue add up to the gross residue only
+when both come from the package's own destiny split.
 The bedded straw also comes back as a manure input, through
-\code{\link[=build_n_inputs]{build_n_inputs()}}. \code{residue_feed_share} selects that function's
+\code{\link[=build_n_inputs]{build_n_inputs()}}, read from the same split as
+\code{bedding_residue_n_t}. \code{residue_feed_share} selects that split's
 \code{feed_share} (default \code{"wirsenius"}).
+\item \code{regime_areas}, \code{regime_ratio}, \code{regime_production}, \code{regime_shares}:
+the rainfed/irrigated split's inputs (see Details), each read or built
+when absent: the rainfed and irrigated hectares per cell and
+production item (\code{lon}, \code{lat}, \code{area_code}, \code{item_prod_code}, \code{year},
+\code{rainfed_ha}, \code{irrigated_ha}; built with \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}),
+the \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}} table (built on the NPP rows; pass
+the table \code{\link[=build_carbon_inputs]{build_carbon_inputs()}} reads to make both chains apply one
+ratio), and the \code{\link[=get_primary_production]{get_primary_production()}} table the yield bounds of
+\code{\link[=split_regime_yield]{split_regime_yield()}} are pooled from. \code{regime_shares} replaces all
+three with pre-built shares per grid key (\code{lon}, \code{lat}, \code{area_code},
+\code{item_cbs_code}, \code{year}, \code{irrigated_area_share},
+\code{irrigated_yield_share}), which carry no production item: the residue
+terms then follow the production share.
 \item \code{livestock_intake}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s manure term;
 its \code{"grass"} \code{feed_quality} rows drive \code{grazed_weeds_n_t}.
 \item \code{carbon_balance}: shared with \code{\link[=build_n_inputs]{build_n_inputs()}}'s \code{"som_ mineralization"} term; its \code{son_change_kgn_ha} drives \verb{som_ sequestration_n_t}.
+\item \code{n_balance_drivers} and \code{n_balance_leaching_drivers}: the loss
+drivers. At grid resolution each one left \code{NULL} is built by
+\code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} on the split balance's own rows (the IPCC 2019
+wet/dry class and the ATL/MED drivers mapped from it; see its table of
+which methods it supplies), and \code{method_drivers} says so. That needs
+the rainfed/irrigated split (\code{methods$regime} other than \code{"none"});
+\code{leaching = "meisinger_drainage"} and the MANNER \code{nh3} methods read
+drivers it does not supply and are refused before any input is
+assembled unless their table is supplied. At polity resolution both
+must be supplied.
+\item \code{n_loss_driver_inputs}: optional list passed as \code{data} to
+\code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} when it runs (\code{climate}, \code{crop_depth},
+\code{lpjml_years}, \code{lpjml_grid}, \code{regime_areas}, \code{moisture_regime}); the
+balance's own \code{country_grid} is shared with it.
 \item \code{n_balance_drivers}: additional per-\verb{(key, fert_type)} driver
 columns \code{\link[=calculate_nh3]{calculate_nh3()}}/\code{\link[=calculate_soil_n2o]{calculate_soil_n2o()}}/
 \code{\link[=calculate_indirect_n2o_nh3]{calculate_indirect_n2o_nh3()}} need beyond \code{n_input_t}/\code{fert_type}
-(\code{climate}, \code{irrig_type}, plus every MANNER driver column when
-\code{methods$nh3 == "manner"}), joined by the balance key AND
-\code{fert_type} (the Title-case vocabulary from \code{\link[=calculate_nh3]{calculate_nh3()}}'s own
-documentation, e.g. \code{"Synthetic"}, \code{"Solid"}, \code{"Excreta_other"}; see
-the file-level "fert_type vocabulary bridge" note for the exact
-mapping from \code{\link[=build_n_inputs]{build_n_inputs()}}'s lowercase values). A second set of
-balance-key-only driver columns (\code{fert_type}, \code{climate}, \code{irrig_cat},
-\code{tillage}, \code{som_share}, \code{cn_input}, \code{land_use}) for
-\code{\link[=calculate_n_leaching]{calculate_n_leaching()}} is read from
+(\code{moisture_regime} for the IPCC 2019 wet/dry methods, \code{climate} and
+\code{irrig_type} for the ATL/MED ones, plus every MANNER driver column
+when \code{methods$nh3 == "manner"}), joined by the balance key AND
+\code{fert_type} (the Title-case vocabulary of the loss functions:
+\code{"Synthetic"}, \code{"Solid"}, \code{"Liquid"}, \code{"Excreta"}, \code{"Human"},
+\code{"Recycling"}, \code{"SOM"}). The excreta rows' species mix,
+\code{excreta_cpp_share}, comes from \code{\link[=build_n_inputs]{build_n_inputs()}}, N-weighted over
+the rows pooled into each loss row. A second set of
+balance-key-only driver columns (\code{moisture_regime}, \code{fert_type},
+\code{climate}, \code{irrig_cat}, \code{tillage}, \code{som_share}, \code{cn_input},
+\code{land_use}) for \code{\link[=calculate_n_leaching]{calculate_n_leaching()}} is read from
 \code{n_balance_leaching_drivers}, which must hold at most one row per
 balance key (a many-to-one join aborts on duplicate keys rather than
 fanning the rows out and misaligning \code{drainage_mm}). Missing required
@@ -113,17 +165,37 @@ per-hectare rate), the input aggregates
 (\code{n_output_residues_t}, \code{n_output_som_t}, \code{n_output_useful_t},
 \code{n_output_std_t}, \code{n_output_full_t}), the loss terms (\code{nh3_n_t},
 \code{n2o_direct_n_t}, \code{no3_n_t}, \code{denitrification_n_t},
-\code{n2o_indirect_no3_n_t}, \code{n2o_indirect_nh3_n_t}), the (post-cap)
+\code{retained_profile_n_t}, \code{n2o_indirect_no3_n_t}, \code{n2o_indirect_nh3_n_t};
+\code{no3_n_t + denitrification_n_t + retained_profile_n_t} is the surplus,
+see \code{\link[=calculate_n_leaching]{calculate_n_leaching()}}), the (post-cap)
 \code{som_sequestration_n_t}, \code{n_balance_t}, \code{surplus_t}, \code{surplus_share},
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
-\code{method_soil_n2o}/\code{method_leaching} provenance columns, \code{method_regime}
+\code{method_soil_n2o}/\code{method_n2o_indirect_nh3}/\code{method_leaching}
+provenance columns (the per-row stamps of the loss functions; a balance
+row pooling loss rows priced differently lists them joined by \code{"|"},
+and a row with no N2O-relevant input, which emits no direct or
+NH3-indirect N2O, carries the method chosen suffixed \code{"_no_loss_row"},
+e.g. \code{"ipcc2019_no_loss_row"}),
+\code{method_drivers} (\code{"whep_built"}, \code{"supplied"} or
+\code{"supplied|whep_built"}), and, when the leaching drivers carry them (as
+built ones do), the row's wet/dry \code{moisture_regime}, how it was obtained
+(\code{method_moisture_regime}) and \code{climate_fill_km},
+\code{method_regime}
 and \code{method_regime_split} when the split ran (\code{"yield_ratio"};
 \code{"area_no_production"} where the crop's production could not be
 expressed in fresh weight and the area share was used for everything;
 \code{"regime_shares"} for shares supplied as \code{data$regime_shares}; or
 \code{"no_regime_share"} for a row booked wholly rainfed because the regime
-layer does not cover it), plus the polity columns below. When the
+layer does not cover it), and \code{method_residue_regime}, how the row's
+residue terms were split, the rules of its production items joined by
+\code{"|"}: \code{"part_yield"} (re-evaluated at a rainfed part's yield),
+\code{"part_yield_irrigation_terms"} (re-evaluated at an irrigated part's
+yield, with the model's irrigation terms), \code{"crop_density"} (the item's
+per-hectare values on the part's area: no part yield, or
+\code{"area_split"}) or \code{"yield_share"} (the production share, for shares
+supplied without production items), \code{NA} on a row with no residue
+term, plus the polity columns below. When the
 supplied \code{n_inputs} carry them, the
 \code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition},
 \code{method_deposition_scope}, \code{method_human_population},
@@ -152,17 +224,40 @@ regime-specific loss drivers can attach. Two shares per row drive it:
 the irrigated share of the crop's cell area, from the spatialization
 chain's rainfed/irrigated hectares (\code{\link[=build_gridded_landuse]{build_gridded_landuse()}}), and the
 irrigated share of its production, from \code{\link[=split_regime_yield]{split_regime_yield()}} on the
-ratio of \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}}. Synthetic N, production N and the
-residue destinies (used, bedding, burnt) split by the production share,
-on the assumption that N availability per unit of yield is the same in
-both regimes; every other input, the harvested area, grazed weeds and SOM
-sequestration split by the area share. Summing the two parts reproduces
-the unsplit balance for every additive column. \code{"area_split"} uses the
-area share for everything and \code{"none"} returns the unsplit balance. The
-shares can be supplied as \code{data$regime_shares} (\code{lon}, \code{lat},
-\code{area_code}, \code{item_cbs_code}, \code{year}, \code{irrigated_area_share},
-\code{irrigated_yield_share}). Loss-driver tables without a \code{water_regime}
-column apply to both parts.
+ratio of \code{\link[=build_regime_yield_ratio]{build_regime_yield_ratio()}}. Synthetic N and production N split
+by the production share, on the assumption that N availability per unit
+of yield is the same in both regimes; every other input, the harvested
+area, grazed weeds and SOM sequestration split by the area share. The
+residue terms -- the residue and root N returned to soil
+(\code{"recycling"}) and the used, bedding and burnt residue N -- are
+evaluated per part: for each production item of the row, the parts'
+yields keep its production (\code{Y_r = Y / (1 + s (R - 1))}, \verb{Y_i = R Y_r}),
+and each part carries the item's residue and root N per hectare times
+the response of \code{\link[=calculate_crop_residues]{calculate_crop_residues()}} and \code{\link[=calculate_crop_roots]{calculate_crop_roots()}}
+from the item's mean yield to the part's yield, in the part's water
+regime, so the model's irrigation terms (a lower residue ratio for the
+crop groups that respond, a lower root:shoot ratio) apply to the
+irrigated part. On the default chains, whose NPP input is built with the
+polity's \code{region_hanpp} and without \code{n_input_kg_ha}, the item's residue
+and root per hectare are the model's at its mean yield, so each part's
+are the model's at the part's own yield; with any other NPP input they
+are the item's own density scaled by the model's response. Residue and
+root are affine in yield, so a high-yield hectare carries less than its
+yield share. Summing the two parts
+reproduces the unsplit balance for every additive column except the
+residue terms and the totals that contain them, which sum to the parts'
+evaluation instead: with the irrigation terms, the residue and root N of
+irrigated land fall. The bedded straw the manure input brings back is
+the parts' bedding: when the balance builds its own inputs and beds any
+straw, each production item's bedding is scaled by its factor over the
+two parts before it reaches the manure engine, so the manure columns,
+too, differ from an unsplit run by the bedding the irrigation terms take
+off, and the bedded N that leaves the field is still the bedded N that
+returns. A non-zero residue term at a key the per-item
+evaluation does not cover means the balance's inputs and the NPP-N table
+disagree, and aborts. \code{"area_split"} uses the area share for everything,
+residue terms included, and \code{"none"} returns the unsplit balance.
+Loss-driver tables without a \code{water_regime} column apply to both parts.
 
 \code{polity_validity} is forwarded to \code{\link[=build_n_inputs]{build_n_inputs()}} -- which forwards it in
 turn to \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_human_n]{build_human_n()}}
@@ -171,7 +266,49 @@ themselves, so one choice governs the whole build (whep#727). A
 \code{data$n_inputs} table supplied directly is left alone: it was built by its
 own call with its own choice, and the balance rows derived from it still get
 this argument's fate at the tail.
+
+\strong{Grazing excreta.} The \code{"excreta"} input is the N grazing animals deposit
+on pasture, range and paddock, and its N2O is in \code{n2o_direct_n_t},
+\code{n2o_indirect_nh3_n_t} and \code{total_gwp_co2e_kg}, as the field loss it is.
+\code{\link[=calculate_livestock_emissions]{calculate_livestock_emissions()}} prices the same emission and reports it
+as \code{manure_n2o_direct_pasture} and \code{manure_n2o_indirect_pasture}, and that
+is the chain WHEP's GHG footprint takes it from. So these balance columns
+are not to be added to livestock manure N2O: subtract the pasture columns
+from one of the two first (whep#1524).
 }
+\section{Loss drivers}{
+
+Which driver columns each loss method reads, and whether
+\code{\link[=build_n_loss_drivers]{build_n_loss_drivers()}} supplies them. At grid resolution that function
+builds each driver table left \code{NULL}; at polity resolution both tables must
+be supplied.\tabular{llll}{
+   Method \tab Driver columns \tab Supplied \tab Status \cr
+   \code{nh3}: \code{"ipcc"} \tab \code{fert_type} \tab yes \tab built \cr
+   \code{nh3}: \code{"manner"}, \code{"manner_default"} \tab MANNER's \tab no \tab note 1 \cr
+   \code{n2o}: \code{"ipcc2019"} \tab \code{moisture_regime} \tab yes \tab built \cr
+   \code{n2o}: \code{"ipcc2019_atl_med"} \tab \code{climate} \tab yes \tab built \cr
+   \code{n2o}: \code{"aguilera"}, \code{"ipcc2006"} \tab \code{climate}, \code{irrig_type} \tab yes \tab built \cr
+   \code{n2o_indirect}: \code{"ipcc2019"} \tab \code{moisture_regime} \tab yes \tab built \cr
+   \code{n2o_indirect}: \code{"ipcc2019_atl_med"} \tab \code{climate}, \code{irrig_type} \tab yes \tab built \cr
+   \code{leaching}: \code{"ipcc_fracleach"}, \code{"fracleach_surplus"} \tab \code{moisture_regime}, \code{water_regime} \tab yes \tab built \cr
+   \code{leaching}: \code{"meisinger_drainage"} \tab Meisinger's \tab no \tab note 2 \cr
+}
+
+\itemize{
+\item Note 1: MANNER reads \code{manner_fertiliser}, \code{soil_ph}, \code{rate_kg_ha},
+\code{rainfall_mm}, \code{irrigated}, \code{temp_c}, \code{temp_c_annual_mean}, \code{windspeed_ms},
+\code{technique}, \code{system}, \code{incorporation_delay_h} and \code{species} (see
+\code{\link[=calculate_nh3]{calculate_nh3()}}). Drivers must be supplied; global drivers planned.
+\item Note 2: Meisinger reads \code{fert_type}, \code{climate}, \code{irrig_cat}, \code{land_use},
+\code{cn_input}, \code{tillage}, \code{som_share} and \code{drainage_mm} (see
+\code{\link[=calculate_n_leaching]{calculate_n_leaching()}}). Drivers must be supplied; global drivers
+planned.
+}
+
+\code{\link[=build_nitrogen_balance]{build_nitrogen_balance()}} refuses a method of note 1 or note 2 before
+assembling any input unless its driver table is supplied.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in

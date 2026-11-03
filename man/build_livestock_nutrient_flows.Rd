@@ -55,7 +55,16 @@ A named list with \code{applied} (manure applied per
 \verb{land_use x crop (x cell)} with \code{manure_type} (\code{"Excreta"}/\code{"Solid"}/
 \code{"Liquid"}) and all \verb{method_*} provenance columns, including
 \code{method_transport_land_use}, the \code{land_split} used, \code{NA} unless the
-resolution is \code{"subnational"}), \code{losses}
+resolution is \code{"subnational"}; and the grazing-excreta species mix:
+\code{excreta_cpp_share}, the share of a row's N deposited by cattle,
+poultry and pigs, the IPCC 2019 EF3PRP,CPP animals (Vol 4, Ch 11,
+Table 11.1 (Updated), p. 11.13), with sheep and other animals (SO)
+making up the rest, and \code{method_excreta_species}, which records where
+the share came from (\code{"engine_livestock_category"}) or why an
+\code{"Excreta"} row has none (\code{"fallback_label_no_species"}, a row the
+manure-type split labelled \code{"Excreta"} for want of a share, which is not
+grazing deposition). Both are \code{NA} on \code{"Solid"} and \code{"Liquid"} rows),
+\code{losses}
 (management-loss side-streams per polity) and \code{excretion} (the
 per-category excretion totals).
 }

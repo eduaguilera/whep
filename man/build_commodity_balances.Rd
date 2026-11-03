@@ -23,7 +23,10 @@ build_commodity_balances(
   aggregate_proxy = .cbs_aggregate_proxy_choices(),
   unmatched_processing = .cbs_unmatched_proc_choices(),
   silk_basis = .silk_basis_choices(),
+  silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
+  nut_basis = .nut_basis_choices(),
+  residue_backcast = .cbs_residue_backcast_choices(),
   .fixed_data = NULL
 )
 }
@@ -57,22 +60,31 @@ per element. \code{"wide"} pivots the elements into columns, adds the live-anima
 rows that the FAO sheet omits, and checks the supply-use identity. Both are
 the same dataset; \code{"wide"} is what the IO model and the extensions consume.}
 
-\item{trade_recovery}{One of \code{"pass_through"} (default), \code{"net_import"}
-or \code{"none"}, selecting what happens to a traded item the CBS has no row
-for. The trade record is joined onto the CBS, so it can only fill a row
-that already exists; \code{"none"} keeps that, the behaviour before whep#762,
-and an area whose balance sheet omits an item it imports loses that
-supply outright. The other two first create the missing rows from the
+\item{trade_recovery}{One of \code{"byproduct_residual"} (default),
+\code{"pass_through"}, \code{"net_import"} or \code{"none"}, selecting what happens to a
+traded item the CBS has no row for. The trade record is joined onto the
+CBS, so it can only fill a row that already exists; \code{"none"} keeps that,
+the behaviour before whep#762, and an area whose balance sheet omits an
+item it imports loses that supply outright. The others first create the
+missing rows from the
 trade record, restricted to tonnes-denominated items (live-animal trade
 is in heads and arrives through \code{\link[=get_livestock_cbs]{get_livestock_cbs()}}) and to areas the
 CBS already covers in that year. A created row has no production and no
 stock change, so its domestic supply is its net import, split over the
 destinies by the item's world-average shares -- the fallback every CBS
-key with no destiny of its own takes. The two differ only on a net
+key with no destiny of its own takes. They differ only on a net
 exporter, whose export exceeds its import and so has nothing to come
 from: \code{"pass_through"} creates the row with the export capped at the
 import (the rule FABIO applies to the rows it creates from trade), and
-\code{"net_import"} does not create it. \strong{Recovery moves published values.}
+\code{"net_import"} does not create it. \code{"byproduct_residual"} is
+\code{"pass_through"} except for Meat Meal (2112), a rendering by-product
+WHEP has no production source for once FAOSTAT's balance for it ends in
+2013: its full export is kept, export-only keys included, and the
+balance imputes production as export minus import, the residual rule
+FAOSTAT-era Meat Meal rows already get (whep#1450). Measured on a
+2011-2015 build, that adds 2.29 Mt of Meat Meal production and export at
+2014 (43 areas) and 2.51 Mt at 2015 against \code{"pass_through"}, and moves no
+other key. \strong{Recovery moves published values.}
 Measured on a 2005-2015 build at 2010, \code{"net_import"} adds 1,038 keys and
 raises world imports by 8.72 Mt (0.57\%), exports by 1.83 Mt and food by
 3.07 Mt (0.07\%). Protein supply rises from 28 to 63 g/cap/day in
@@ -344,17 +356,20 @@ it directly. Its rows are crop residues from the \code{crop_residues} pin,
 which books all of FABIO's Rest-of-World members on one label.
 
 \code{"member_sum"} grows it on the summed population and agricultural land
-of those members, the territory its rows describe. This holds whatever
-\code{options(whep.unfold_rest_of_world)} is set to. \code{"none"} gives it no
-proxy, so its series starts in 1961.
+of those members, the territory its rows describe, and grows its residue
+along the summed crops of those members (see \code{residue_backcast}). This
+holds whatever \code{options(whep.unfold_rest_of_world)} is set to. \code{"none"}
+gives it no proxy, so its series starts in 1961.
 
 \strong{The default moves published values}, for area 999 before 1961 only.
-Measured on a real 1955-1965 build, 66 rows are added and no other
-value changes: 83.5 Mt of residue \code{domestic_supply} over 1955-1960
-(13.0 Mt in 1955, 14.9 Mt in 1960, then 15.3 Mt observed in 1961), of
-which 68.3 Mt is \code{other_uses} and 15.3 Mt \code{feed}. That raises world
-residue use by 0.74-0.78\% in those years. Under \code{"none"} the build is
-identical to the one before this argument existed.}
+Measured on a real 1955-1965 build with the default \code{residue_backcast},
+73 rows differ from \code{"none"} and no other value changes: 75.0 Mt of
+residue \code{production} and \code{domestic_supply} over 1955-1960 (11.7 Mt in
+1955, 13.3 Mt in 1960, then 21.2 Mt in 1961), of which 44.1 Mt is
+\code{other_uses} and 31.0 Mt \code{feed}. That raises world residue use by
+0.44-0.46\% in those years. The step at 1961 is the members' crops: six
+of the eleven report no production before 1961. Under \code{"none"} area 999
+carries no rows before 1961.}
 
 \item{unmatched_processing}{One of \code{"other_uses"} (default),
 \code{"processing"} or \code{"redistribute"}, selecting where a \code{processing}
@@ -414,6 +429,25 @@ booking (whep#1281); world Silk \code{stock_variation} at 2020 moves from
 which carry no link breakdown, and are unchanged, so under \code{"cocoon"} the
 2013-2014 seam steps by roughly the raw silk production.}
 
+\item{silk_duplicate_use}{One of \code{"residual"} (default) or \code{"equal_only"},
+selecting which silk cocoon uses from 2014 on are read as a second
+booking of the same cocoons (whep#1456). FAOSTAT's own balance of a
+cocoon record ends in a \code{Residuals} element; where it is minus one of
+the two uses, \code{Processed} or \verb{Other uses}, FAOSTAT's balance closes on
+the other use alone. \code{"residual"} drops the use the residual cancels and
+keeps the one that closes the balance. \code{"equal_only"} drops it only when
+the two uses are equal (whep#1281) and otherwise leaves the record as
+published, so the cancelled use stays in Silk \code{other_uses} and the
+balance closes through a Silk stock withdrawal.
+
+In the pinned \code{faostat-cbs-new} the two differ for Viet Nam 2014-2015,
+whose 45,073 and 43,620 t processed exceed its 6,761 and 6,543 t of
+production, Indonesia 2015-2018 and Italy 2019 (also more processed than
+supplied), Afghanistan 2015-2018 (\code{Processed} dropped) and China
+mainland 2022-2023 (18,721 t of \verb{Other uses} dropped on top of
+processing that already equals supply). Only Silk rows of those
+country-years move.}
+
 \item{tobacco_leaf_use}{One of \code{"as_published"} (default) or
 \code{"one_to_one"}, selecting how the Tobacco balance from 2014 on treats
 leaf manufactured into products (whep#1390). The non-food Commodity
@@ -432,6 +466,73 @@ of product -- assumed, unverified: no sourced leaf content per tonne of
 product was found, and a cigarette also holds paper and filter. Where the
 products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
 remainder stays as stock change. Only Tobacco rows from 2014 on move.}
+
+\item{nut_basis}{One of \code{"rebased"} (default) or \code{"as_published"},
+selecting how the trade of FBS item 2551 \verb{Nuts and products} is taken
+from FAOSTAT's new food balance sheets, 2010 on (whep#1495). Their nut
+trade is not one mass basis: at 2010 world imports are 13.57 Mt against
+7.69 Mt of world exports (1.76x; 1.65x at 2022), and the excess goes on
+into food, 19.47 Mt against 14.29 Mt of nuts the world grew in shell,
+with about the old vintage's protein. Regressed on species-level trade,
+importers convert kernels and prepared nuts to in-shell equivalent with
+factors 2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one
+flow lands on two bases. The old vintage closes (6.45 vs 6.51 Mt).
+
+\code{"rebased"} multiplies each area's import and export by its median
+old/new ratio over 2010-2013, clamped to \verb{[0.2, 1]} -- the old
+vintage's level with the new one's change over time, as the palm-kernel
+fix already joins them -- and takes the net trade removed out of food
+and domestic supply, so every row keeps its supply-use identity and
+production and stock change do not move. A row whose net cut is not
+positive or exceeds its food is left as published. The moved rows are
+labelled \code{"FAOSTAT_FBS_New_rebased"}, and the ratio is read from the
+pins whatever years are built. \code{"as_published"} keeps FAOSTAT's figures,
+the behaviour before whep#1495; the old vintage is scaled to whichever
+level is chosen, so 1961-2009 follows it. \strong{The default moves published
+values}, all of them in item 2551. Measured on a real 2009-2016
+build at 2010, world imports fall from 13.85 to 7.16 Mt and exports
+from 7.83 to 6.51 Mt (imports/exports 1.77x to 1.10x; 1.61x to 1.02x
+at 2016), and food from 19.79 to 14.43 Mt against 14.60 Mt of
+production; the 5.37 Mt drop is 0.11\% of the 4,692 Mt of all-item food.
+Production and stock change do not move from 2010 on. FBS's own 2551
+protein over the pin's food rises from 45.6 to 62.9 g/kg, against FAO's
+in-shell basket of 64.7 that \code{\link[=build_food_supply]{build_food_supply()}} applies.}
+
+\item{residue_backcast}{One of \code{"own_method"} (default),
+\code{"production_ratio"} or \code{"area_rate"}, selecting what crop residue
+(Straw, Other crop residues, Firewood) grows back along before the first
+year of the \code{crop_residues} pin, 1961 (whep#1508). Each (area, crop,
+residue item) keeps the ratio of its 1961 gross residue to a basis taken
+from the crop's primary production, and is then recovered and split into
+\code{production}, \code{feed} and \code{other_uses} as every 1961+ row is, so
+production equals feed plus other uses in every year. Rows carry the
+source \code{"historical_residue_<method>"}.
+
+\code{"own_method"} grows each row along the basis its 1961 value was built
+on: residue computed from yield (cereals, and the non-cereals with an
+IPCC Table 11.2 line, whep#1561) along \code{\link[=calculate_crop_residues]{calculate_crop_residues()}}
+applied to the year's production and harvested area, the estimator that
+computes it from 1961 on, and every other row along its crop's
+production, since the pin's remaining residue is a residue:product
+ratio. \code{"production_ratio"} grows
+every row along production, holding residue per tonne of crop; it puts
+1955-1960 residue computed from yield 1.5-5.7\% below the estimator.
+\code{"area_rate"} grows every row along harvested area, holding residue per
+hectare; it puts it 0.3-2.6\% above.
+
+\strong{The default moves published values}, for residue items before 1961
+only. Before it, the extension grew residue uses along population and
+agricultural land and gave the residue no production, so the whole use
+was booked as a stock draw. Measured on a real 1955-1965 build, world
+residue production in 1955 / 1960 goes from none to 2,301 / 2,486 Mt
+(\code{"production_ratio"} 2,209 / 2,454, \code{"area_rate"} 2,392 / 2,506),
+against 3,038 Mt in 1961, and residue \code{stock_variation} from
+-2,681 / -2,906 Mt to -375 / -407 Mt under all three. What remains is
+the Soviet Union, Yugoslavia, Czechoslovakia and Belgium-Luxembourg,
+whose crop production does not reach before 1961 either (whep#102):
+their residue keeps the population and land fill, like their crops.
+World \code{stock_variation} over all items moves from -3,057 / -3,222 Mt to
+-751 / -723 Mt. No 1961-or-later value and no other item moves.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When

@@ -142,9 +142,23 @@
 #'     tibble (`lon`, `lat`, `area_code`, `year`, `item_prod_code`,
 #'     `item_cbs_code`, `product_dm_t`, `residue_dm_t`, `root_dm_t`,
 #'     optionally `residue_soil_dm_t`). The `"recycling"` term's
-#'     `n_input_t` is `root_n_t` plus `residue_soil_n_t` from
-#'     [calculate_npp_carbon_nitrogen()]'s output, or plus `residue_n_t` when
-#'     `residue_soil_n_t` is absent (see `method_recycling_n`).
+#'     `n_input_t` is `root_n_t` plus `residue_soil_n_t`, the residue N left
+#'     on the field, from [calculate_npp_carbon_nitrogen()]'s output. When
+#'     the input does not carry `residue_soil_dm_t`,
+#'     [calculate_residue_destinies()] is applied to it first, with
+#'     `residue_destiny_method`, `residue_destiny_recovery` and
+#'     `residue_bedding_fraction` (see [build_nitrogen_balance()]; the same
+#'     arguments split the residue removal outputs there) and the polity's
+#'     `region_krausmann` and `region_un_sub` taken from `area_code` when the
+#'     input does not carry them. An input that already carries
+#'     `residue_soil_dm_t` is recycled on the caller's destinies, while
+#'     [build_nitrogen_balance()] books its residue removals from
+#'     `residue_destiny_input` with the arguments above: the soil-returned
+#'     and the removed residue add up to the gross residue only when both
+#'     come from the package's own destiny split.
+#'   * `recycling_residue_basis`: `"residue_soil_returned"` (default) or
+#'     `"total_residue"`, which recycles the gross residue N (`residue_n_t`),
+#'     removed residue included. Recorded in `method_recycling_n`.
 #'   * `livestock_intake`: [build_livestock_nutrient_flows()]'s `intake`
 #'     argument (the [redistribute_feed()] realised-intake contract), plus
 #'     `gridded` (its land-surface layer) and `resolution`/`methods`
@@ -284,21 +298,31 @@
 #'   `method_recycling_n`, `method_synthetic`, `method_deposition`,
 #'   `method_deposition_scope`, `method_human_population`,
 #'   `method_human_kgn_cap`, `method_unsupported`, `method_manure`,
-#'   `method_unattributed`. At
+#'   `excreta_cpp_share`, `method_excreta_species`, `method_unattributed`. At
 #'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
 #'   `fert_type`, `method_recycling_n`, `method_synthetic`,
 #'   `method_deposition`, `method_deposition_scope`,
 #'   `method_human_population`, `method_human_kgn_cap`, `method_unsupported`,
-#'   `method_manure`, `method_unattributed`, `n_input_t` (summed over cells).
+#'   `method_manure`, `method_unattributed`, `n_input_t` (summed over cells),
+#'   `excreta_cpp_share` (N-weighted over cells), `method_excreta_species`.
 #'   `method_manure` records the source of the three manure terms
 #'   (`"livestock_intake"`, `"faostat"`, or `"faostat_all_solid"` on applied
 #'   manure booked as solid for want of an engine split) and is `NA` for every
 #'   other `fert_type`.
+#'   `excreta_cpp_share` is the share of an `"excreta"` row's N deposited by
+#'   cattle, poultry and pigs, the animals of the IPCC 2019 EF3PRP,CPP factor
+#'   (Vol 4, Ch 11, Table 11.1 (Updated), p. 11.13); sheep and other animals
+#'   (EF3PRP,SO) deposit the rest. `method_excreta_species` records where the
+#'   share came from (`"engine_livestock_category"`,
+#'   `"faostat_species_group"`) or why the row has none
+#'   (`"fallback_label_no_species"` for manure the engine labelled excreta
+#'   only for want of a manure-type share, `"no_excreta_n"` for a row with no
+#'   N). Both are `NA` for every other `fert_type`.
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
-#'   used: `"residue_soil_returned"` when the upstream NPP input supplied
-#'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
-#'   `"total_residue"` when only gross residue N was available; it is `NA` for
-#'   every other `fert_type`. `method_synthetic` records the synthetic
+#'   used: `"residue_soil_returned"` (residue N net of removal for feed,
+#'   bedding and burning) or `"total_residue"` (the gross residue N, only on
+#'   request through `data$recycling_residue_basis`); it is `NA` for every
+#'   other `fert_type`. `method_synthetic` records the synthetic
 #'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
 #'   is `NA` for every other `fert_type`. `method_deposition` records which
 #'   deposition product the `"deposition"` term's field came from, read off
@@ -508,6 +532,10 @@ build_n_inputs <- function(
 # from, the second which of the polycell's territory it was credited with.
 # `method_human_population` and `method_human_kgn_cap` are the human term's:
 # the population basis and the denominator of its per-capita rate.
+# `excreta_cpp_share` and `method_excreta_species` are the excreta term's
+# grazing species mix (R/excreta_species_mix.R), and are NA for every other
+# fert_type by design: only urine and dung deposited by grazing animals has a
+# species-specific emission factor.
 # All are per-source, so they live here rather than on the assembled schema.
 .ni_source_schema <- function() {
   c(
@@ -525,7 +553,9 @@ build_n_inputs <- function(
     "method_human_population",
     "method_human_kgn_cap",
     "method_unsupported",
-    "method_manure"
+    "method_manure",
+    "excreta_cpp_share",
+    "method_excreta_species"
   )
 }
 
@@ -679,8 +709,23 @@ build_n_inputs <- function(
   if (resolution == "grid") {
     return(dplyr::select(x, dplyr::all_of(.ni_schema())))
   }
+  # The species stamp and the N-weighted share read the cell rows' own N, so
+  # both come before n_input_t is replaced by its sum. Fallback-labelled
+  # excreta keeps a row of its own (.excreta_is_fallback()).
   x |>
+    dplyr::mutate(
+      .fallback = .excreta_is_fallback(.data$method_excreta_species)
+    ) |>
     dplyr::summarise(
+      method_excreta_species = .excreta_method_stamp(
+        .data$method_excreta_species,
+        .data$excreta_cpp_share,
+        .data$n_input_t
+      ),
+      excreta_cpp_share = .excreta_weighted_share(
+        .data$excreta_cpp_share,
+        .data$n_input_t
+      ),
       n_input_t = sum(.data$n_input_t, na.rm = TRUE),
       .by = c(
         "area_code",
@@ -695,8 +740,15 @@ build_n_inputs <- function(
         "method_human_kgn_cap",
         "method_unsupported",
         "method_manure",
-        "method_unattributed"
+        "method_unattributed",
+        ".fallback"
       )
+    ) |>
+    dplyr::select(-".fallback") |>
+    dplyr::relocate(
+      "excreta_cpp_share",
+      "method_excreta_species",
+      .after = "n_input_t"
     )
 }
 
@@ -726,7 +778,7 @@ build_n_inputs <- function(
   if (is.null(npp)) {
     return(.ni_empty())
   }
-  basis <- .ni_recycling_basis(npp)
+  basis <- .ni_recycling_basis(npp, data)
   dplyr::transmute(
     npp,
     lon = .data$lon,
@@ -735,26 +787,47 @@ build_n_inputs <- function(
     item_cbs_code = .data$item_cbs_code,
     year = .data$year,
     fert_type = "recycling",
-    n_input_t = .data$root_n_t + .data[[basis$column]],
-    method_recycling_n = basis$method
+    n_input_t = .data$root_n_t + .data[[basis]],
+    method_recycling_n = .ni_recycling_residue(data)
   )
 }
 
-# The recycling term's residue-N basis depends on whether the upstream NPP
-# input carried `residue_soil_dm_t` (so calculate_npp_carbon_nitrogen() emitted
-# `residue_soil_n_t`, the residue N actually returned to soil after removal for
-# feed/fuel/burning). When it did not, only gross `residue_n_t` (the FULL
-# residue N) is available and is used instead, overstating the soil return.
-# This basis switch is not a silent fallback: it is stamped in
-# `method_recycling_n` so downstream consumers can tell the two apart.
-.ni_recycling_basis <- function(npp) {
-  if (rlang::has_name(npp, "residue_soil_n_t")) {
-    return(list(
-      column = "residue_soil_n_t",
-      method = "residue_soil_returned"
-    ))
+# Which residue N the recycling term returns to the soil, from
+# `data$recycling_residue_basis`. "residue_soil_returned" (default) is the
+# residue left on the field: the residue that is fed, used as bedding or
+# burned leaves it, and the balance books that residue as an output instead
+# (`.nb_add_residue_destiny()`). "total_residue" recycles the gross residue,
+# removed residue included, and is there only for a caller who asks for it.
+# The value is stamped in `method_recycling_n`.
+.ni_recycling_residue <- function(data) {
+  rlang::arg_match0(
+    data$recycling_residue_basis %||% "residue_soil_returned",
+    c("residue_soil_returned", "total_residue"),
+    arg_nm = "data$recycling_residue_basis"
+  )
+}
+
+# The NPP column of the recycled residue N. The soil-returned residue N is
+# `residue_soil_n_t`, which .n_balance_npp() produces by applying the residue
+# destinies; an NPP result handed in pre-computed (`data$.npp_cache`) without
+# it cannot be split any more, and is refused rather than recycled gross.
+.ni_recycling_basis <- function(npp, data) {
+  if (.ni_recycling_residue(data) == "total_residue") {
+    return("residue_n_t")
   }
-  list(column = "residue_n_t", method = "total_residue")
+  if (!rlang::has_name(npp, "residue_soil_n_t")) {
+    cli::cli_abort(
+      c(
+        "The NPP-N table has no soil-returned residue N
+         ({.field residue_soil_n_t}).",
+        i = "Supply {.code data$npp_n_input}, to which the residue destinies
+             are applied, or ask for the gross residue with
+             {.code data$recycling_residue_basis = \"total_residue\"}."
+      ),
+      class = "whep_recycling_basis_missing"
+    )
+  }
+  "residue_soil_n_t"
 }
 
 # Shared NPP-N computation: build_nitrogen_balance() (Task C7) needs the SAME
@@ -769,6 +842,12 @@ build_n_inputs <- function(
 # build_n_inputs()'s "recycling" term and its own prod_n_t term) compute it
 # ONCE and short-circuit every subsequent call, rather than re-running
 # calculate_npp_carbon_nitrogen() per call site.
+#
+# The recycling term returns only the residue left on the field, so the
+# residue destinies are applied to the NPP input before its N partition when
+# it does not already carry them (`residue_soil_dm_t`), with the same
+# arguments the residue removal outputs are split with
+# (.nb_residue_destinies()).
 .n_balance_npp <- function(data) {
   if (!is.null(data$.npp_cache)) {
     return(data$.npp_cache)
@@ -776,7 +855,12 @@ build_n_inputs <- function(
   if (is.null(data$npp_n_input)) {
     return(NULL)
   }
-  calculate_npp_carbon_nitrogen(data$npp_n_input)
+  npp <- data$npp_n_input
+  soil_returned <- .ni_recycling_residue(data) == "residue_soil_returned"
+  if (soil_returned && !rlang::has_name(npp, "residue_soil_dm_t")) {
+    npp <- .nb_residue_destinies(npp, data)
+  }
+  calculate_npp_carbon_nitrogen(npp)
 }
 
 # item_cbs_code from item_prod_code via the same crosswalk used elsewhere
@@ -821,7 +905,8 @@ build_n_inputs <- function(
 # The bedding straw build_nitrogen_balance() books as leaving the field
 # (bedding_residue_n_t) is mixed into the housed manure and comes back to the
 # land with it (whep#1445). It is read from the same residue-destiny split,
-# .nb_residue_destinies(), so the two terms cannot disagree.
+# .nb_residue_destinies() on `data$residue_destiny_input` with the balance's
+# one argument set, so the two terms cannot disagree.
 #
 # The supply is national (year x territory), even at grid resolution: the
 # straw is booked in the cell where it grew, the manure in the cell where the
@@ -830,6 +915,13 @@ build_n_inputs <- function(
 # proportion to their nitrogen, which keeps the national mass whole; keying it
 # per cell would strand the straw of every cell without housed animals.
 #
+# Under build_nitrogen_balance()'s rainfed/irrigated yield split the bedding
+# each part books as leaving the field is the residue model at the part's
+# yield, so each production item's bedding is scaled by its factor over both
+# parts (`data$.regime_bedding_factors`, .nb_attach_regime_layer()) and the
+# manure brings back the bedding the parts removed. Without those factors
+# (any other call) the bedding is the unsplit split's.
+#
 # No residue-destiny input, or a split that beds nothing (residue_bedding_
 # fraction defaults to 0), means no bedding was booked out either, so no supply
 # is passed and the manure engine runs as it did before bedding existed.
@@ -837,7 +929,8 @@ build_n_inputs <- function(
   if (is.null(data$residue_destiny_input)) {
     return(NULL)
   }
-  destiny <- .nb_residue_destinies(data)
+  destiny <- .nb_residue_destinies(data$residue_destiny_input, data) |>
+    .ni_regime_bedding(data$.regime_bedding_factors)
   if (!any(destiny$residue_bedding_dm_t > 0, na.rm = TRUE)) {
     return(NULL)
   }
@@ -851,36 +944,80 @@ build_n_inputs <- function(
     build_residue_bedding_supply()
 }
 
+# Each production item's bedding times its factor over the regime parts
+# (.nb_bedding_factors()). The factors are keyed on the regime layer's typed
+# cell coordinates, so the destiny rows are matched on a normalised copy of
+# their key. An item without a factor has no part re-evaluated and is booked
+# wholly rainfed at its unsplit bedding, as the parts' bedding removal books
+# it (.nb_rainfed_parts()), so its factor is 1.
+.ni_regime_bedding <- function(destiny, factors) {
+  if (is.null(factors)) {
+    return(destiny)
+  }
+  item_key <- .nb_residue_item_key()
+  factor <- destiny |>
+    dplyr::select(dplyr::all_of(item_key)) |>
+    .nb_round_cell_coords() |>
+    dplyr::left_join(factors, by = item_key, relationship = "many-to-one") |>
+    dplyr::pull("bedding_factor")
+  dplyr::mutate(
+    destiny,
+    residue_bedding_dm_t = .data$residue_bedding_dm_t *
+      dplyr::coalesce(.env$factor, 1)
+  )
+}
+
 # Map build_livestock_nutrient_flows()'s $applied grain (territory,
 # sub_territory, crop, manure_type) to this function's schema. Grassland
 # rows (crop = NA) use item_cbs_code 3000L, the package-wide grass code (see
 # build_production.R / grassland_land_extension.R); a missing sub_territory
 # (national/global resolution, no cell grain) drops lon/lat to NA -- those
 # rows are only usable at resolution = "polity".
+#
+# The excreta rows also carry their grazing species mix (R/excreta_species_
+# mix.R). Several engine rows can fold into one output row, so the share is
+# re-weighted by N here, and the stamp is computed BEFORE the share is
+# overwritten by its own summary. Excreta labelled only as the fallback of a
+# manure-type split is collected manure, so it folds into a row of its own
+# beside the grazing excreta of its key: a key can carry two excreta rows.
 .manure_to_n_inputs <- function(applied) {
   coords <- .ni_manure_coords(applied$sub_territory)
   applied |>
+    .ni_excreta_species_cols() |>
     dplyr::mutate(
       lon = coords$lon,
       lat = coords$lat,
       area_code = .manure_territory_to_area_code(.data$territory),
       item_cbs_code = .ni_manure_item_cbs(.data$crop, .data$land_use),
-      fert_type = .ni_manure_fert_type(.data$manure_type)
+      fert_type = .ni_manure_fert_type(.data$manure_type),
+      .fallback = .excreta_is_fallback(.data$method_excreta_species)
     ) |>
     dplyr::filter(
       .data$land_use %in% c("Cropland", "Grassland", "transported")
     ) |>
     dplyr::summarise(
       n_input_t = sum(.data$applied_n, na.rm = TRUE),
+      method_excreta_species = .excreta_method_stamp(
+        .data$method_excreta_species,
+        .data$excreta_cpp_share,
+        .data$applied_n
+      ),
+      excreta_cpp_share = .excreta_weighted_share(
+        .data$excreta_cpp_share,
+        .data$applied_n
+      ),
       .by = c(
         "lon",
         "lat",
         "area_code",
         "item_cbs_code",
         "year",
-        "fert_type"
+        "fert_type",
+        ".fallback"
       )
     ) |>
+    dplyr::select(-".fallback") |>
+    dplyr::relocate("excreta_cpp_share", .before = "method_excreta_species") |>
     dplyr::mutate(method_manure = "livestock_intake")
 }
 
@@ -1579,6 +1716,11 @@ build_n_inputs <- function(
 # now groups a pooled split rather than identifying a source row, and a
 # collision would make .ni_check_unallocated() read a pooled row as one of the
 # source rows it is accounting for.
+#
+# Excreta keeps its species stamp as a key and its share as the N-weighted
+# mean of the pooled rows, so fallback-labelled excreta (collected manure with
+# no type split, the excreta that can arrive without a crop item) is still
+# priced as applied manure after it is reallocated.
 .ni_pool_stranded <- function(stranded) {
   keys <- c(
     "area_code",
@@ -1589,11 +1731,17 @@ build_n_inputs <- function(
     "method_deposition_scope",
     "method_human_population",
     "method_human_kgn_cap",
-    "method_manure"
+    "method_manure",
+    "method_excreta_species"
   )
   offset <- max(c(0L, stranded$.source_row), na.rm = TRUE)
   stranded |>
+    ensure_columns(tibble::tibble(excreta_cpp_share = double())) |>
     dplyr::summarise(
+      excreta_cpp_share = .excreta_weighted_share(
+        .data$excreta_cpp_share,
+        .data$n_input_t
+      ),
       n_input_t = sum(.data$n_input_t, na.rm = TRUE),
       .by = dplyr::any_of(keys)
     ) |>
@@ -1812,7 +1960,9 @@ build_n_inputs <- function(
     method_human_population = character(),
     method_human_kgn_cap = character(),
     method_unsupported = character(),
-    method_manure = character()
+    method_manure = character(),
+    excreta_cpp_share = double(),
+    method_excreta_species = character()
   )
 }
 
@@ -1893,7 +2043,7 @@ build_n_inputs <- function(
     dplyr::mutate(
       method_recycling_n = dplyr::if_else(
         .data$fert_type == "recycling",
-        "total_residue",
+        "residue_soil_returned",
         NA_character_
       ),
       method_synthetic = dplyr::if_else(
@@ -1925,6 +2075,16 @@ build_n_inputs <- function(
       method_manure = dplyr::if_else(
         .data$fert_type %in% c("excreta", "manure_solid", "manure_liquid"),
         "livestock_intake",
+        NA_character_
+      ),
+      excreta_cpp_share = dplyr::if_else(
+        .data$fert_type == "excreta",
+        1,
+        NA_real_
+      ),
+      method_excreta_species = dplyr::if_else(
+        .data$fert_type == "excreta",
+        "engine_livestock_category",
         NA_character_
       ),
       method_unattributed = "cropland_area"

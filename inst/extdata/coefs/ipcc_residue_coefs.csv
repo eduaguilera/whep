@@ -1,34 +1,34 @@
-ipcc_crop,slope_ag,intercept_ag_dm_t_ha,rs_ratio_ipcc,n_ag_residue,n_bg_residue,source
-Wheat,1.51,0.52,0.23,0.006,0.009,IPCC 2019 Tab.11.2
-Barley,0.98,0.59,0.22,0.007,0.014,IPCC 2006 Tab.11.2
-Maize,1.03,0.61,0.22,0.006,0.007,IPCC 2006 Tab.11.2
-Rice,0.95,2.46,0.16,0.007,0.009,IPCC 2019 Tab.11.2
-Oats,0.91,0.89,0.25,0.007,0.008,IPCC 2006 Tab.11.2
-Millet,1.43,0.14,0.22,0.007,0.009,IPCC 2019 Tab.11.2
-Sorghum,0.88,1.33,0.19,0.007,0.006,IPCC 2019 Tab.11.2
-Rye,1.09,0.88,0.22,0.005,0.011,IPCC 2019 Tab.11.2
-Other_cereals,1.09,0.88,0.24,0.006,0.009,IPCC 2019 Tab.11.2 (grain generic)
-Soybeans,0.93,1.35,0.19,0.008,0.008,IPCC 2019 Tab.11.2
-Dry_beans,0.36,0.68,0.19,0.008,0.008,IPCC 2019 Tab.11.2
-Pulses_other,1.13,0.85,0.19,0.008,0.008,IPCC 2019 Tab.11.2 (beans & pulses)
-Groundnuts,1.07,1.54,0.2,0.016,0.014,IPCC 2019 Tab.11.2
-Chickpeas,1.13,0.85,0.19,0.008,0.008,IPCC 2019 Tab.11.2 (beans & pulses)
-Lentils,1.13,0.85,0.19,0.008,0.008,IPCC 2019 Tab.11.2 (beans & pulses)
-Peas,1.13,0.85,0.19,0.008,0.008,IPCC 2019 Tab.11.2 (beans & pulses)
-Rapeseed,1.58,0.3,0.15,0.01,0.01,IPCC 2006 Tab.11.2
-Sunflower,1.6,0.3,0.06,0.006,0.009,IPCC 2006 Tab.11.2
-Sesame,1.5,0.3,0.15,0.01,0.01,Gan 2009
-Other_oilseeds,1.58,0.3,0.15,0.01,0.01,IPCC 2006 Tab.11.2 (rapeseed proxy)
-Potatoes,0.1,1.06,0.2,0.019,0.014,IPCC 2019 Tab.11.2
-Sugar_beet,0.29,0.6,0.16,0.019,0.014,IPCC 2006 Tab.11.2
-Cassava,0.1,1.06,0.2,0.019,0.014,IPCC 2019 Tab.11.2 (tuber)
-Sweet_potatoes,0.1,1.06,0.2,0.019,0.014,IPCC 2019 Tab.11.2 (tuber)
-Other_roots,0.1,1.06,0.2,0.019,0.014,IPCC 2019 Tab.11.2 (tuber)
-Sugarcane,0.27,1.62,0.04,0.004,0.005,IPCC 2006 Tab.11.2
-Cotton,1.5,0.3,0.17,0.01,0.01,IPCC 2006 Tab.11.2
-Other_fiber,1.5,0.3,0.17,0.01,0.01,IPCC 2006 Tab.11.2 (cotton proxy)
-Permanent_crops,0.3,0.5,0.15,0.01,0.01,IPCC 2006 Ch.11 analogy
-Fodder_crops,0.3,0,0.8,0.015,0.012,IPCC 2019 Tab.11.2 (non-N-fixing forages)
-Vegetables,0.1,1.06,0.1,0.019,0.014,IPCC 2019 Tab.11.2 (tuber proxy)
-Winter_wheat,1.61,0.4,0.23,0.006,0.009,IPCC 2019 Tab.11.2
-Spring_wheat,1.29,0.75,0.23,0.006,0.009,IPCC 2019 Tab.11.2
+ipcc_crop,slope_ag,intercept_ag_dm_t_ha,rs_ratio_ipcc,n_ag_residue,n_bg_residue,source_slope_intercept,source_rs_ratio,source_n_ag,source_n_bg
+Wheat,1.51,0.52,0.24,0.006,0.009,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (wheat),IPCC 2006 Tab.11.2 (wheat; 2019 Tab.11.1a lists winter and spring wheat only),IPCC 2006 Tab.11.2 (wheat),IPCC 2006 Tab.11.2 (wheat)
+Barley,0.98,0.59,0.22,0.007,0.014,IPCC 2006 Tab.11.2 / 2019 Tab.11.2,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a
+Maize,1.03,0.61,0.22,0.006,0.007,IPCC 2006 Tab.11.2 / 2019 Tab.11.2,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a
+Rice,0.95,2.46,0.16,0.007,0.009,IPCC 2006 Tab.11.2 / 2019 Tab.11.2,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,fill: IPCC 2019 Tab.11.1a generic grains (no rice value; note e)
+Oats,0.91,0.89,0.25,0.007,0.008,IPCC 2006 Tab.11.2 / 2019 Tab.11.2,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a
+Millet,1.43,0.14,0.22,0.007,0.009,IPCC 2006 Tab.11.2 / 2019 Tab.11.2,fill: IPCC 2019 Tab.11.1a generic grains (no millet value; note e),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,fill: IPCC 2019 Tab.11.1a generic grains (no millet value; note e)
+Sorghum,0.88,1.33,0.22,0.007,0.006,IPCC 2006 Tab.11.2 / 2019 Tab.11.2,fill: IPCC 2019 Tab.11.1a generic grains (no sorghum value; note e),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a
+Rye,1.09,0.88,0.22,0.005,0.011,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (rye = all-grain values; note e),fill: IPCC 2019 Tab.11.1a generic grains (no rye value; note e),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a,IPCC 2006 Tab.11.2 / 2019 Tab.11.1a
+Other_cereals,1.09,0.88,0.22,0.006,0.009,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (grains),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (grains),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (grains),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (grains)
+Soybeans,0.93,1.35,0.19,0.008,0.008,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (soyabean),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (soybeans),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (soybeans),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (soybeans)
+Dry_beans,0.36,0.68,0.19,0.008,0.008,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (dry bean),fill: IPCC 2019 Tab.11.1a beans and pulses (no dry bean value),IPCC 2019 Tab.11.1a beans and pulses (2006 dry bean row gives 0.01),IPCC 2019 Tab.11.1a beans and pulses (2006 dry bean row gives 0.01)
+Pulses_other,1.13,0.85,0.19,0.008,0.008,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses)
+Groundnuts,1.07,1.54,0.2,0.016,0.014,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (peanut w/pod),fill: IPCC 2006 Tab.11.2 root crops other (modelled after peanuts; no peanut value),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (peanut),fill: IPCC 2006 Tab.11.2 root crops other (modelled after peanuts; no peanut value)
+Chickpeas,1.13,0.85,0.19,0.008,0.008,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses)
+Lentils,1.13,0.85,0.19,0.008,0.008,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses)
+Peas,1.13,0.85,0.19,0.008,0.008,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (beans & pulses)
+Rapeseed,1.58,0.3,0.15,0.01,0.01,"assumed, unverified: not in IPCC 2006 Tab.11.2 or 2019 Tab.11.2 (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)"
+Sunflower,1.6,0.3,0.06,0.006,0.009,"assumed, unverified: not in IPCC 2006 Tab.11.2 or 2019 Tab.11.2 (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)"
+Sesame,1.5,0.3,0.15,0.01,0.01,Gan 2009 (not re-checked),Gan 2009 (not re-checked),Gan 2009 (not re-checked),Gan 2009 (not re-checked)
+Other_oilseeds,1.58,0.3,0.15,0.01,0.01,"assumed, unverified: rapeseed proxy, not in IPCC tables","assumed, unverified: rapeseed proxy, not in IPCC tables","assumed, unverified: rapeseed proxy, not in IPCC tables","assumed, unverified: rapeseed proxy, not in IPCC tables"
+Potatoes,0.1,1.06,0.2,0.019,0.014,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (potato),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (potatoes and tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (potatoes and tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (potatoes and tubers)
+Sugar_beet,0.29,0.6,0.16,0.019,0.014,"assumed, unverified: not in IPCC 2006 Tab.11.2 or 2019 Tab.11.2 (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)",fill: IPCC 2006 Tab.11.2 / 2019 Tab.11.1a tubers (no sugar beet value),fill: IPCC 2006 Tab.11.2 / 2019 Tab.11.1a tubers (no sugar beet value)
+Cassava,0.1,1.06,0.2,0.019,0.014,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (tubers)
+Sweet_potatoes,0.1,1.06,0.2,0.019,0.014,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (tubers)
+Other_roots,0.1,1.06,0.2,0.019,0.014,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (tubers),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (tubers)
+Sugarcane,0.27,1.62,0.04,0.004,0.005,"assumed, unverified: not in IPCC 2006 Tab.11.2 or 2019 Tab.11.2 (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)"
+Cotton,1.5,0.3,0.17,0.01,0.01,"assumed, unverified: not in IPCC 2006 Tab.11.2 or 2019 Tab.11.2 (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)","assumed, unverified: not in IPCC tables (inherited from afsetools)"
+Other_fiber,1.5,0.3,0.17,0.01,0.01,"assumed, unverified: cotton proxy, not in IPCC tables","assumed, unverified: cotton proxy, not in IPCC tables","assumed, unverified: cotton proxy, not in IPCC tables","assumed, unverified: cotton proxy, not in IPCC tables"
+Permanent_crops,0.3,0.5,0.15,0.01,0.01,"assumed, unverified: IPCC 2006 Ch.11 analogy, not in its tables","assumed, unverified: IPCC 2006 Ch.11 analogy, not in its tables","assumed, unverified: IPCC 2006 Ch.11 analogy, not in its tables","assumed, unverified: IPCC 2006 Ch.11 analogy, not in its tables"
+Fodder_crops,0.3,0,0.8,0.015,0.012,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (non-N-fixing forages),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (perennial grasses; non-N-fixing forages give 0.54),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (non-N-fixing forages),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (non-N-fixing forages)
+Vegetables,0.1,1.06,0.1,0.019,0.014,"assumed, unverified: IPCC 2006 Tab.11.2 tubers as a vegetable proxy","assumed, unverified: not in IPCC tables (tubers give 0.20)","assumed, unverified: IPCC 2006 Tab.11.2 tubers as a vegetable proxy","assumed, unverified: IPCC 2006 Tab.11.2 tubers as a vegetable proxy"
+Winter_wheat,1.61,0.4,0.23,0.006,0.009,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (winter wheat),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (winter wheat),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (winter wheat),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (winter wheat)
+Spring_wheat,1.29,0.75,0.28,0.006,0.009,IPCC 2006 Tab.11.2 / 2019 Tab.11.2 (spring wheat),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (spring wheat),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (spring wheat),IPCC 2006 Tab.11.2 / 2019 Tab.11.1a (spring wheat)

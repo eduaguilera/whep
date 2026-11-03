@@ -4,6 +4,14 @@
 # Build synthetic monthly LPJmL-style inputs for `n_cells` cells x 12 months x
 # one year. Soil-water saturation drops linearly Jan -> Dec so dStorage != 0 and
 # the storage term participates. prec is solved so the 4-term budget closes.
+#
+# `runoff` follows LPJmL's own definition: mrunoff.nc is TOTAL runoff, and that
+# total already carries the groundwater outflow the seepage recharges
+# (src/lpj/update_daily_cell.c adds gw_out_total to drunoff before writing
+# RUNOFF; src/soil/infil_perc.c books SEEPAGE into ground_st). With groundwater
+# storage held constant the outflow equals the seepage, so runoff here is
+# surface + lateral + seepage, and the budget closes with seepage counted
+# once (whep#1530).
 .wb_synthetic_monthly <- function() {
   cells <- tibble::tribble(
     ~lon, ~lat, ~area_code,
@@ -24,15 +32,17 @@
       evap = 15,
       interc = 5,
       irrig = 8,
-      runoff = 12,
-      seepage = 10
+      runoff_surf = 5,
+      runoff_lat = 7,
+      seepage = 10,
+      runoff = runoff_surf + runoff_lat + seepage
     )
   aet_annual <- (40 + 15 + 5) * 12
   irrig_annual <- 8 * 12
-  runoff_annual <- 12 * 12
+  surface_lateral_annual <- (5 + 7) * 12
   seepage_annual <- 10 * 12
   water_input_annual <- aet_annual +
-    runoff_annual +
+    surface_lateral_annual +
     seepage_annual +
     d_storage_mm
   prec_monthly <- (water_input_annual - irrig_annual) / 12
@@ -61,6 +71,8 @@
       prec = to_long("prec"),
       irrig = to_long("irrig"),
       runoff = to_long("runoff"),
+      runoff_surf = to_long("runoff_surf"),
+      runoff_lat = to_long("runoff_lat"),
       seepage = to_long("seepage"),
       swc = swc,
       cell_polity = cell_polity,
@@ -91,6 +103,8 @@
       ) |>
         dplyr::mutate(year = 2000L, value = 1)
     ),
-    water_input_annual = water_input_annual
+    water_input_annual = water_input_annual,
+    surface_lateral_annual = surface_lateral_annual,
+    seepage_annual = seepage_annual
   )
 }

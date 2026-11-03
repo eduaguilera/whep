@@ -671,7 +671,8 @@ test_that("pass-through recovery caps a net exporter's export at its import", {
     result <- whep:::.cbs_trade_recovery_rows(
       .recovery_cbs(),
       .recovery_trade(),
-      years = 2010
+      years = 2010,
+      method = "pass_through"
     ),
     "4900 t of export"
   )
@@ -748,6 +749,95 @@ test_that("a passed-through row balances with no supply of its own", {
   expect_setequal(cocoa$element, c("import", "export"))
   expect_equal(cocoa$value, c(132832, 132832))
   expect_equal(unique(cocoa$source), "FAOSTAT_trade")
+})
+
+test_that("by-product recovery keeps Meat Meal's export beyond its import", {
+  # whep#1450: from 2014 FAOSTAT publishes no Meat Meal balance, so a
+  # rendering country's export has no row to land on. Capping it at the import
+  # cut ~2 Mt a year of export; the default keeps it in full, export-only keys
+  # included, while every other net exporter is still capped.
+  trade <- dplyr::bind_rows(
+    .recovery_trade(),
+    tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+      2010, 200L, 2112, "import", 300,
+      2010, 200L, 2112, "export", 2000,
+      2010, 10L, 2112, "export", 7000
+    )
+  )
+  cbs <- dplyr::bind_rows(
+    .recovery_cbs(),
+    dplyr::mutate(.recovery_cbs()[2, ], area_code = 10L, area = "Australia")
+  )
+
+  messages <- testthat::capture_messages(
+    result <- whep:::.cbs_trade_recovery_rows(cbs, trade, years = 2010)
+  )
+  value_of <- function(code, item, el) {
+    dplyr::pull(
+      dplyr::filter(
+        result,
+        area_code == code,
+        item_cbs_code == item,
+        element == el
+      ),
+      value
+    )
+  }
+
+  expect_equal(value_of(200L, 2112, "import"), 300)
+  expect_equal(value_of(200L, 2112, "export"), 2000)
+  expect_equal(value_of(10L, 2112, "export"), 7000)
+  expect_length(value_of(10L, 2112, "import"), 0L)
+  # Beer is no by-product: capped exactly as under `"pass_through"`.
+  expect_equal(value_of(200L, 2656, "export"), 100)
+  expect_match(messages, "4900 t of export", all = FALSE)
+  expect_match(messages, "8700 t the balance books", all = FALSE)
+  # Every non-by-product key is what `"pass_through"` creates.
+  capped <- suppressMessages(whep:::.cbs_trade_recovery_rows(
+    cbs,
+    trade,
+    years = 2010,
+    method = "pass_through"
+  ))
+  expect_equal(
+    dplyr::filter(result, item_cbs_code != 2112),
+    dplyr::filter(capped, item_cbs_code != 2112)
+  )
+})
+
+test_that("a recovered Meat Meal exporter balances on imputed production", {
+  # End to end through `.fix_cbs()`: production is left missing on the
+  # created row, so the residual rule books it as export - import -- the rule
+  # FAOSTAT-era Meat Meal rows without a reported production already get.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2010, "Singapore", 200L, "Wheat and products", 2511, "production", 1000, "FAOSTAT_prod", "A",
+    2010, "Singapore", 200L, "Wheat and products", 2511, "food", 800, "FAOSTAT_prod", "A"
+  )
+  attr(raw, ".years") <- 2010L
+  attr(raw, ".fao_trade") <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2112, "import", 300,
+    2010, 200L, 2112, "export", 2000
+  )
+
+  value_of <- function(cbs, el) {
+    cbs |>
+      dplyr::filter(item_cbs_code == 2112, element == el) |>
+      dplyr::pull(value) |>
+      sum()
+  }
+  meal <- suppressMessages(whep:::.fix_cbs(raw))
+  capped <- suppressMessages(
+    whep:::.fix_cbs(raw, trade_recovery = "pass_through")
+  )
+
+  expect_equal(value_of(meal, "export"), 2000)
+  expect_equal(value_of(meal, "production"), 1700)
+  expect_equal(value_of(meal, "stock_variation"), 0)
+  expect_equal(value_of(capped, "export"), 300)
+  expect_equal(value_of(capped, "production"), 0)
 })
 
 test_that(".cbs_trade_recovery_rows labels rows from the right vocabulary", {

@@ -144,11 +144,37 @@ matter; protein and carbohydrate from \code{Miel} sum to exactly that dry
 matter. At 5 g/kg honey is 1.69x FBS, where it was zero. Only the
 protein moves a computed number: nothing in the package reads the
 carbohydrate or calcium columns.
-\item \code{Oats} and \code{Maize} are \strong{unchanged}, on the agronomic value. Their rows,
-5 \verb{Avena grano} 117 g/kg and 7 \verb{Harina de Maiz} 87 g/kg, move \emph{away} from
-the FBS density (72.6 and 62.2 g/kg, country sum) where the agronomic
-83.8 and 78.0 are closer, so following the row would be consistency at
-the cost of accuracy. Open for an expert.
+\item \code{Maize} now carries \strong{0.009888} (61.8 g/kg) and \code{Oats} \strong{0.011584}
+(72.4 g/kg), replacing the agronomic 0.01248 and 0.013415 (78.0 and
+83.8 g/kg, a feed-table whole grain). Their own rows, 7 \verb{Harina de Maiz}
+87 g/kg and 5 \verb{Avena grano} 117 g/kg, are not followed: they are the
+composition of what is eaten, and the flour or groats is only a
+fraction of the grain that \code{food_t} counts. The new values are FAOSTAT
+FBS's own World density for 2010, element 671 over element 5142
+(maize 7,311,361.1 t over 118,366 kt; oats 279,096.3 t over 3,853 kt),
+the construct wheat already follows (93.0). Over 2010-2023 it runs
+61.6-64.3 for maize and 70.6-72.8 for oats. Decision
+\code{whep-maize-oats-food-protein-density}, settled by agents on two
+independent composition tables put through FAO's extraction rates:
+\itemize{
+\item USDA FoodData Central, SR Legacy (April 2018): cornmeal, degermed
+7.11 and whole-grain 8.12 g protein per 100 g (fdc_id 168929, 169697);
+rolled oats, dry, 13.15 (173904).
+\item ANSES, Ciqual 2020: maize flour 6.23 and polenta 7.88 (alim_code 9545,
+9614); oatmeal flakes 13.3 (9311).
+\item FAO, \emph{Technical conversion factors for agricultural commodities},
+\url{https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf}:
+\verb{Flour of Maize} 90\% (Kenya; 59-97\% across countries), \verb{Oats, Rolled}
+58\% (United States; 45-73\%).
+}
+
+That gives 56-73 g per kg of maize and 76-77 per kg of oats, which the
+FBS density fits. FAO's old-method FBS (71.9 and 83.4, food-weighted
+country sum) is not adopted: it was built on FAO, \emph{Food balance sheets:
+a handbook} (2001), Annex I, \url{https://www.fao.org/4/x9892e/x9892e00.pdf},
+PDF page 64 (printed 60), whose rolled oats at 16.0 g per 100 g sit more
+than 20\% above both modern tables. The agronomic value stays selectable
+as \code{build_food_supply(protein_basis = "product_nitrogen")}.
 \item \code{Rice} is \strong{unchanged}: its basis was settled in #751/#755.
 \item \verb{Vegetables, other} is \strong{unchanged} and moves no food number: no
 \code{item_cbs_code} bridges to it (\verb{Vegetables, Other} 2605 reaches
@@ -156,11 +182,11 @@ the cost of accuracy. Open for an expert.
 against the literal's 14.0, and neither is checked.
 }
 
-All three new values are the workbook's own composition figures, which,
-like the rest of this block, have no \code{Sources} entry: they are corroborated
-by the FBS oracle, not cited upstream. The workbook copy read was
-\code{afsetools/inst/extdata/Biomass_coefs.xlsx}; upstream still carries the old
-values in \code{Coefs} and should follow.
+The olive, rye and honey values are the workbook's own composition
+figures, which, like the rest of this block, have no \code{Sources} entry: they
+are corroborated by the FBS oracle, not cited upstream. The workbook copy
+read was \code{afsetools/inst/extdata/Biomass_coefs.xlsx}; upstream still
+carries the old values in \code{Coefs} and should follow.
 
 The tree-nut rows \code{Almonds}, \code{Walnut} and \code{Hazelnut} pair a \strong{kernel}
 nitrogen density with an \code{Edible_portion} that now refers to the nut \strong{in
@@ -361,6 +387,48 @@ Three all-caps rows of the source spreadsheet are section headers rather
 than commodities and are dropped at ingestion (#752): \verb{TRANSFORMED PRODUCTS} and \verb{AGRO-INDUSTRY BYPRODUCTS} are empty, and \verb{ANIMAL PRODUCTS}
 holds the VLOOKUP column-index vector the upstream \code{Coefs} sheet addresses
 by absolute position, which read as data claims an \code{Edible_portion} of 4.
+
+The \verb{Aquatic Plants} row is WHEP's own, not the upstream workbook's, which
+has no seaweed row: \link{items_full} bridged CBS item 2775 to a placeholder
+name that matched nothing, so its feed mass dropped out of feed
+availability and its food mass carried no protein or energy (whep#970).
+Two sources fill it, one per use:
+\itemize{
+\item \strong{Food} (\code{N_kgN_kgFM}, \code{GE_product_MJ_kgFM}, \code{Lipids_g_kgFM},
+\code{Edible_portion}): FAO's own composition factor for the item, read from
+FAO, \emph{Food balance sheets: a handbook}, Rome, 2001, Annex I "Food
+composition in terms of retail weight", row \verb{AQUATIC PLANTS}, PDF page
+68 (printed 64), \url{https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf}:
+54 kcal, 2.8 g protein and 0.6 g fat per 100 g of the commodity as
+recorded, i.e. fresh. So nitrogen is 2.8 / 100 / 6.25 = 0.00448 kg per
+kg, the energy cell holds 540 kcal, 2.25936 MJ, per kg, and
+\code{Edible_portion} is 1 because FAO applies the factor to the recorded
+quantity directly. The energy is FAO's dietary energy, not
+bomb-calorimeter gross energy: it is what \code{\link[=build_food_supply]{build_food_supply()}} turns
+into \code{energy_kcal_cap_day}, against FBS element 664. Oracle: FAOSTAT FBS
+item 2775, World (area 5000), 2010, implies 26.5 g protein per kg (element
+671 over element 5142), 5.5\% below the 2001 factor; and 372 kcal per kg,
+so current FBS uses a lower energy factor than the 2001 table.
+\item \strong{Feed} (\code{Product_kgDM_kgFM}, \code{Product_kgN_kgDM}): Heuze, V., Tran, G.,
+Giger-Reverdin, S., Lessire, M. and Lebas, F. (2017), \emph{Seaweeds (marine
+macroalgae)}, Feedipedia, INRAE, CIRAD, AFZ and FAO,
+\url{https://feedipedia.org/node/78}, table "Laminaria and Saccharina
+seaweeds" (fresh): dry matter 15.4\% as fed (SD 3.6, range 9.7-22.5,
+n = 56), crude protein 9.8\% of DM (n = 50), so 0.01568 kg N per kg DM.
+It is the only fresh-seaweed table on that page; the others are dried
+meals at 85-93\% DM, which would put fresh mass at nearly its own dry
+weight.
+}
+
+The two disagree on nitrogen per kg of fresh matter -- 0.00448 against
+0.154 x 0.01568 = 0.00241 -- because FAO's factor covers the whole
+aquatic-plant basket and Feedipedia's table covers kelps only. Protein
+differs widely across that basket: McHugh, D. J. (2003), \emph{A guide to the
+seaweed industry}, FAO Fisheries Technical Paper 441, chapter 8,
+\url{https://www.fao.org/4/y4765e/y4765e0b.htm}, puts nori (\emph{Porphyra}) at
+30-50\% protein and \emph{Laminaria} at about 10\%. Each value is kept on the use
+it was published for. \code{Product_kgC_kgDM} and the remaining columns are
+left empty: no source was read for them.
 }
 \examples{
 head(biomass_coefs)

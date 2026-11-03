@@ -2681,6 +2681,10 @@ utils::globalVariables(
     # silk_mass_basis.R (whep#1281) -- FAO's own residual of a cocoon row,
     # which confirms a duplicated use
     "residual",
+    # silk_mass_basis.R (whep#1456) -- which cocoon use the residual cancels
+    "equal",
+    "minus_processed",
+    "minus_other",
     # R/build_production.R, flax fibre basis (whep#1351)
     "ElementCode",
     "fibre_t",
@@ -2690,6 +2694,25 @@ utils::globalVariables(
     "live",
     "rank_key",
     "live_first",
+    # soil_carbon_inputs.R (issue 1233) -- the residue and root nitrogen the
+    # rainfed/irrigated split re-forms each part's input C:N from
+    ".residue_n",
+    ".root_n",
+    "residue_n_mg",
+    "root_n_mg",
+    # moisture_regime.R (issue 359) -- IPCC 2019 wet/dry classifier inputs,
+    # its window-mean water terms and the internal stamp fields
+    "mat_c",
+    "frost_days",
+    "water_mm",
+    "moisture_ratio",
+    ".unclassified",
+    ".method",
+    # moisture_regime.R -- the irrigated-years window mean of a separate
+    # irrigation record and its stamp field
+    "irrigated_year",
+    "n_irrigated",
+    ".irrig_years",
     # livestock_enteric.R (whep#601) -- the 2019 Tier 1 enteric factor lookup
     "ef_2019",
     ".ef_regional",
@@ -2710,6 +2733,25 @@ utils::globalVariables(
     "cohort_life_stage",
     # livestock_cohorts.R (whep#1127) -- dairy-cattle herd routed to its cows
     "milk_herd",
+    # livestock_manure.R (whep#1524) -- grazing N2O reported apart
+    "manure_n2o_direct_pasture",
+    "manure_n2o_indirect_pasture",
+    "weighted_ef3_pasture",
+    "pasture",
+    # fbs_vintage_rebase.R (whep#1495) -- FBS 2551 trade on the old level
+    "area_int",
+    "corrected",
+    "cut_export",
+    "cut_import",
+    "i.rebase_old_new",
+    "i.value",
+    "is_rebased",
+    "item_int",
+    "net_cut",
+    "ok",
+    "r_export",
+    "r_import",
+    "rebase_old_new",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     NULL

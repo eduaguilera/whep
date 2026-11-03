@@ -24,29 +24,94 @@
 # area with `calculate_crop_residues()`, the estimator that already gives the
 # soil carbon and nitrogen chain its residue (`.sci_npp_from_primary_prod()`),
 # so both sides of WHEP read the same straw (whep#1003). `"wirsenius"` keeps the
-# predecessor's model with 1. and 2. corrected. Other crops keep the pin's
-# ratio with 1. corrected: no published global series exists to check a
-# replacement against (whep#1399).
+# predecessor's model with 1. and 2. corrected.
+#
+# The anchor error of 2. is not a cereal one. For the non-cereal crops that
+# IPCC Table 11.2 gives a line of their own, the pin sat 1.4 times above that
+# line for soybean and potato and 1.9 times for cassava, but at a third to a
+# half of it for the pulses (2010, dry matter, whep#1518), and applying Table
+# 3.16 directly does not cure it (soybean would fall to 0.86 of IPCC). Those
+# crops are therefore estimated from yield in the same way as cereals,
+# selected by `non_cereal`. Every other crop keeps the pin's ratio with 1.
+# corrected: IPCC gives it no line, and no published global series exists to
+# check a replacement against (whep#1399).
 
 # Correct the pin's gross residue and stamp each row with how it was priced.
-# Cereal rows with an area are recomputed by `method`; every other row keeps
-# the pin's ratio, re-keyed on Wirsenius's own region membership.
-.residue_ratio_corrected <- function(residues, products, method) {
-  cereal <- .residue_is_cereal(residues$item_prod) &
-    !is.na(residues$area_code)
-  others <- residues[!cereal, ] |>
+# Cereal rows with an area are recomputed by `method`, and the rows of a
+# non-cereal crop with its own IPCC line by `non_cereal` unless that is
+# `"pin"`; every other row keeps the pin's ratio, re-keyed on Wirsenius's own
+# region membership.
+.residue_ratio_corrected <- function(
+  residues,
+  products,
+  method,
+  non_cereal = "pin"
+) {
+  has_area <- !is.na(residues$area_code)
+  cereal <- .residue_is_cereal(residues$item_prod) & has_area
+  lined <- !cereal &
+    has_area &
+    non_cereal != "pin" &
+    .residue_has_ipcc_line(residues$item_prod)
+  others <- residues[!cereal & !lined, ] |>
     .residue_ratio_membership() |>
     dplyr::mutate(method_residue = "pin")
   cereals <- residues[cereal, ]
-  if (nrow(cereals) == 0L) {
-    return(others)
+  if (nrow(cereals) > 0L) {
+    cereals <- if (method == "wirsenius") {
+      .residue_cereal_wirsenius(cereals)
+    } else {
+      .residue_from_yield(cereals, products, method)
+    }
   }
-  cereals <- if (method == "wirsenius") {
-    .residue_cereal_wirsenius(cereals)
-  } else {
-    .residue_cereal_from_products(cereals, products, method)
+  non_cereals <- residues[lined, ]
+  if (nrow(non_cereals) > 0L) {
+    non_cereals <- .residue_from_yield(non_cereals, products, non_cereal)
   }
-  dplyr::bind_rows(others, cereals)
+  dplyr::bind_rows(others, cereals, non_cereals)
+}
+
+# The non-cereal crops IPCC (2006) Table 11.2 (pp. 11.17-11.18) gives a
+# yield-dependent above-ground residue line of their own, keyed by the
+# `ipcc_crop` of `ipcc_crop_mapping.csv`, with the Table 11.2 row each one
+# reads. The 2019 Refinement's Table 11.2 (updated, p. 11.19) repeats the
+# same slopes and intercepts. "Tubers" is IPCC's own crop class, "modelled
+# after potatoes" (2006, note c); cassava, sweet potato, yams and the other
+# roots read it through the mapping the soil chain already uses. The other
+# non-cereal rows of `ipcc_residue_coefs.csv` (rapeseed, sunflower, sugar
+# beet, sugar cane, cotton, fibres, tree crops, vegetables, forages) are not
+# Table 11.2 lines, or are not a harvested-product residue, so those crops
+# keep the pin's ratio. `test_residue_base.R` checks that the shipped
+# coefficients still equal the printed ones.
+.residue_ipcc_lines <- function() {
+  tibble::tribble(
+    ~ipcc_crop       , ~table_11_2_row  , ~slope_ag , ~intercept_ag_dm_t_ha ,
+    "Soybeans"       , "Soyabean"       ,      0.93 ,                  1.35 ,
+    "Groundnuts"     , "Peanut (w/pod)" ,      1.07 ,                  1.54 ,
+    "Dry_beans"      , "Dry bean"       ,      0.36 ,                  0.68 ,
+    "Peas"           , "Beans & pulses" ,      1.13 ,                  0.85 ,
+    "Chickpeas"      , "Beans & pulses" ,      1.13 ,                  0.85 ,
+    "Lentils"        , "Beans & pulses" ,      1.13 ,                  0.85 ,
+    "Pulses_other"   , "Beans & pulses" ,      1.13 ,                  0.85 ,
+    "Potatoes"       , "Potato"         ,      0.10 ,                  1.06 ,
+    "Cassava"        , "Tubers"         ,      0.10 ,                  1.06 ,
+    "Sweet_potatoes" , "Tubers"         ,      0.10 ,                  1.06 ,
+    "Other_roots"    , "Tubers"         ,      0.10 ,                  1.06
+  )
+}
+
+# Whether each pin crop name maps, through its production item code, to a
+# non-cereal crop with its own IPCC Table 11.2 line.
+.residue_has_ipcc_line <- function(item_prod) {
+  lined <- whep::whep_coef_table("ipcc_crop_mapping") |>
+    dplyr::filter(.data$ipcc_crop %in% .residue_ipcc_lines()$ipcc_crop) |>
+    dplyr::pull("item_prod_code") |>
+    as.character()
+  codes <- tibble::tibble(item_prod = as.character(item_prod)) |>
+    add_item_prod_code(name_column = "item_prod") |>
+    dplyr::pull("item_prod_code") |>
+    as.character()
+  !.residue_is_cereal(item_prod) & codes %in% lined
 }
 
 # Whether each pin crop name is a cereal: its CBS item belongs to the
@@ -273,22 +338,26 @@
     dplyr::pull("region_wirsenius")
 }
 
-# Cereal residue from the pin's own production and harvested area, through
+# Residue from the pin's own production and harvested area, through
 # `calculate_crop_residues()` with its modern-variety harvest-index correction
 # (keyed on the HANPP region, the membership that table is written in). The
 # pin's `Product` rows equal the `primary_prod` pin's tonnes, so the crop base
 # is the one the residue rows were built on. The result is stored as fresh
 # matter through the crop's own `Residue_kgDM_kgFM`, the coefficient
 # `get_primary_residues()` converts it back with, so `value_dm` is the
-# estimator's dry matter.
+# estimator's dry matter. Used for cereals and for the non-cereal crops with
+# their own IPCC line.
 #
-# Each cereal books its residue to one CBS residue item in the pin (Straw, or
-# Other crop residues for fonio), which the residue rows give; the production
-# rows drive the estimate.
-.residue_cereal_from_products <- function(rows, products, method) {
-  items <- .residue_cereal_items(rows)
-  crops <- .residue_cereal_production(products, items$item_prod)
-  .check_cereal_products(rows, crops)
+# Each crop books its residue to one CBS residue item in the pin (Straw, or
+# Other crop residues for fonio, soybean or potato), which the residue rows
+# give; the production rows drive the estimate. A production row whose pin
+# residue is 0 because the predecessor's recovery rate was 0 (potato or dry
+# beans in West Europe) gets its residue here: the residue exists, and the
+# recovery rate downstream decides how much of it leaves the field.
+.residue_from_yield <- function(rows, products, method) {
+  items <- .residue_yield_items(rows)
+  crops <- .residue_yield_production(products, items$item_prod)
+  .check_yield_products(rows, crops)
   crops |>
     dplyr::left_join(.residue_area_regions(), by = "area_code") |>
     add_item_prod_code(name_column = "item_prod") |>
@@ -303,7 +372,7 @@
       region_hanpp = .data$region_hanpp
     ) |>
     calculate_crop_residues(method = method) |>
-    .check_cereal_priced() |>
+    .check_yield_priced() |>
     dplyr::left_join(items, by = "item_prod", relationship = "many-to-one") |>
     dplyr::mutate(
       prod_ygpit_mg = .data$residue_dm_t / .data$residue_kgdm_kgfm,
@@ -324,11 +393,11 @@
     )
 }
 
-# The residue item, CBS crop and biomass name each cereal books its residue
+# The residue item, CBS crop and biomass name each crop books its residue
 # under, and that biomass name's residue dry-matter content. One per crop: a
-# cereal whose residue the pin split over two items could not be recomputed
+# crop whose residue the pin split over two items could not be recomputed
 # from one production row without choosing a split.
-.residue_cereal_items <- function(rows) {
+.residue_yield_items <- function(rows) {
   items <- rows |>
     dplyr::distinct(
       .data$item_prod,
@@ -340,12 +409,12 @@
   if (length(split) > 0L) {
     cli::cli_abort(
       c(
-        "The crop-residue pin books one cereal's residue under more than one
+        "The crop-residue pin books one crop's residue under more than one
          item: {.val {split}}.",
-        "i" = "Cereal residue is recomputed from production, one residue row
-          per crop, so the split cannot be kept."
+        "i" = "Its residue is recomputed from production, one residue row per
+          crop, so the split cannot be kept."
       ),
-      class = "whep_residue_cereal_items"
+      class = "whep_residue_split_items"
     )
   }
   kgdm <- whep::biomass_coefs |>
@@ -358,20 +427,20 @@
     dplyr::left_join(kgdm, by = "name_biomass", relationship = "many-to-one")
 }
 
-# Cereal production (t fresh) and harvested area (ha) per area, crop and year,
-# from the pin's `Product` rows.
-.residue_cereal_production <- function(products, cereals) {
+# Production (t fresh) and harvested area (ha) per area, crop and year, from
+# the pin's `Product` rows.
+.residue_yield_production <- function(products, crops) {
   if (!all(c("prod_ygpit_mg", "area_ygpit_ha") %in% names(products))) {
     cli::cli_abort(
-      "The crop-residue pin has no {.field area_ygpit_ha} column, so cereal
+      "The crop-residue pin has no {.field area_ygpit_ha} column, so crop
        residue cannot be estimated from yield.",
-      class = "whep_residue_cereal_no_product"
+      class = "whep_residue_no_product"
     )
   }
   products |>
     dplyr::filter(
       !is.na(.data$area_code),
-      .data$item_prod %in% cereals
+      .data$item_prod %in% crops
     ) |>
     dplyr::summarise(
       production_t = sum(.data$prod_ygpit_mg, na.rm = TRUE),
@@ -381,11 +450,11 @@
     dplyr::filter(.data$production_t > 0)
 }
 
-# Every cereal residue row must have the production it is recomputed from,
+# Every residue row must have the production it is recomputed from,
 # and every production row the harvested area the yield-dependent estimate
 # needs. Without either, the residue would come out as zero and be dropped: an
 # absent input read as no residue. Neither happens on the real pin.
-.check_cereal_products <- function(rows, crops) {
+.check_yield_products <- function(rows, crops) {
   keys <- c("year", "area_code", "item_prod")
   has_mass <- !is.na(rows$prod_ygpit_mg) & rows$prod_ygpit_mg > 0
   orphan <- dplyr::anti_join(
@@ -402,18 +471,18 @@
   n_no_area <- nrow(no_area)
   cli::cli_abort(
     c(
-      "Cereal residue cannot be recomputed from the pin's production.",
+      "Crop residue cannot be recomputed from the pin's production.",
       "i" = "{n_orphan} residue rows have no production row and {n_no_area}
         production rows have no harvested area.",
       "i" = "Crops: {.val {bad}}."
     ),
-    class = "whep_residue_cereal_no_product"
+    class = "whep_residue_no_product"
   )
 }
 
 # `calculate_crop_residues()` fills a crop it has no coefficient for with zero.
-# For a cereal with production that would be residue silently lost.
-.check_cereal_priced <- function(x) {
+# For a crop with production that would be residue silently lost.
+.check_yield_priced <- function(x) {
   bad <- x$production_t > 0 &
     (is.na(x$residue_dm_t) | x$residue_dm_t <= 0)
   if (!any(bad)) {
@@ -422,10 +491,10 @@
   crops <- sort(unique(as.character(x$item_prod[bad])))
   cli::cli_abort(
     c(
-      "No residue estimate for cereals with production: {.val {crops}}.",
+      "No residue estimate for crops with production: {.val {crops}}.",
       "i" = "{.fn calculate_crop_residues} has no coefficient for them."
     ),
-    class = "whep_residue_cereal_unpriced"
+    class = "whep_residue_unpriced"
   )
 }
 
