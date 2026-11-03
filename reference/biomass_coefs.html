@@ -216,6 +216,63 @@ figures, which, like the rest of this block, have no <code>Sources</code> entry:
 are corroborated by the FBS oracle, not cited upstream. The workbook copy
 read was <code>afsetools/inst/extdata/Biomass_coefs.xlsx</code>; upstream still
 carries the old values in <code>Coefs</code> and should follow.</p>
+<p>The <code>Figs</code> food-composition cells use <strong>raw-fig</strong> reference values,
+per edible portion, replacing a high-energy <code>Higo</code> row (2810 kcal/kg)
+consistent with dried fruit, despite the WHEP row's fresh-fruit dry
+matter (0.197).
+ANSES, <em>Ciqual 2020</em>, code 13012 <code>Fig, raw</code>, gives protein and crude
+protein (<code>N x 6.25</code>) both 1.19 g/100 g, available carbohydrate 13.5 g/100 g,
+and calcium 57 mg/100 g. Therefore <code>N_kgN_kgFM</code> is <strong>0.001904</strong>
+(11.9 g protein/kg divided by 6250), carbohydrate <strong>135 g/kg</strong> and calcium
+<strong>570 mg/kg</strong>. The N cell is a conversion of the source's explicitly
+defined crude-protein quantity, not a separate elemental-N observation.
+Ciqual reports fat only as <code>&lt; 0.5 g/100 g</code>, so that bound is not substituted
+as an exact value. USDA FoodData Central SR Legacy, FDC 173021 <code>Figs, raw</code>,
+nutrient 1004 gives 0.3 g fat/100 g: the lipid cell is <strong>3 g/kg</strong>.
+That legacy entry has zero recorded data points and no derivation code;
+it is a reference value, not a demonstrated direct lipid measurement.
+The calcium choice is provisional: USDA's raw-fig reference is 350 mg/kg,
+versus Ciqual's 570 mg/kg. These populations do not establish a universal
+composition; the alternative is 220 mg/kg lower (38.6%). Ciqual supplies
+the selected raw-food reference, not a cross-source consensus.</p>
+<p>The fig vitamin A cell stays at <strong>70 micrograms/kg</strong>, interpreted for this
+row as retinol activity equivalents (RAE): USDA nutrient 1106 is
+7 micrograms RAE/100 g. Its retinol-only entry (nutrient 1105) is an
+assumed zero (USDA derivation Z) and is not interchangeable with vitamin
+A activity. This interpretation does
+not standardize the activity basis of other rows in the inherited column.
+Sources: <a href="https://ciqual.anses.fr/" class="external-link">https://ciqual.anses.fr/</a> (2020 English workbook, sheet <code>compo</code>)
+and <a href="https://fdc.nal.usda.gov/food-details/173021/nutrients" class="external-link">https://fdc.nal.usda.gov/food-details/173021/nutrients</a>
+(SR Legacy April 2018 archive). These are nutrient-specific reference
+values per edible portion, not a paired drying experiment or a claim that
+every fig cultivar has the same composition. No common energy or moisture
+multiplier
+is applied across nutrients. Agronomic nitrogen, dry matter, and the other
+inherited fig cells are unchanged and are not validated by this repair.
+No <a href="items_full.html">items_full</a> row reaches <code>Figs</code>, so this food-nitrogen edit changes no
+current food-nutrition lookup. This is a science decision, scoped to the
+cited fresh-food observations (issue #752).</p>
+<p>The sugar defects remain explicit. <code>White sugar</code> still contains 1025.9 g
+carbohydrate/kg after the workbook's dry-matter rescale; <code>Brown sugar</code>
+contains 995 g/kg against 965 g/kg dry matter. A source label is not proof
+that the dry-matter cell is correct. The workbook labels <code>Total azucar</code>
+as <code>Brown sugar</code>; a reversed assignment is an inference, not an established
+transcription error. <a href="items_full.html">items_full</a> uses these rows for <code>Sugar (Raw Equivalent)</code>/<code>Sweeteners, Other</code> and <code>Sugar non-centrifugal</code>, respectively.
+Retail white/brown sugar observations do not establish those aggregate
+compositions, and transferring white sugar per kg dry matter to
+non-centrifugal sugar ignores its protein, minerals and other solids.
+Repair requires a coherent commodity/quantity basis and dry-matter,
+protein and carbohydrate treatment; the earlier 995/965 g/kg replacements
+are not retained merely because they pass a mass bound.</p>
+<p><code>Butter, Ghee</code> also remains unresolved: 830 g fat/kg exceeds its 821.4 g/kg
+dry matter. FAO, <em>Food balance sheets: a handbook</em> (2001), Annex I,
+printed p. 65 gives cow butter 81.1 g fat/100 g and cow ghee 99.1.
+FAO's <em>Statistical Yearbook 2014: Latin America and the Caribbean Food
+and Agriculture</em>, p. 159 lists butter and ghee separately within the
+aggregate (<a href="https://www.fao.org/4/i3592e/i3592e.pdf" class="external-link">https://www.fao.org/4/i3592e/i3592e.pdf</a>), so a butter-only
+observation cannot establish its composition. <code>Vegetables, other</code> and
+<code>Tigernuts</code> retain their known composition/basis inconsistencies too.
+This scoped fig repair does not close issue #752 or validate those rows.</p>
 <p>The tree-nut rows <code>Almonds</code>, <code>Walnut</code> and <code>Hazelnut</code> pair a <strong>kernel</strong>
 nitrogen density with an <code>Edible_portion</code> that now refers to the nut <strong>in
 shell</strong> (whep#797). FBS item 2551 <code>Nuts and products</code> is a quantity in
