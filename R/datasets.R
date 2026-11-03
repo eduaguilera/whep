@@ -429,7 +429,7 @@
 #' values in `Coefs` and should follow.
 #'
 #' Six rows carried a single constituent heavier than their own dry matter,
-#' which no reading of the columns allows (#752). Four are repaired, in the
+#' which no reading of the columns allows (#752). Three are repaired, in the
 #' composition cells rather than in `Product_kgDM_kgFM`: the dry matter has a
 #' `Sources` entry (Guzman et al. 2014 for figs and both sugars) and the
 #' composition block has none. The columns changed here are read by no
@@ -462,17 +462,23 @@
 #'   water only; provisional). The result, 135 g carbohydrate per kg, is
 #'   Ciqual 13012 `Fig, raw`'s 13.5 g per 100 g. No item reaches `Figs`
 #'   through [items_full], so its nitrogen feeds no food number.
-#' - `Butter, Ghee` carried 830 g of fat per kg in 821.4 g of dry matter. It
-#'   now carries **811 g/kg**: FAO Annex I gives butter of cow milk 81.1 g
-#'   per 100 g (printed p. 65; buffalo and goat butter are also 81.1), and
-#'   Ciqual 16414, unsalted butter of unknown fat content, gives 81.5.
-#'   Applying butter observations to this combined butter/ghee row is a
-#'   provisional scope assumption: the sources do not establish its mixture.
-#'   Likewise, the white-sugar value retains the existing dry-matter
-#'   constraint; the two cited observations are 998 and 1000 g/kg. These
-#'   replacements are science decisions, even where source values agree.
+#' These replacements are science decisions, even where source values agree.
+#' White sugar retains its existing dry-matter constraint; the two cited
+#' carbohydrate observations are 998 and 1000 g/kg.
 #'
-#' Two rows still break the bound. `Vegetables, other` has `Tomato`'s dry
+#' `Butter, Ghee` remains unresolved: 830 g fat/kg exceeds its 821.4 g/kg
+#' dry matter. FAO Annex I gives butter of cow milk 81.1 g fat per 100 g,
+#' but ghee of cow milk 99.1 (printed p. 65). These are fat fractions, not
+#' dry-matter fractions. A butter-only value cannot establish the combined
+#' row's composition. FAO's *Statistical Yearbook 2014: Latin America and
+#' the Caribbean Food and Agriculture*, p. 159, lists butter and ghee as
+#' separate constituents of this aggregate
+#' (<https://www.fao.org/4/i3592e/i3592e.pdf>). The workbook cites Guzman
+#' et al. 2014 for `Butter` dry matter, but that original value and its
+#' applicability to the combined row have not been verified. Both cells
+#' stay unchanged pending resolution of their product and aggregation basis.
+#'
+#' Two other food rows still break the bound. `Vegetables, other` has `Tomato`'s dry
 #' matter (its `Equiv`) under an average-vegetable composition, so the
 #' repair is to its dry matter, which production reads. `Tigernuts` has the
 #' dried `Chufa` composition (4430 kcal/kg) on a dry matter of 0.30 that is a

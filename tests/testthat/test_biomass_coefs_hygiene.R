@@ -135,22 +135,22 @@ testthat::test_that("the proximate sum against dry matter can only improve", {
   # it rather than a coefficient error. Both counts are ratchets: lower them
   # when a row is fixed, never raise them to admit a new one. Honey left both
   # in #1096: its composition row sums to exactly its 785 g/kg dry matter.
-  # Brown sugar, White sugar, Figs and Butter, Ghee left both in #752.
+  # Brown sugar, White sugar and Figs left both in #752.
   prox <- .bch_proximate()
   with_fibre <- sum(prox$proximate_g_kgfm > prox$dry_matter_g_kgfm)
   without_fibre <- sum(
     prox$proximate_g_kgfm - dplyr::coalesce(prox$Fiber_g_kgFM, 0) >
       prox$dry_matter_g_kgfm
   )
-  testthat::expect_lte(with_fibre, 68L)
-  testthat::expect_lte(without_fibre, 25L)
+  testthat::expect_lte(with_fibre, 69L)
+  testthat::expect_lte(without_fibre, 26L)
 })
 
 testthat::test_that("no single constituent outweighs its own dry matter", {
   # The strictest reading of the bound, and the one no definitional argument
   # rescues: whatever basis the composition block is on, a single constituent
   # cannot outweigh the dry matter it is part of. Seven rows used to (#752);
-  # five are repaired and two are pinned by name. What happened to each:
+  # four are repaired and three are pinned by name. What happened to each:
   #
   # - Honey left in #1096, when its placeholder 1000 g/kg became its `Miel`
   #   row's 780.
@@ -161,10 +161,11 @@ testthat::test_that("no single constituent outweighs its own dry matter", {
   # - Figs carried the composition of DRIED figs (`Higo`, 2810 kcal/kg) on a
   #   fresh-fig row. Its block is now diluted by the row's own edible energy
   #   over the dried food's (provisional).
-  # - Butter, Ghee carried 830 g fat/kg in 821.4 g/kg of dry matter; now
-  #   FAO's 81.1 g/100 g for butter of cow milk (Ciqual 2020: 81.5).
+  # - Butter, Ghee retains 830 g fat/kg in 821.4 g/kg of dry matter.
+  #   Butter-only evidence cannot repair this combined butter/ghee row.
   #
-  # Two are left. Vegetables, other: its dry matter is Tomato's (the row's
+  # Three are left. Butter, Ghee needs its combined-product basis resolved.
+  # Vegetables, other: its dry matter is Tomato's (the row's
   # Equiv) under an average-vegetable composition, and repairing it means
   # moving the dry matter, which production reads. Tigernuts: dried `Chufa`
   # composition (4430 kcal/kg) on a 0.30 dry matter that is a "Roots
@@ -183,7 +184,13 @@ testthat::test_that("no single constituent outweighs its own dry matter", {
     dplyr::pull(.data$Name_biomass)
   testthat::expect_setequal(
     offenders,
-    c("Vegetables, other", "Tigernuts", "Urea", "Ammonium chloride")
+    c(
+      "Vegetables, other",
+      "Tigernuts",
+      "Butter, Ghee",
+      "Urea",
+      "Ammonium chloride"
+    )
   )
 })
 
@@ -197,11 +204,6 @@ testthat::test_that("the repaired composition rows close against dry matter", {
   testthat::expect_true(all(
     prox$proximate_g_kgfm <= prox$dry_matter_g_kgfm + 1e-6
   ))
-  # Butter's protein is 6 g/kg, so 811 g of fat leaves room for it too.
-  butter <- .bch_proximate() |>
-    dplyr::filter(.data$Name_biomass == "Butter, Ghee")
-  testthat::expect_equal(butter$Lipids_g_kgFM, 811)
-  testthat::expect_lte(butter$proximate_g_kgfm, butter$dry_matter_g_kgfm)
 })
 
 testthat::test_that("White sugar is Brown sugar's composition per kg DM", {
