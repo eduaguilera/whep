@@ -23,11 +23,12 @@ columns of
 Eurostat dissemination API ([API
 guide](https://ec.europa.eu/eurostat/web/user-guides/data-browser/api-data-access/api-getting-started/sdmx2.1)),
 dataflows `apro_cpshr`, `apro_cpnhr_h`, `apro_mt_ls_r` and
-`ef_lsk_poultry`; IBGE SIDRA aggregate metadata
-(<https://servicodados.ibge.gov.br/api/v3/agregados>), tables 5457, 3939
-and 94; Ronchetti, G. et al. (2024). Harmonized European Union
-subnational crop statistics reveal climate impacts and crop cultivation
-shifts. *Earth System Science Data*, 16, 1623-1649.
+`ef_lsk_poultry`; IBGE SIDRA aggregate metadata from the IBGE aggregates
+API v3 ([API
+documentation](https://servicodados.ibge.gov.br/api/docs/agregados?versao=3)),
+tables 5457, 3939 and 94; Ronchetti, G. et al. (2024). Harmonized
+European Union subnational crop statistics reveal climate impacts and
+crop cultivation shifts. *Earth System Science Data*, 16, 1623-1649.
 [doi:10.5194/essd-16-1623-2024](https://doi.org/10.5194/essd-16-1623-2024)
 ; USDA National Agricultural Statistics Service, Quick Stats bulk
 downloads (<https://www.nass.usda.gov/datasets/>).
