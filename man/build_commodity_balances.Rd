@@ -27,6 +27,7 @@ build_commodity_balances(
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   nut_basis = .nut_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
+  bucket_coverage = .cbs_coverage_choices(),
   .fixed_data = NULL
 )
 }
@@ -533,6 +534,29 @@ whose crop production does not reach before 1961 either (whep#102):
 their residue keeps the population and land fill, like their crops.
 World \code{stock_variation} over all items moves from -3,057 / -3,222 Mt to
 -751 / -723 Mt. No 1961-or-later value and no other item moves.}
+
+\item{bucket_coverage}{How to handle a balance source reporting only some
+active members of a bucket: \code{"complete_sources"} (default) excludes that
+source's bucket-year before selection. The existing interpolation of the
+bucket's complete-territory destiny shares, then world-share estimation,
+supplies the balance. \code{"world_shares"} also excludes partial sources but
+explicitly uses the same-year/item world destiny shares for the affected
+bucket-years instead of their temporal anchors. Affected bucket-years
+are excluded from the donors; this method aborts when no positive
+same-year/item donor profile exists. Both methods retain the structural
+feed allocation for processing residues. The default is provisional:
+FAO (2017), \emph{Guidelines for the Compilation of Food Balance Sheets}
+(140-page UNSIAP edition), sections 3.4.2.1-2, pp. 53-54,
+supports imputation and source flags but does not prescribe this bucket
+policy. Both methods retain production and the published geography.
+\code{method_cbs_coverage} records the policy on affected bucket-years;
+\code{"reported_members"} means no partial source was detected. The
+\code{cbs_coverage_log} attribute records each partial source and member sets.
+\code{"not_checked"} marks inputs without member metadata, including
+\code{.fixed_data}. This is a bucket-year coverage check, not an item-level
+completeness guarantee. The world-share estimate clears non-production
+FAOSTAT flags on affected bucket-years: a source status is not an
+observation status for the estimated bucket.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
