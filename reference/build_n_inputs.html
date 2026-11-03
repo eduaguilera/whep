@@ -284,8 +284,9 @@ territory. Recorded in <code>method_deposition_scope</code>.</p></li>
 <code>lat</code>, <code>area_code</code>, <code>year</code>, <code>item_cbs_code</code>, with <code>land_use</code>
 (<code>"cropland"</code> or <code>"grassland"</code>) and positive <code>area_ha</code>. Optional: when
 absent it is derived natively by <code><a href="build_ag_land_support.html">build_ag_land_support()</a></code> from
-<code>cell_polity</code>, <code>type_cropland</code> and <code>crop_patterns</code> (plus <code>states</code> or
-<code>grassland_ha</code> for the grassland side). Supply it to override that
+<code>cell_polity</code>, <code>type_cropland</code>, the crop allocation and
+<code>harvested_area</code> (plus <code>states</code> or <code>grassland_ha</code> for the grassland
+side). Supply it to override that
 derivation with a better land surface. Cropland rows identify crop CBS
 items; all pasture/rangeland rows use CBS 3000.</p></li>
 <li><p><code>grassland_source</code>, <code>gridded_pasture</code>, <code>grassland_ha</code>, <code>states</code>:
@@ -318,11 +319,17 @@ output (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>land_u
 is never computed here. The <code>"som_mineralization"</code> term keeps the
 cropland rows with <code>son_change_kgn_ha &gt; 0</code> and takes
 <code>son_change_kgn_ha</code> times <code>area_ha</code>, divided by 1000, as <code>n_input_t</code>.</p></li>
-<li><p><code>primary_prod</code>, <code>fertilizer</code>, <code>crop_patterns</code>, <code>type_cropland</code>,
-<code>cell_polity</code>: the synthetic-fertiliser assembly (country total from
-<code>fertilizer</code>, the <code>faostat-fertilizer-nutrients</code> pin, split to crops
-by the chosen crop-share method, then to cells by
-<code>crop_patterns</code>/<code>type_cropland</code>). From <code>fertilizer</code> it reads the
+<li><p><code>crop_allocation</code>: the crop allocation every gridded crop term is
+placed by, the one <code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> places the same crops
+by (a list of <code>weights</code> and <code>fallback</code>; see
+<code><a href="spatialize_country_n_to_crops.html">spatialize_country_n_to_crops()</a></code>). Built once from the pinned
+spatialization inputs on <code>cell_polity</code> when absent and <code>years</code> is
+given; <code>gridded_crops</code>, <code>engine_inputs</code> and <code>fodder_patterns</code> replace
+its pinned inputs.</p></li>
+<li><p><code>primary_prod</code>, <code>fertilizer</code>, <code>cell_polity</code>: the synthetic-fertiliser
+assembly (country total from <code>fertilizer</code>, the
+<code>faostat-fertilizer-nutrients</code> pin, split to crops by the chosen
+crop-share method, then to cells by the crop allocation). From <code>fertilizer</code> it reads the
 raw FAOSTAT columns <code>Element</code> (<code>"Agricultural Use"</code>), <code>Item</code>
 (<code>"Nutrient nitrogen N (total)"</code>), <code>Year</code>, <code>Area Code</code> and <code>Value</code>;
 <code>Value</code> becomes the country total <code>synthetic_n_t</code>, passed on as the
@@ -331,6 +338,11 @@ whose output <code>n_t</code> is the <code>"synthetic"</code> term's <code>n_inp
 <li><p><code>synthetic_method</code>: how the synthetic-N country total is split across
 crops, <code>"coello"</code> (default; Coello 2025 rate-weighted, FAOSTAT-
 conserving) or <code>"area_share"</code> (harvested-area shares only).</p></li>
+<li><p><code>component_policy</code>: <code>"error"</code> (default) or explicitly <code>"legacy_pool"</code>,
+passed with <code>primary_prod</code> to <code><a href="spatialize_country_n_to_crops.html">spatialize_country_n_to_crops()</a></code> for
+synthetic and FAOSTAT-manure component-coverage checks. The latter
+warns and retains the former mixture when a CBS group has an absent
+production component; it does not establish that mixture as correct.</p></li>
 <li><p><code>coello_rates</code>: crop-specific synthetic-N rate table shaped like
 <a href="coello_synthetic_n.html">coello_synthetic_n</a> (<code>year</code>, <code>area_code</code>, <code>item_cbs_code</code>,
 <code>kg_n_ha</code>); defaults to <code><a href="coello_synthetic_n.html">whep::coello_synthetic_n</a></code>. Used only when
@@ -397,6 +409,8 @@ uses <code>data$manure_method %||% "livestock_intake"</code>.</p></dd>
 (<code>"livestock_intake"</code>, <code>"faostat"</code>, or <code>"faostat_all_solid"</code> on applied
 manure booked as solid for want of an engine split) and is <code>NA</code> for every
 other <code>fert_type</code>.
+<code>method_crop_components</code> records the gridded synthetic/FAOSTAT-manure
+component-coverage treatment; other input streams carry <code>NA</code>.
 <code>excreta_cpp_share</code> is the share of an <code>"excreta"</code> row's N deposited by
 cattle, poultry and pigs, the animals of the IPCC 2019 EF3PRP,CPP factor
 (Vol 4, Ch 11, Table 11.1 (Updated), p. 11.13); sheep and other animals

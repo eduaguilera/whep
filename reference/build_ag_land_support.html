@@ -3,9 +3,11 @@
 allocates its non-crop-specific nitrogen terms over: per grid cell, polity,
 year and CBS item, the hectares of agricultural land available to receive
 nitrogen. Cropland hectares come from the LUH2-derived type_cropland
-surface, split among crops by the static crop_patterns composition
-(normalised within each cell, so the cell's physical cropland area is
-apportioned rather than inflated by multicropping). Grassland hectares come
+surface, split among crops by the harvested-area composition of the crop
+allocation the nitrogen and soil carbon inputs share (the spatialization
+engine's placement of each crop, whep#1002), normalised within each
+polycell, so the physical cropland area is apportioned rather than
+inflated by multicropping. Grassland hectares come
 from read_luh2_landuse()'s gridded grassland class and are all carried on
 CBS 3000, with no intensive/extensive split inferred. Both sides are split
 across border polities by the same cell_polity crosswalk.
@@ -16,9 +18,11 @@ data$grassland_ha to cover them."><meta property="og:description" content="Assem
 allocates its non-crop-specific nitrogen terms over: per grid cell, polity,
 year and CBS item, the hectares of agricultural land available to receive
 nitrogen. Cropland hectares come from the LUH2-derived type_cropland
-surface, split among crops by the static crop_patterns composition
-(normalised within each cell, so the cell's physical cropland area is
-apportioned rather than inflated by multicropping). Grassland hectares come
+surface, split among crops by the harvested-area composition of the crop
+allocation the nitrogen and soil carbon inputs share (the spatialization
+engine's placement of each crop, whep#1002), normalised within each
+polycell, so the physical cropland area is apportioned rather than
+inflated by multicropping. Grassland hectares come
 from read_luh2_landuse()'s gridded grassland class and are all carried on
 CBS 3000, with no intensive/extensive split inferred. Both sides are split
 across border polities by the same cell_polity crosswalk.
@@ -69,9 +73,11 @@ data$grassland_ha to cover them."><meta property="og:image" content="https://edu
 allocates its non-crop-specific nitrogen terms over: per grid cell, polity,
 year and CBS item, the hectares of agricultural land available to receive
 nitrogen. Cropland hectares come from the LUH2-derived <code>type_cropland</code>
-surface, split among crops by the static <code>crop_patterns</code> composition
-(normalised within each cell, so the cell's physical cropland area is
-apportioned rather than inflated by multicropping). Grassland hectares come
+surface, split among crops by the harvested-area composition of the crop
+allocation the nitrogen and soil carbon inputs share (the spatialization
+engine's placement of each crop, whep#1002), normalised within each
+polycell, so the physical cropland area is apportioned rather than
+inflated by multicropping. Grassland hectares come
 from <code><a href="read_luh2_landuse.html">read_luh2_landuse()</a></code>'s gridded grassland class and are all carried on
 CBS 3000, with no intensive/extensive split inferred. Both sides are split
 across border polities by the same <code>cell_polity</code> crosswalk.</p>
@@ -126,8 +132,11 @@ already-built table.</p></dd>
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional named list of pre-loaded inputs to avoid remote reads:
 <code>cell_polity</code> (the <code><a href="build_cell_polity.html">build_cell_polity()</a></code> crosswalk), <code>type_cropland</code>
-(<code>lon</code>, <code>lat</code>, <code>year</code>, <code>luh2_type</code>, <code>type_ha</code>), <code>crop_patterns</code> (<code>lon</code>,
-<code>lat</code>, <code>item_prod_code</code>, <code>harvest_fraction</code>), <code>gridded_pasture</code> (<code>lon</code>,
+(<code>lon</code>, <code>lat</code>, <code>year</code>, <code>luh2_type</code>, <code>type_ha</code>), <code>crop_allocation</code> (the
+shared crop allocation: a list of <code>weights</code> and <code>fallback</code>, built from
+the pinned spatialization inputs when absent), <code>harvested_area</code>
+(<code>area_code</code>, <code>item_prod_code</code>, <code>year</code>, <code>faostat_area_ha</code>; from
+<code><a href="get_primary_production.html">get_primary_production()</a></code> when absent), <code>gridded_pasture</code> (<code>lon</code>,
 <code>lat</code>, <code>year</code>, <code>pasture_ha</code>, <code>rangeland_ha</code>), <code>states</code>
 (<code><a href="read_luh2_landuse.html">read_luh2_landuse()</a></code>'s raw LUH2 states) and <code>grassland_ha</code> (<code>lon</code>,
 <code>lat</code>, <code>area_code</code>, <code>year</code>, <code>area_ha</code>, bypassing the grassland read
@@ -145,6 +154,17 @@ data. Defaults to <code>FALSE</code>.</p></dd>
 <code>land_use</code> (<code>"cropland"</code> or <code>"grassland"</code>) and positive <code>area_ha</code>, plus the
 polity columns below, plus <code>reporting_polity_out_of_span</code> when
 <code>polity_validity = "flag"</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="territorial-compatibility">Territorial compatibility<a class="anchor" aria-label="anchor" href="#territorial-compatibility"></a></h2>
+
+
+<p>This consumer still uses the numeric geography adapter. Distinct supplied
+reporting polities cannot share an area code within the same year; an
+ambiguous mapping aborts instead of pooling their observations. Native
+identity-keyed crop allocations are not yet consumed by this public path.
+Keep identity columns rather than removing them to bypass these checks;
+the remaining consumer migration is tracked in issues #1483 and #458.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>

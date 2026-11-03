@@ -5,10 +5,12 @@ Assembles the physical agricultural land support that
 allocates its non-crop-specific nitrogen terms over: per grid cell,
 polity, year and CBS item, the hectares of agricultural land available
 to receive nitrogen. Cropland hectares come from the LUH2-derived
-`type_cropland` surface, split among crops by the static `crop_patterns`
-composition (normalised within each cell, so the cell's physical
-cropland area is apportioned rather than inflated by multicropping).
-Grassland hectares come from
+`type_cropland` surface, split among crops by the harvested-area
+composition of the crop allocation the nitrogen and soil carbon inputs
+share (the spatialization engine's placement of each crop, whep#1002),
+normalised within each polycell, so the physical cropland area is
+apportioned rather than inflated by multicropping. Grassland hectares
+come from
 [`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md)'s
 gridded grassland class and are all carried on CBS 3000, with no
 intensive/extensive split inferred. Both sides are split across border
@@ -69,9 +71,13 @@ build_ag_land_support(
   `cell_polity` (the
   [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
   crosswalk), `type_cropland` (`lon`, `lat`, `year`, `luh2_type`,
-  `type_ha`), `crop_patterns` (`lon`, `lat`, `item_prod_code`,
-  `harvest_fraction`), `gridded_pasture` (`lon`, `lat`, `year`,
-  `pasture_ha`, `rangeland_ha`), `states`
+  `type_ha`), `crop_allocation` (the shared crop allocation: a list of
+  `weights` and `fallback`, built from the pinned spatialization inputs
+  when absent), `harvested_area` (`area_code`, `item_prod_code`, `year`,
+  `faostat_area_ha`; from
+  [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
+  when absent), `gridded_pasture` (`lon`, `lat`, `year`, `pasture_ha`,
+  `rangeland_ha`), `states`
   ([`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md)'s
   raw LUH2 states) and `grassland_ha` (`lon`, `lat`, `area_code`,
   `year`, `area_ha`, bypassing the grassland read entirely). Each falls
@@ -88,6 +94,16 @@ A tibble with `lon`, `lat`, `area_code`, `item_cbs_code`, `year`,
 `land_use` (`"cropland"` or `"grassland"`) and positive `area_ha`, plus
 the polity columns below, plus `reporting_polity_out_of_span` when
 `polity_validity = "flag"`.
+
+## Territorial compatibility
+
+This consumer still uses the numeric geography adapter. Distinct
+supplied reporting polities cannot share an area code within the same
+year; an ambiguous mapping aborts instead of pooling their observations.
+Native identity-keyed crop allocations are not yet consumed by this
+public path. Keep identity columns rather than removing them to bypass
+these checks; the remaining consumer migration is tracked in issues
+\#1483 and \#458.
 
 ## Polity columns
 

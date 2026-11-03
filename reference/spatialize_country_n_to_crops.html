@@ -4,62 +4,66 @@ area_code, for one fertiliser type) to the crop level by the same
 harvested-area-share logic used by
 build_crop_soil_n2o_extension() (year/area_code-matched, weighted by
 each crop's share of harvested cropland area), then optionally further to
-the grid level by distributing each polity-crop total across cells in
-proportion to the cell's share of that polity-crop's total crop-pattern
-area (type_ha * harvest_fraction, summed over LUH2 cropland classes;
-the exact formula used by make_lpjml_covariate()'s crop_pattern
-weighting). A polity-crop with no crop-pattern hectares (crop absent from
-the static pattern raster, or its pattern area sums to zero in the polity)
-is instead spread uniformly across the polity's cropland cells, weighted by
-each cell's cropland area, so the grid output still re-aggregates to the
-polity total. Such reallocations emit a warning naming the affected crops
-and the reallocated nitrogen.
-Both grid weights carry a polity share of the cell, because a border cell's
-cropland belongs to more than one polity. That share is a polycell's
-land_area_ha over the cell's total land_area_ha, the share of the cell's
-land build_polycell_support() measures geodesically. The transitional
+the grid level by the crop allocation the soil carbon inputs place the same
+crop by (build_soil_carbon_inputs()'s default method_crop_weights = &quot;spatialized&quot;): each cell's share of the polity-crop's area as the
+spatialization engine (build_gridded_landuse()) places it that year, a
+fodder crop the engine leaves out on the fodder layer, the production
+items of a commodity balance item pooled by their placed hectares. A
+polity-crop the allocation does not place is spread over the polity's
+cropland cells, each weighted by its share of the polity's placed crop
+area, so the grid output still re-aggregates to the polity total. Such
+reallocations emit a warning naming the affected crops and the reallocated
+nitrogen. One allocation for nitrogen and carbon means the nitrogen a crop
+receives in a cell and the carbon it returns there are spread alike
+(whep#1002).
+The allocation is built on the cell support with the polity's share of
+each cell as its cell_area_frac, because a border cell's cropland belongs
+to more than one polity. That share is a polycell's land_area_ha over the
+cell's total land_area_ha, the share of the cell's land
+build_polycell_support() measures geodesically. The transitional
 alternative is polity_frac, the subcell-count share build_cell_polity()
 carries, which is quantised to 1/36 of a cell.
 The share is of the cell's land, never land_area_ha / cell_area_ha:
-what it splits is already land-only (LUH2 cropland hectares), so dividing by
-the whole cell would remove the inland water and ice a second time. And it
-is a share, never an absolute area: crop_pattern_ha * land_area_ha
-would weight every cell a second time by its own size and is no partition of
-the cell at all.
+what it splits is already land-only, so dividing by the whole cell would
+remove the inland water and ice a second time. And it is a share, never
+an absolute area.
 Because the cell weights are renormalised within each polity-crop-year,
 either key redistributes the polity total and neither can change it.
 Swapping the key moves where the nitrogen lands, never how much of it
-there is."><meta property="og:description" content="Promotes a single polity-total nitrogen input (one row per year,
+there is. A pre-built data$crop_allocation is used as supplied, on the
+support it was built on."><meta property="og:description" content="Promotes a single polity-total nitrogen input (one row per year,
 area_code, for one fertiliser type) to the crop level by the same
 harvested-area-share logic used by
 build_crop_soil_n2o_extension() (year/area_code-matched, weighted by
 each crop's share of harvested cropland area), then optionally further to
-the grid level by distributing each polity-crop total across cells in
-proportion to the cell's share of that polity-crop's total crop-pattern
-area (type_ha * harvest_fraction, summed over LUH2 cropland classes;
-the exact formula used by make_lpjml_covariate()'s crop_pattern
-weighting). A polity-crop with no crop-pattern hectares (crop absent from
-the static pattern raster, or its pattern area sums to zero in the polity)
-is instead spread uniformly across the polity's cropland cells, weighted by
-each cell's cropland area, so the grid output still re-aggregates to the
-polity total. Such reallocations emit a warning naming the affected crops
-and the reallocated nitrogen.
-Both grid weights carry a polity share of the cell, because a border cell's
-cropland belongs to more than one polity. That share is a polycell's
-land_area_ha over the cell's total land_area_ha, the share of the cell's
-land build_polycell_support() measures geodesically. The transitional
+the grid level by the crop allocation the soil carbon inputs place the same
+crop by (build_soil_carbon_inputs()'s default method_crop_weights = &quot;spatialized&quot;): each cell's share of the polity-crop's area as the
+spatialization engine (build_gridded_landuse()) places it that year, a
+fodder crop the engine leaves out on the fodder layer, the production
+items of a commodity balance item pooled by their placed hectares. A
+polity-crop the allocation does not place is spread over the polity's
+cropland cells, each weighted by its share of the polity's placed crop
+area, so the grid output still re-aggregates to the polity total. Such
+reallocations emit a warning naming the affected crops and the reallocated
+nitrogen. One allocation for nitrogen and carbon means the nitrogen a crop
+receives in a cell and the carbon it returns there are spread alike
+(whep#1002).
+The allocation is built on the cell support with the polity's share of
+each cell as its cell_area_frac, because a border cell's cropland belongs
+to more than one polity. That share is a polycell's land_area_ha over the
+cell's total land_area_ha, the share of the cell's land
+build_polycell_support() measures geodesically. The transitional
 alternative is polity_frac, the subcell-count share build_cell_polity()
 carries, which is quantised to 1/36 of a cell.
 The share is of the cell's land, never land_area_ha / cell_area_ha:
-what it splits is already land-only (LUH2 cropland hectares), so dividing by
-the whole cell would remove the inland water and ice a second time. And it
-is a share, never an absolute area: crop_pattern_ha * land_area_ha
-would weight every cell a second time by its own size and is no partition of
-the cell at all.
+what it splits is already land-only, so dividing by the whole cell would
+remove the inland water and ice a second time. And it is a share, never
+an absolute area.
 Because the cell weights are renormalised within each polity-crop-year,
 either key redistributes the polity total and neither can change it.
 Swapping the key moves where the nitrogen lands, never how much of it
-there is."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+there is. A pre-built data$crop_allocation is used as supplied, on the
+support it was built on."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -104,32 +108,34 @@ there is."><meta property="og:image" content="https://eduaguilera.github.io/whep
 harvested-area-share logic used by
 <code><a href="build_crop_soil_n2o_extension.html">build_crop_soil_n2o_extension()</a></code> (<code>year</code>/<code>area_code</code>-matched, weighted by
 each crop's share of harvested cropland area), then optionally further to
-the grid level by distributing each polity-crop total across cells in
-proportion to the cell's share of that polity-crop's total crop-pattern
-area (<code>type_ha * harvest_fraction</code>, summed over LUH2 cropland classes;
-the exact formula used by <code><a href="make_lpjml_covariate.html">make_lpjml_covariate()</a></code>'s <code>crop_pattern</code>
-weighting). A polity-crop with no crop-pattern hectares (crop absent from
-the static pattern raster, or its pattern area sums to zero in the polity)
-is instead spread uniformly across the polity's cropland cells, weighted by
-each cell's cropland area, so the grid output still re-aggregates to the
-polity total. Such reallocations emit a warning naming the affected crops
-and the reallocated nitrogen.</p>
-<p>Both grid weights carry a polity share of the cell, because a border cell's
-cropland belongs to more than one polity. That share is a polycell's
-<code>land_area_ha</code> over the cell's total <code>land_area_ha</code>, the share of the cell's
-land <code><a href="build_polycell_support.html">build_polycell_support()</a></code> measures geodesically. The transitional
+the grid level by the crop allocation the soil carbon inputs place the same
+crop by (<code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code>'s default <code>method_crop_weights = "spatialized"</code>): each cell's share of the polity-crop's area as the
+spatialization engine (<code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code>) places it that year, a
+fodder crop the engine leaves out on the fodder layer, the production
+items of a commodity balance item pooled by their placed hectares. A
+polity-crop the allocation does not place is spread over the polity's
+cropland cells, each weighted by its share of the polity's placed crop
+area, so the grid output still re-aggregates to the polity total. Such
+reallocations emit a warning naming the affected crops and the reallocated
+nitrogen. One allocation for nitrogen and carbon means the nitrogen a crop
+receives in a cell and the carbon it returns there are spread alike
+(whep#1002).</p>
+<p>The allocation is built on the cell support with the polity's share of
+each cell as its <code>cell_area_frac</code>, because a border cell's cropland belongs
+to more than one polity. That share is a polycell's <code>land_area_ha</code> over the
+cell's total <code>land_area_ha</code>, the share of the cell's land
+<code><a href="build_polycell_support.html">build_polycell_support()</a></code> measures geodesically. The transitional
 alternative is <code>polity_frac</code>, the subcell-count share <code><a href="build_cell_polity.html">build_cell_polity()</a></code>
 carries, which is quantised to 1/36 of a cell.</p>
 <p>The share is of the cell's <strong>land</strong>, never <code>land_area_ha / cell_area_ha</code>:
-what it splits is already land-only (LUH2 cropland hectares), so dividing by
-the whole cell would remove the inland water and ice a second time. And it
-is a <strong>share</strong>, never an absolute area: <code>crop_pattern_ha * land_area_ha</code>
-would weight every cell a second time by its own size and is no partition of
-the cell at all.</p>
+what it splits is already land-only, so dividing by the whole cell would
+remove the inland water and ice a second time. And it is a <strong>share</strong>, never
+an absolute area.</p>
 <p>Because the cell weights are renormalised within each polity-crop-year,
 either key redistributes the polity total and neither can change it.
 Swapping the key moves <strong>where</strong> the nitrogen lands, never how much of it
-there is.</p>
+there is. A pre-built <code>data$crop_allocation</code> is used as supplied, on the
+support it was built on.</p>
     </div>
 
     <div class="section level2">
@@ -181,8 +187,7 @@ and receives no nitrogen.</p></dd>
 <dt id="arg-resolution">resolution<a class="anchor" aria-label="anchor" href="#arg-resolution"></a></dt>
 <dd><p>Which resolution(s) to return: <code>"polity_crop"</code> (default,
 <code>year</code>/<code>area_code</code>/<code>item_cbs_code</code> totals only) or <code>"grid"</code> (also
-distributes to <code>lon</code>/<code>lat</code> grid cells; requires <code>crop_patterns</code> and
-<code>type_cropland</code> in <code>data</code>).</p></dd>
+distributes to <code>lon</code>/<code>lat</code> grid cells by the crop allocation).</p></dd>
 
 
 <dt id="arg-split">split<a class="anchor" aria-label="anchor" href="#arg-split"></a></dt>
@@ -210,25 +215,64 @@ already-built table.</p></dd>
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional named list of pre-loaded grid inputs, used only when
-<code>resolution = "grid"</code>: <code>crop_patterns</code> (<code>lon</code>, <code>lat</code>, <code>item_prod_code</code>,
-<code>harvest_fraction</code>) and <code>type_cropland</code> (<code>lon</code>, <code>lat</code>, <code>year</code>,
-<code>luh2_type</code>, <code>type_ha</code>). When absent, each is read from the
-<code>spatialize-crop-patterns</code> / <code>spatialize-type-cropland</code> pin, or from the
-local parquet at <code>WHEP_CROP_PATTERNS_PATH</code> / <code>WHEP_TYPE_CROPLAND_PATH</code>
-when that override is set. <code>item_cbs_code</code> in
-<code>crop_shares</code>/<code>country_totals</code> is matched to the <code>item_prod_code</code> column
-of <code>crop_patterns</code> via <a href="items_prod_full.html">items_prod_full</a> (the same crosswalk
-<code><a href="build_crop_land_extension.html">build_crop_land_extension()</a></code> uses).</p></dd>
+<code>resolution = "grid"</code>: <code>crop_allocation</code>, the crop allocation built once
+(a list of <code>weights</code>, with <code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>item_prod_code</code>,
+<code>year</code>, <code>crop_area_ha</code>, <code>area_weight</code>, and <code>fallback</code>, with <code>lon</code>, <code>lat</code>,
+<code>area_code</code>, <code>year</code>, <code>cropland_weight</code>); else <code>gridded_crops</code> (a
+<code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code> crop-level output), <code>engine_inputs</code> (its
+<code>country_areas</code>, <code>crop_patterns</code> and <code>gridded_cropland</code> inputs) and
+<code>fodder_patterns</code> (the fodder layer), each read from its pin when
+absent. <code>item_cbs_code</code> in <code>crop_shares</code>/<code>country_totals</code> is matched to
+the allocation's <code>item_prod_code</code> via <a href="items_prod_full.html">items_prod_full</a> (the same
+crosswalk <code><a href="build_crop_land_extension.html">build_crop_land_extension()</a></code> uses).
+Supply <code>primary_prod</code> with <code>year</code>, geography, <code>item_prod_code</code>, <code>unit</code>
+and <code>value</code> to check each production component's harvested-area target.
+Source and flag columns are retained in the coverage diagnostic.
+<code>component_policy = "error"</code> (default) rejects missing/conflicting
+component mappings, invalid or missing targets, or a
+positive crop component absent from a partly represented CBS group.
+<code>"legacy_pool"</code> explicitly retains placed-hectare pooling despite those
+gaps and warns with class <code>whep_crop_component_coverage</code>; its
+<code>missing_components</code> field identifies the affected source rows.
+Whole-CBS cropland fallback remains separately reported. Neither policy
+invents crop-specific support or fills a missing source area with zero.
+Without production-item targets, coverage is stamped
+<code>"targets_unavailable"</code>, never asserted complete.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble. For <code>resolution = "polity_crop"</code>: <code>year</code>, <code>area_code</code>,
 <code>item_cbs_code</code>, <code>n_t</code>. For <code>resolution = "grid"</code>: <code>lon</code>, <code>lat</code>,
-<code>area_code</code>, <code>year</code>, <code>item_cbs_code</code>, <code>n_t</code> and <code>method_polity_split</code>.
+<code>area_code</code>, <code>year</code>, <code>item_cbs_code</code>, <code>n_t</code>, <code>method_polity_split</code> and
+<code>method_crop_components</code>. Grid output carries a
+<code>crop_component_coverage</code> attribute with the supplied targets and their
+coverage status. <code>"supplied_targets_covered"</code> checks only the supplied
+component list, not completeness or correctness of the source inventory.
 Either gains <code>reporting_polity_out_of_span</code> when
 <code>polity_validity = "flag"</code>; this output carries no reporting-polity
 columns, so the flag is attached directly rather than derived from them.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="annual-keys">Annual keys<a class="anchor" aria-label="anchor" href="#annual-keys"></a></h2>
+
+
+<p>Supplied totals, crop shares, allocation tables and primary inventories
+require finite, nonmissing whole numeric years representable as R integers.
+Character years are rejected rather than coerced; validate and parse source
+dates before supplying them. Invalid years cannot be truncated or filtered
+away to conceal a missing crop component.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="territorial-compatibility">Territorial compatibility<a class="anchor" aria-label="anchor" href="#territorial-compatibility"></a></h2>
+
+
+<p>This consumer still uses the numeric geography adapter. Distinct supplied
+reporting polities cannot share an area code within the same year; an
+ambiguous mapping aborts instead of pooling their observations. Native
+identity-keyed crop allocations are not yet consumed by this public path.
+Keep identity columns rather than removing them to bypass these checks;
+the remaining consumer migration is tracked in issues #1483 and #458.</p>
     </div>
 
     <div class="section level2">

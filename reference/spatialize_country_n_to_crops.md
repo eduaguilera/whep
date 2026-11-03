@@ -5,23 +5,27 @@ Promotes a single polity-total nitrogen input (one row per `year`,
 harvested-area-share logic used by
 [`build_crop_soil_n2o_extension()`](https://eduaguilera.github.io/whep/reference/build_crop_soil_n2o_extension.md)
 (`year`/`area_code`-matched, weighted by each crop's share of harvested
-cropland area), then optionally further to the grid level by
-distributing each polity-crop total across cells in proportion to the
-cell's share of that polity-crop's total crop-pattern area
-(`type_ha * harvest_fraction`, summed over LUH2 cropland classes; the
-exact formula used by
-[`make_lpjml_covariate()`](https://eduaguilera.github.io/whep/reference/make_lpjml_covariate.md)'s
-`crop_pattern` weighting). A polity-crop with no crop-pattern hectares
-(crop absent from the static pattern raster, or its pattern area sums to
-zero in the polity) is instead spread uniformly across the polity's
-cropland cells, weighted by each cell's cropland area, so the grid
-output still re-aggregates to the polity total. Such reallocations emit
-a warning naming the affected crops and the reallocated nitrogen.
+cropland area), then optionally further to the grid level by the crop
+allocation the soil carbon inputs place the same crop by
+([`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)'s
+default `method_crop_weights = "spatialized"`): each cell's share of the
+polity-crop's area as the spatialization engine
+([`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md))
+places it that year, a fodder crop the engine leaves out on the fodder
+layer, the production items of a commodity balance item pooled by their
+placed hectares. A polity-crop the allocation does not place is spread
+over the polity's cropland cells, each weighted by its share of the
+polity's placed crop area, so the grid output still re-aggregates to the
+polity total. Such reallocations emit a warning naming the affected
+crops and the reallocated nitrogen. One allocation for nitrogen and
+carbon means the nitrogen a crop receives in a cell and the carbon it
+returns there are spread alike (whep#1002).
 
-Both grid weights carry a polity share of the cell, because a border
-cell's cropland belongs to more than one polity. That share is a
-polycell's `land_area_ha` over the cell's total `land_area_ha`, the
-share of the cell's land
+The allocation is built on the cell support with the polity's share of
+each cell as its `cell_area_frac`, because a border cell's cropland
+belongs to more than one polity. That share is a polycell's
+`land_area_ha` over the cell's total `land_area_ha`, the share of the
+cell's land
 [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
 measures geodesically. The transitional alternative is `polity_frac`,
 the subcell-count share
@@ -29,16 +33,15 @@ the subcell-count share
 carries, which is quantised to 1/36 of a cell.
 
 The share is of the cell's **land**, never
-`land_area_ha / cell_area_ha`: what it splits is already land-only (LUH2
-cropland hectares), so dividing by the whole cell would remove the
-inland water and ice a second time. And it is a **share**, never an
-absolute area: `crop_pattern_ha * land_area_ha` would weight every cell
-a second time by its own size and is no partition of the cell at all.
+`land_area_ha / cell_area_ha`: what it splits is already land-only, so
+dividing by the whole cell would remove the inland water and ice a
+second time. And it is a **share**, never an absolute area.
 
 Because the cell weights are renormalised within each polity-crop-year,
 either key redistributes the polity total and neither can change it.
 Swapping the key moves **where** the nitrogen lands, never how much of
-it there is.
+it there is. A pre-built `data$crop_allocation` is used as supplied, on
+the support it was built on.
 
 ## Usage
 
@@ -91,8 +94,7 @@ spatialize_country_n_to_crops(
 
   Which resolution(s) to return: `"polity_crop"` (default,
   `year`/`area_code`/`item_cbs_code` totals only) or `"grid"` (also
-  distributes to `lon`/`lat` grid cells; requires `crop_patterns` and
-  `type_cropland` in `data`).
+  distributes to `lon`/`lat` grid cells by the crop allocation).
 
 - split:
 
@@ -121,27 +123,64 @@ spatialize_country_n_to_crops(
 - data:
 
   Optional named list of pre-loaded grid inputs, used only when
-  `resolution = "grid"`: `crop_patterns` (`lon`, `lat`,
-  `item_prod_code`, `harvest_fraction`) and `type_cropland` (`lon`,
-  `lat`, `year`, `luh2_type`, `type_ha`). When absent, each is read from
-  the `spatialize-crop-patterns` / `spatialize-type-cropland` pin, or
-  from the local parquet at `WHEP_CROP_PATTERNS_PATH` /
-  `WHEP_TYPE_CROPLAND_PATH` when that override is set. `item_cbs_code`
-  in `crop_shares`/`country_totals` is matched to the `item_prod_code`
-  column of `crop_patterns` via
+  `resolution = "grid"`: `crop_allocation`, the crop allocation built
+  once (a list of `weights`, with `lon`, `lat`, `area_code`,
+  `item_prod_code`, `year`, `crop_area_ha`, `area_weight`, and
+  `fallback`, with `lon`, `lat`, `area_code`, `year`,
+  `cropland_weight`); else `gridded_crops` (a
+  [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
+  crop-level output), `engine_inputs` (its `country_areas`,
+  `crop_patterns` and `gridded_cropland` inputs) and `fodder_patterns`
+  (the fodder layer), each read from its pin when absent.
+  `item_cbs_code` in `crop_shares`/`country_totals` is matched to the
+  allocation's `item_prod_code` via
   [items_prod_full](https://eduaguilera.github.io/whep/reference/items_prod_full.md)
   (the same crosswalk
   [`build_crop_land_extension()`](https://eduaguilera.github.io/whep/reference/build_crop_land_extension.md)
-  uses).
+  uses). Supply `primary_prod` with `year`, geography, `item_prod_code`,
+  `unit` and `value` to check each production component's harvested-area
+  target. Source and flag columns are retained in the coverage
+  diagnostic. `component_policy = "error"` (default) rejects
+  missing/conflicting component mappings, invalid or missing targets, or
+  a positive crop component absent from a partly represented CBS group.
+  `"legacy_pool"` explicitly retains placed-hectare pooling despite
+  those gaps and warns with class `whep_crop_component_coverage`; its
+  `missing_components` field identifies the affected source rows.
+  Whole-CBS cropland fallback remains separately reported. Neither
+  policy invents crop-specific support or fills a missing source area
+  with zero. Without production-item targets, coverage is stamped
+  `"targets_unavailable"`, never asserted complete.
 
 ## Value
 
 A tibble. For `resolution = "polity_crop"`: `year`, `area_code`,
 `item_cbs_code`, `n_t`. For `resolution = "grid"`: `lon`, `lat`,
-`area_code`, `year`, `item_cbs_code`, `n_t` and `method_polity_split`.
+`area_code`, `year`, `item_cbs_code`, `n_t`, `method_polity_split` and
+`method_crop_components`. Grid output carries a
+`crop_component_coverage` attribute with the supplied targets and their
+coverage status. `"supplied_targets_covered"` checks only the supplied
+component list, not completeness or correctness of the source inventory.
 Either gains `reporting_polity_out_of_span` when
 `polity_validity = "flag"`; this output carries no reporting-polity
 columns, so the flag is attached directly rather than derived from them.
+
+## Annual keys
+
+Supplied totals, crop shares, allocation tables and primary inventories
+require finite, nonmissing whole numeric years representable as R
+integers. Character years are rejected rather than coerced; validate and
+parse source dates before supplying them. Invalid years cannot be
+truncated or filtered away to conceal a missing crop component.
+
+## Territorial compatibility
+
+This consumer still uses the numeric geography adapter. Distinct
+supplied reporting polities cannot share an area code within the same
+year; an ambiguous mapping aborts instead of pooling their observations.
+Native identity-keyed crop allocations are not yet consumed by this
+public path. Keep identity columns rather than removing them to bypass
+these checks; the remaining consumer migration is tracked in issues
+\#1483 and \#458.
 
 ## Examples
 
