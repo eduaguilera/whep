@@ -223,10 +223,7 @@
     cell_polity = data$cell_polity,
     resolution = "grid",
     polity_validity = .ni_polity_validity(data),
-    data = list(
-      crop_patterns = data$crop_patterns,
-      type_cropland = data$type_cropland
-    )
+    data = .ni_allocation_data(data)
   ) |>
     dplyr::transmute(
       .data$lon,
@@ -234,7 +231,8 @@
       .data$area_code,
       .data$item_cbs_code,
       .data$year,
-      n_input_t = .data$n_t
+      n_input_t = .data$n_t,
+      method_crop_components = .data$method_crop_components
     )
 }
 

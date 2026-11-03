@@ -1491,15 +1491,15 @@ testthat::test_that("the default runs the engine on the carbon support", {
   testthat::expect_identical(reads, 1L)
 })
 
-testthat::test_that("the engine's national table is folded onto the support's bucket", {
+testthat::test_that("the engine refuses a shared bucket and keeps source territories", {
   # Sudan (276) and South Sudan (277) report separately, but the carbon
-  # support is keyed on their shared bucket 206. Unfolded, neither finds a
-  # cell and the crop never reaches the grid.
+  # support cannot assign either observation to its territory using only
+  # their shared bucket 206. Reject that support instead of pooling totals.
   inputs <- list(
     country_areas = tibble::tribble(
       ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
-      2010L, 276L,       15L,             30,
-      2010L, 277L,       15L,             10
+      2015L, 276L,       15L,             30,
+      2015L, 277L,       15L,             10
     ),
     crop_patterns = tibble::tribble(
       ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
@@ -1508,8 +1508,8 @@ testthat::test_that("the engine's national table is folded onto the support's bu
     ),
     gridded_cropland = tibble::tribble(
       ~lon,  ~lat,  ~year, ~cropland_ha,
-      30.25, 10.25, 2010L, 100,
-      30.75, 10.25, 2010L, 100
+      30.25, 10.25, 2015L, 100,
+      30.75, 10.25, 2015L, 100
     )
   )
   support <- tibble::tribble(
@@ -1517,9 +1517,15 @@ testthat::test_that("the engine's national table is folded onto the support's bu
     30.25, 10.25, 206L,       1,
     30.75, 10.25, 206L,       1
   )
-  out <- suppressMessages(whep:::.sci_engine_crops(2010L, support, inputs))
-  testthat::expect_setequal(out$area_code, 206L)
-  testthat::expect_equal(sum(out$rainfed_ha + out$irrigated_ha), 40)
+  testthat::expect_error(
+    whep:::.sci_engine_crops(2015L, support, inputs),
+    class = "whep_crop_allocation_identity"
+  )
+  support$area_code <- c(276L, 277L)
+  out <- suppressMessages(whep:::.sci_engine_crops(2015L, support, inputs)) |>
+    dplyr::arrange(.data$area_code)
+  testthat::expect_identical(out$area_code, c(276L, 277L))
+  testthat::expect_equal(out$rainfed_ha + out$irrigated_ha, c(30, 10))
 })
 
 # -- The commodity balance's straw (whep#1519) ---------------------------------
@@ -1615,5 +1621,58 @@ testthat::test_that("rice grain stays milled, its straw priced on paddy", {
   testthat::expect_equal(
     rice$crop_npp_dm_t,
     rice$product_dm_t + rice$residue_dm_t + rice$root_dm_t
+  )
+})
+
+testthat::test_that("soil input years are checked before normalization", {
+  purrr::walk(list(2020.5, NA_real_, Inf, 1e20, "2020"), \(yr) {
+    data <- .sci_fixture_data_with_area()
+    data$npp$year <- yr
+    testthat::expect_error(
+      .sci_static(resolution = "polity", data = data),
+      class = "whep_crop_allocation_year"
+    )
+    data <- .sci_fixture_data_with_area()
+    data$manure$year <- yr
+    testthat::expect_error(
+      .sci_static(resolution = "polity", data = data),
+      class = "whep_crop_allocation_year"
+    )
+    data <- .sci_fixture_data_with_area()
+    data$harvested_area$year <- yr
+    testthat::expect_error(
+      .sci_static(resolution = "polity", data = data),
+      class = "whep_crop_allocation_year"
+    )
+    testthat::expect_error(
+      .sci_static(
+        years = yr,
+        resolution = "polity",
+        data = .sci_fixture_data_with_area()
+      ),
+      class = "whep_crop_allocation_year"
+    )
+  })
+})
+
+testthat::test_that("primary crop reshaping rejects invalid annual keys", {
+  primary <- .sci_primary_prod_fixture()
+  primary$year <- 2020.5
+  testthat::expect_error(
+    whep:::.sci_harvested_area(primary),
+    class = "whep_crop_allocation_year"
+  )
+  testthat::expect_error(
+    whep:::.sci_crop_prod_wide(primary),
+    class = "whep_crop_allocation_year"
+  )
+})
+
+testthat::test_that("supplied grid years are checked before year filtering", {
+  data <- .sci_two_year_data()
+  data$gridded_crops$year[1] <- 2020.5
+  testthat::expect_error(
+    .sci_crop_area_build(resolution = "grid", data = data),
+    class = "whep_crop_allocation_year"
   )
 })

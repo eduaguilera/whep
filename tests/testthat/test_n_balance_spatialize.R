@@ -67,11 +67,55 @@
   )
 }
 
-.nbs_grid_data <- function() {
-  list(
-    crop_patterns = .nbs_crop_patterns(),
-    type_cropland = .nbs_type_cropland()
+# The spatialization engine's inputs for the same two cells (the crop
+# allocation the grid step places nitrogen by, R/crop_allocation.R): national
+# harvested area per polity and crop, the crop patterns above and each cell's
+# cropland (1200 and 1000 ha, the type_cropland totals).
+.nbs_country_areas <- function(items = c(15L, 27L)) {
+  tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2010L, 10L,        15L,             600,
+    2010L, 10L,        27L,             300,
+    2010L, 20L,        15L,             100,
+    2010L, 20L,        27L,             50,
+    2010L, 277L,       15L,             600,
+    2010L, 277L,       27L,             300
+  ) |>
+    dplyr::filter(.data$item_prod_code %in% items)
+}
+
+.nbs_gridded_cropland <- function() {
+  tibble::tribble(
+    ~lon, ~lat,  ~year, ~cropland_ha,
+    0.25, 50.25, 2010L, 1200,
+    0.75, 50.25, 2010L, 1000
   )
+}
+
+.nbs_grid_data <- function(
+  patterns = .nbs_crop_patterns(),
+  areas = .nbs_country_areas()
+) {
+  list(
+    engine_inputs = list(
+      country_areas = areas,
+      crop_patterns = patterns,
+      gridded_cropland = .nbs_gridded_cropland()
+    ),
+    fodder_patterns = .ca_fodder_patterns()
+  )
+}
+
+# The allocation's share of a polity-crop on each cell, built on the support
+# the grid step builds it on, for the expectations below.
+.nbs_alloc <- function(cell_polity, key, data = .nbs_grid_data()) {
+  support <- whep:::.n_allocation_support(whep:::.n_cell_frac(cell_polity, key))
+  whep:::.crop_allocation(2010L, support, data)
+}
+
+.nbs_share <- function(alloc, area, item, lon) {
+  w <- alloc$weights
+  w$area_weight[w$area_code == area & w$item_prod_code == item & w$lon == lon]
 }
 
 # build_cell_polity --------------------------------------------------------
@@ -436,7 +480,7 @@ testthat::test_that(".n_warn_unmatched warns (not errors) for several codes", {
 
   testthat::expect_warning(
     result <- whep:::.n_warn_unmatched(unmatched),
-    "no crop-pattern grid cells"
+    "no cells in the crop allocation"
   )
   # It must not raise a condition of class "error".
   testthat::expect_no_error(
@@ -477,7 +521,7 @@ testthat::test_that("grid resolution conserves mass to the country total", {
   testthat::expect_equal(sum(result$n_t), sum(.nbs_country_totals()$n_t))
 })
 
-testthat::test_that("grid cells split within a crop by crop-pattern hectares", {
+testthat::test_that("grid cells split within a crop by the crop allocation", {
   result <- whep::spatialize_country_n_to_crops(
     country_totals = .nbs_country_totals(),
     crop_shares = .nbs_crop_shares(),
@@ -485,14 +529,19 @@ testthat::test_that("grid cells split within a crop by crop-pattern hectares", {
     resolution = "grid",
     data = .nbs_grid_data()
   )
+  alloc <- .nbs_alloc(.nbs_cell_polity(), "polity_frac")
 
   wheat <- result[result$item_cbs_code == 2511L, ]
-  # wheat crop_pattern_ha: cell1 = 1200*0.6=720, cell2 = 1000*0.2=200
-  # cell1 share = 720/920, cell2 share = 200/920, of the 70 t wheat total
-  wheat_cell1 <- wheat$n_t[wheat$lon == 0.25]
-  wheat_cell2 <- wheat$n_t[wheat$lon == 0.75]
-  testthat::expect_equal(wheat_cell1, 70 * 720 / 920)
-  testthat::expect_equal(wheat_cell2, 70 * 200 / 920)
+  # The engine's cell shares of the polity's 600 ha of wheat (item 15), the
+  # weights the soil carbon inputs place the same wheat by.
+  testthat::expect_equal(
+    wheat$n_t[wheat$lon == 0.25],
+    70 * .nbs_share(alloc, 10L, 15L, 0.25)
+  )
+  testthat::expect_equal(
+    wheat$n_t[wheat$lon == 0.75],
+    70 * .nbs_share(alloc, 10L, 15L, 0.75)
+  )
   testthat::expect_equal(sum(wheat$n_t), 70)
 })
 
@@ -507,7 +556,7 @@ testthat::test_that("grid cells split within a crop by crop-pattern hectares", {
 }
 
 # crop_patterns carrying hectares only for wheat (item_prod_code 15); barley
-# (44) has no cells, triggering the uniform-cropland fallback.
+# (44) is not placed by the allocation, triggering the cropland fallback.
 .nbs_crop_patterns_wheat_only <- function() {
   tibble::tribble(
     ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
@@ -517,9 +566,9 @@ testthat::test_that("grid cells split within a crop by crop-pattern hectares", {
 }
 
 .nbs_grid_data_unmatched <- function() {
-  list(
-    crop_patterns = .nbs_crop_patterns_wheat_only(),
-    type_cropland = .nbs_type_cropland()
+  .nbs_grid_data(
+    patterns = .nbs_crop_patterns_wheat_only(),
+    areas = .nbs_country_areas(15L)
   )
 }
 
@@ -566,17 +615,31 @@ testthat::test_that("absent crop is spread across cropland cells by area", {
   )
 
   barley <- result[result$item_cbs_code == 2513L, ]
-  # cropland type_ha: cell1 = 1000+200 = 1200, cell2 = 1000; total 2200.
-  # 30 t barley split 1200/2200 and 1000/2200 across the two cropland cells.
-  barley_cell1 <- barley$n_t[barley$lon == 0.25]
-  barley_cell2 <- barley$n_t[barley$lon == 0.75]
-  testthat::expect_equal(barley_cell1, 30 * 1200 / 2200)
-  testthat::expect_equal(barley_cell2, 30 * 1000 / 2200)
+  # The polity's cropland support: each cell's share of the crop area the
+  # allocation places in the polity.
+  fallback <- .nbs_alloc(
+    .nbs_cell_polity(),
+    "polity_frac",
+    .nbs_grid_data_unmatched()
+  )$fallback
+  testthat::expect_equal(
+    barley$n_t[barley$lon == 0.25],
+    30 * fallback$cropland_weight[fallback$lon == 0.25]
+  )
+  testthat::expect_equal(
+    barley$n_t[barley$lon == 0.75],
+    30 * fallback$cropland_weight[fallback$lon == 0.75]
+  )
 })
 
 testthat::test_that("grid aborts rather than dropping N when no fallback cropland exists", {
-  zero_cropland <- .nbs_grid_data_unmatched()
-  zero_cropland$type_cropland$type_ha <- 0
+  # Polity 10 has no crop the allocation places, so no cropland support either.
+  zero_cropland <- .nbs_grid_data(
+    areas = dplyr::filter(
+      .nbs_country_areas(),
+      .data$area_code == 20L
+    )
+  )
 
   testthat::expect_error(
     whep::spatialize_country_n_to_crops(
@@ -642,9 +705,10 @@ testthat::test_that("auto prefers measured land when both keys are present", {
     data = .nbs_grid_data()
   )
   wheat <- result$n_t[result$item_cbs_code == 2511L & result$lon == 0.25]
+  alloc <- .nbs_alloc(.nbs_support_both(), "land_area_ha")
 
   testthat::expect_true(all(result$method_polity_split == "land_area_ha"))
-  testthat::expect_equal(wheat, 70 * 540 / 740)
+  testthat::expect_equal(wheat, 70 * .nbs_share(alloc, 10L, 15L, 0.25))
 })
 
 testthat::test_that("auto takes polity_frac when there is no measured land", {
@@ -685,10 +749,16 @@ testthat::test_that("an explicit polity_frac is not upgraded either", {
     data = .nbs_grid_data()
   )
   wheat <- both$n_t[both$item_cbs_code == 2511L & both$lon == 0.25]
+  alloc <- .nbs_alloc(.nbs_support_both(), "polity_frac")
+  land <- .nbs_alloc(.nbs_support_both(), "land_area_ha")
 
   testthat::expect_true(all(both$method_polity_split == "polity_frac"))
-  # 0.5 of the border cell and all of the interior one: 720*0.5 vs 200*1.
-  testthat::expect_equal(wheat, 70 * 360 / 560)
+  # The allocation built on 0.5 of the border cell, not on its 0.75 of land.
+  testthat::expect_equal(wheat, 70 * .nbs_share(alloc, 10L, 15L, 0.25))
+  testthat::expect_false(isTRUE(all.equal(
+    .nbs_share(alloc, 10L, 15L, 0.25),
+    .nbs_share(land, 10L, 15L, 0.25)
+  )))
 })
 
 testthat::test_that("the split key is a share of the cell's LAND", {
@@ -701,13 +771,23 @@ testthat::test_that("the split key is a share of the cell's LAND", {
   )
 
   wheat <- result[result$item_cbs_code == 2511L, ]
-  # wheat crop_pattern_ha: cell1 = 1200*0.6 = 720, cell2 = 1000*0.2 = 200.
-  # Polity 10 holds 1800/2400 of cell1's land and 2000/2000 of cell2's, so the
-  # weights are 540 and 200. Under `land_area_ha / cell_area_ha` they would be
-  # 432 and 133.3; under the absolute area, 1,296,000 and 400,000; under a
-  # cell-level key, 720 and 200. All four differ.
-  testthat::expect_equal(wheat$n_t[wheat$lon == 0.25], 70 * 540 / 740)
-  testthat::expect_equal(wheat$n_t[wheat$lon == 0.75], 70 * 200 / 740)
+  # Polity 10 holds 1800/2400 of cell1's land and 2000/2000 of cell2's: the
+  # allocation is built on those shares as the engine's `cell_area_frac`.
+  # Under `land_area_ha / cell_area_ha` they would be 0.6 and 0.667; under the
+  # absolute area, 1800 and 2000.
+  support <- whep:::.n_allocation_support(
+    whep:::.n_cell_frac(.nbs_support(), "land_area_ha")
+  )
+  testthat::expect_equal(support$cell_area_frac, c(0.75, 0.25, 1))
+  alloc <- .nbs_alloc(.nbs_support(), "land_area_ha")
+  testthat::expect_equal(
+    wheat$n_t[wheat$lon == 0.25],
+    70 * .nbs_share(alloc, 10L, 15L, 0.25)
+  )
+  testthat::expect_equal(
+    wheat$n_t[wheat$lon == 0.75],
+    70 * .nbs_share(alloc, 10L, 15L, 0.75)
+  )
 })
 
 testthat::test_that("an absolute area is not a normalised weight", {
@@ -860,18 +940,26 @@ testthat::test_that("the transitional key is used as supplied, not repaired", {
     data = .nbs_grid_data()
   )
   wheat <- result$n_t[result$item_cbs_code == 2511L & result$lon == 0.25]
+  alloc <- .nbs_alloc(partial, "polity_frac")
+  whole <- .nbs_alloc(.nbs_cell_polity(), "polity_frac")
 
-  # 720*0.5 against 200*1. Renormalised per cell both would become 1 and the
-  # answer would be 70*720/920.
-  testthat::expect_equal(wheat, 70 * 360 / 560)
+  # The allocation is built on the 0.5 as supplied; renormalised per cell it
+  # would be the whole-cell allocation instead.
+  testthat::expect_equal(wheat, 70 * .nbs_share(alloc, 10L, 15L, 0.25))
+  testthat::expect_false(isTRUE(all.equal(
+    .nbs_share(alloc, 10L, 15L, 0.25),
+    .nbs_share(whole, 10L, 15L, 0.25)
+  )))
 })
 
-testthat::test_that("the refusal does not reach the transitional key", {
-  # DA-13: the crosswalk path must stay exactly what it is today, so the DA-23
-  # refusal is a property of the polycell key only.
+testthat::test_that("a duplicated support row is refused under either key", {
+  # The crop allocation the grid step shares with the soil carbon inputs is
+  # built on the support, and that builder refuses a cell-polity given twice
+  # (.carbon_check_support_key()), under the transitional key as well: a
+  # doubled row would double the polity's share of the cell.
   duped <- dplyr::bind_rows(.nbs_cell_polity(), .nbs_cell_polity()[1, ])
 
-  testthat::expect_no_error(
+  testthat::expect_error(
     whep::spatialize_country_n_to_crops(
       country_totals = .nbs_country_totals(),
       crop_shares = .nbs_crop_shares(),
@@ -879,7 +967,8 @@ testthat::test_that("the refusal does not reach the transitional key", {
       resolution = "grid",
       split = "polity_frac",
       data = .nbs_grid_data()
-    )
+    ),
+    "one row per cell"
   )
 })
 
@@ -935,10 +1024,19 @@ testthat::test_that("the fallback reallocation carries the split stamp too", {
     )
   )
   barley <- result[result$item_cbs_code == 2513L, ]
+  fallback <- .nbs_alloc(
+    .nbs_support(),
+    "land_area_ha",
+    .nbs_grid_data_unmatched()
+  )$fallback
+  fallback <- fallback[fallback$area_code == 10L, ]
 
   testthat::expect_true(all(result$method_polity_split == "land_area_ha"))
-  # cropland type_ha weighted by the land share: 1200*0.75 = 900 and 1000*1.
-  testthat::expect_equal(barley$n_t[barley$lon == 0.25], 30 * 900 / 1900)
+  # The polity's cropland support built on the land share.
+  testthat::expect_equal(
+    barley$n_t[barley$lon == 0.25],
+    30 * fallback$cropland_weight[fallback$lon == 0.25]
+  )
   testthat::expect_equal(sum(result$n_t), 100)
 })
 
@@ -1280,27 +1378,17 @@ testthat::test_that("an unknown action is rejected", {
 
 # Grid inputs: pin by default, env var as an override (whep#1475) ------------
 
-# The crop patterns and type cropland are WHEP-built (prepare_spatialize_all.R),
-# so the grid step reads the same pins run_spatialize() and the soil carbon
-# chain read. Before whep#1475 it read only the env vars, so a pin bump never
-# reached the gridded N balance. The pins are mocked: the suite stays offline.
+# The type cropland and gridded pasture are WHEP-built
+# (prepare_spatialize_all.R), so the land support reads the same pins
+# run_spatialize() and the soil carbon chain read. Before whep#1475 it read
+# only the env vars, so a pin bump never reached the gridded N balance. The
+# pins are mocked: the suite stays offline.
 
 .nbs_unset_grid_env <- function(env = parent.frame()) {
   withr::local_envvar(
-    WHEP_CROP_PATTERNS_PATH = "",
     WHEP_TYPE_CROPLAND_PATH = "",
     WHEP_GRIDDED_PASTURE_PATH = "",
     .local_envir = env
-  )
-}
-
-.nbs_grid_from_pins <- function() {
-  whep::spatialize_country_n_to_crops(
-    country_totals = .nbs_country_totals(),
-    crop_shares = .nbs_crop_shares(),
-    cell_polity = .nbs_cell_polity(),
-    resolution = "grid",
-    data = list()
   )
 }
 
@@ -1310,29 +1398,19 @@ testthat::test_that("grid inputs are read from the pins by default", {
   testthat::local_mocked_bindings(
     whep_read_file = function(file_alias, ...) {
       asked <<- c(asked, file_alias)
-      switch(
-        file_alias,
-        "spatialize-crop-patterns" = .nbs_crop_patterns(),
-        "spatialize-type-cropland" = .nbs_type_cropland()
-      )
+      .nbs_type_cropland()
     },
     .package = "whep"
   )
 
-  result <- .nbs_grid_from_pins()
+  result <- whep:::.n_read_grid_input("type_cropland", 2010L)
 
-  testthat::expect_setequal(
-    asked,
-    c("spatialize-crop-patterns", "spatialize-type-cropland")
+  testthat::expect_identical(asked, "spatialize-type-cropland")
+  testthat::expect_equal(
+    tibble::as_tibble(result),
+    .nbs_type_cropland(),
+    ignore_attr = TRUE
   )
-  expected <- whep::spatialize_country_n_to_crops(
-    country_totals = .nbs_country_totals(),
-    crop_shares = .nbs_crop_shares(),
-    cell_polity = .nbs_cell_polity(),
-    resolution = "grid",
-    data = .nbs_grid_data()
-  )
-  testthat::expect_equal(result, expected)
 })
 
 testthat::test_that("the grid input aliases are frozen in whep_inputs", {
@@ -1345,8 +1423,8 @@ testthat::test_that("the grid input aliases are frozen in whep_inputs", {
 testthat::test_that("a grid input env var override wins over the pin", {
   .nbs_unset_grid_env()
   path <- withr::local_tempfile(fileext = ".parquet")
-  nanoparquet::write_parquet(.nbs_crop_patterns(), path)
-  withr::local_envvar(WHEP_CROP_PATTERNS_PATH = path)
+  nanoparquet::write_parquet(.nbs_type_cropland(), path)
+  withr::local_envvar(WHEP_TYPE_CROPLAND_PATH = path)
   asked <- character()
   testthat::local_mocked_bindings(
     whep_read_file = function(file_alias, ...) {
@@ -1356,10 +1434,10 @@ testthat::test_that("a grid input env var override wins over the pin", {
     .package = "whep"
   )
 
-  result <- .nbs_grid_from_pins()
+  result <- whep:::.n_read_grid_input("type_cropland", 2010L)
 
-  testthat::expect_equal(asked, "spatialize-type-cropland")
-  testthat::expect_equal(sum(result$n_t), sum(.nbs_country_totals()$n_t))
+  testthat::expect_length(asked, 0L)
+  testthat::expect_equal(sum(result$type_ha), sum(.nbs_type_cropland()$type_ha))
 })
 
 testthat::test_that("an unreachable grid pin names the pin and the override", {
@@ -1369,5 +1447,8 @@ testthat::test_that("an unreachable grid pin names the pin and the override", {
     .package = "whep"
   )
 
-  testthat::expect_error(.nbs_grid_from_pins(), "WHEP_TYPE_CROPLAND_PATH")
+  testthat::expect_error(
+    whep:::.n_read_grid_input("type_cropland", 2010L),
+    "WHEP_TYPE_CROPLAND_PATH"
+  )
 })

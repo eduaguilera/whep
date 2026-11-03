@@ -22,7 +22,6 @@ checks and `?`-examples run without any of these variables set.
 | `WHEP_HYDE_DIR` | `read_hyde_population()` | HYDE historical population directory. |
 | `WHEP_HANI_DIR` | `build_n_deposition()` | HaNi nitrogen-deposition directory. |
 | `WHEP_WIND_DIR` | `read_lpjml_wind()` | Directory with the consolidated monthly GSWP3-W5E5 wind forcing NetCDF, `wind_gswp3-w5e5_<span>_monthly.nc` (the `lpjml-wind-isimip-1901-2019` pin, placed there by `inst/scripts/download/download_climate.R`). Any span is accepted; the newest present is used, so an extended base needs no code change (#1069). The ERA5 companion pin in the same directory is a different grid and is not read here. |
-| `WHEP_CROP_PATTERNS_PATH` | `n_balance_spatialize.R` | Path to the crop-patterns grid. |
 | `WHEP_POLITY_FRACTION_PATH` | `build_cell_polity()` | **Optional override** — the per-cell polity-fraction grid is the `spatialize-cell-polity-fraction` pin, read by default (#694). Set this only to use a local producer build instead. |
 | `WHEP_TYPE_CROPLAND_PATH` | `n_balance_spatialize.R` | Path to the LUH2-type cropland grid. |
 

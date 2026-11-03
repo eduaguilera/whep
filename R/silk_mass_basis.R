@@ -103,7 +103,10 @@
     cocoon = .silk_cocoon_basis(silk, rate),
     raw_silk = .silk_scale_links(.silk_cocoon_basis(silk, rate), rate)
   )
-  data.table::rbindlist(list(rest, silk), use.names = TRUE, fill = TRUE)
+  out <- data.table::rbindlist(list(rest, silk), use.names = TRUE, fill = TRUE)
+  # Recombining commodity rows must not erase their reporting population.
+  data.table::setattr(out, "bucket_members", attr(cbs_new, "bucket_members"))
+  out
 }
 
 # Tolerance of the duplicate match below, in tonnes. In the pinned release

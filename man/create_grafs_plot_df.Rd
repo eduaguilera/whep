@@ -4,15 +4,26 @@
 \alias{create_grafs_plot_df}
 \title{Create GRAFS plot dataset.}
 \usage{
-create_grafs_plot_df(example = FALSE)
+create_grafs_plot_df(
+  example = FALSE,
+  method_crop_allocation = c("processing_origin", "pooled_equal")
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
+
+\item{method_crop_allocation}{Allocation of processed crop flows.
+\code{processing_origin} uses the same province-year parent crop and irrigation
+support as the flow builder, preserving field-residue crop origins and
+any known irrigation regime. Positive flows without support abort.
+\code{pooled_equal} explicitly selects legacy pooled national parent shares and
+assumed equal irrigation shares where local support is missing. Neither
+method estimates observed industrial plant locations.}
 }
 \value{
 A tibble with columns \code{province}, \code{year}, \code{label}, \code{data}, \code{align}, and
-\code{arrowColor}. Each \code{label} is a GRAFS template token (e.g. \code{{ARAiN}}) and
+\code{arrowColor}, and \code{method_crop_allocation}. Each \code{label} is a GRAFS template token (e.g. \code{{ARAiN}}) and
 \code{data} holds its value as a character string.
 }
 \description{
