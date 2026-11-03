@@ -475,9 +475,18 @@ interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
     if (anyNA(x)) {
       return(FALSE)
     }
+    # `<` is not defined for a factor: it warns and answers NA everywhere,
+    # which the sweep below read as "in order", so interleaved factor groups
+    # were never sorted and every gap in them stayed unfilled (#1621).
+    # `setkeyv()` orders a factor by its integer codes, so compare those.
+    if (is.factor(x)) {
+      x <- as.integer(x)
+    }
     prev <- x[-n]
     curr <- x[-1L]
-    if (any(ties & (curr < prev), na.rm = TRUE)) {
+    descending <- ties & (curr < prev)
+    # Any other type without an order answers NA too: do not certify it.
+    if (anyNA(descending) || any(descending)) {
       return(FALSE)
     }
     ties <- ties & (curr == prev)

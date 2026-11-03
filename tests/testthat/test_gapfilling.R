@@ -1471,6 +1471,54 @@ test_that(".is_sorted_by detects sorted and unsorted data", {
   )
 })
 
+test_that(".is_sorted_by orders a factor by its levels, as setkeyv does", {
+  # `<` is not defined for a factor: every comparison answers NA with a
+  # warning, so a factor column was certified as sorted whatever its rows.
+  interleaved <- data.frame(
+    g = factor(c("b", "a", "b", "a"), levels = c("b", "a")),
+    year = c(1, 1, 2, 2)
+  )
+  expect_false(whep:::.is_sorted_by(interleaved, c("g", "year")))
+
+  by_level <- data.frame(
+    g = factor(c("b", "b", "a", "a"), levels = c("b", "a")),
+    year = c(1, 2, 1, 2)
+  )
+  expect_true(whep:::.is_sorted_by(by_level, c("g", "year")))
+})
+
+test_that("fill_linear fills groups keyed by a factor in any row order", {
+  # Rows sorted by year, groups interleaved, factor levels not alphabetical:
+  # the shape of a province-by-year panel whose province column is a factor
+  # ordered by latitude. Every gap came back unfilled.
+  panel <- tibble::tibble(
+    year = rep(2014:2018, each = 2),
+    province = factor(
+      rep(c("north", "south"), 5),
+      levels = c("south", "north")
+    ),
+    share = c(0.2, 0.6, NA, NA, 0.4, 0.8, NA, NA, NA, NA)
+  )
+  as_character <- panel |>
+    dplyr::mutate(province = as.character(province))
+
+  filled <- whep::fill_linear(panel, share, year, .by = "province") |>
+    dplyr::mutate(province = as.character(province)) |>
+    dplyr::arrange(province, year)
+  expected <- whep::fill_linear(as_character, share, year, .by = "province") |>
+    dplyr::arrange(province, year)
+
+  expect_false(anyNA(filled$share))
+  expect_equal(filled$share, expected$share)
+  expect_equal(filled$source_share, expected$source_share)
+  expect_equal(
+    filled |>
+      dplyr::filter(province == "north", year == 2015) |>
+      dplyr::pull(share),
+    0.3
+  )
+})
+
 test_that("fill_proxy_growth gives identical results regardless of input order", {
   # Same data, two row orders.
   df_sorted <- tibble::tribble(
