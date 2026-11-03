@@ -58,10 +58,10 @@
 # `.fbs_rebase_destinies()` extends the rebase to those where the same
 # mechanism was verified (whep#1550). See there for the evidence per item.
 
-# `"rebased_no_milk"` leaves milk as published; `"nuts_only"` is the whep#1495
-# rebase alone, the behaviour before whep#1550.
+# `"rebased_with_milk"` adds milk; `"nuts_only"` is the whep#1495 rebase alone,
+# the behaviour before whep#1550.
 .fbs_trade_basis_choices <- function() {
-  c("rebased", "rebased_no_milk", "nuts_only", "as_published")
+  c("rebased", "rebased_with_milk", "nuts_only", "as_published")
 }
 
 # The FBS items whose trade is put on the old vintage's level, and the
@@ -70,7 +70,7 @@
 # 351 excluded, world imports / exports in the new vintage (old vintage):
 #
 #   2551 Nuts and products               1.76 (0.99)  food        whep#1495
-#   2848 Milk - Excluding Butter         1.93 (0.93)  food, feed  whep#1550
+#   2848 Milk - Excluding Butter         1.93 (0.93)  feed, food  whep#1583
 #   2618 Pineapples and products         1.75 (0.99)  food        whep#1550
 #   2563 Olives (including preserved)    2.53 (1.07)  food        whep#1550
 #   2601 Tomatoes and products           1.29 (0.87)  food        whep#1550
@@ -91,45 +91,49 @@
 # * tomatoes: peeled 5.9 vs 1.3 (1.1 vs 1.3), paste 5.2 vs 3.8 (3.5 vs 3.8);
 # * lemons: concentrated juice 22.2 vs 11.3 (11.6 vs 10.7).
 #
-# Milk's excess is mostly feed, and its cut is taken from there first (decision
-# whep-fbs-new-milk-trade-rebase-default; the trade cut is settled, the
-# feed-first order is PROVISIONAL, resting on FAO's own guidelines alone).
+# Milk (2848) is rebased only when asked for, by `"rebased_with_milk"`
+# (whep#1583). Its import side is the inflated one, at the old vintage's level
+# product by product, measured on the pins at 2010, areas below 5000 with 351
+# excluded:
 #
-# * The import side is the inflated one. Product trade balances: FAOSTAT 2010
-#   world imports of whole-cow-milk cheese are 4.73 Mt against 4.96 Mt of
-#   exports, of dry whey 1.86 against 2.04 Mt (faostat-trade-totals, World),
-#   and UN Comtrade's mirror sums agree (HS 0406 0.94x, HS 0404 1.05x). FAO's
-#   own cheese extraction rates are 10-15% (Technical Conversion Factors:
-#   Netherlands 10, Russia 12, Germany 15), so at most 10 t of milk per t of
-#   cheese, as on the export side (7.7), not the import side's 31.0. IDF puts
-#   world dairy trade at 51.9 Mt in 2010, about 7% of farm milk (IDF World
-#   Dairy Situation 2011, via IDFA), where the new vintage's imports are
-#   193.7 Mt against 97.6 Mt of exports (World row; old vintage 96.6 vs
-#   104.1 Mt).
-# * Whey is cheese's co-product (FAO 2017, Guidelines for the Compilation of
-#   Food Balance Sheets, p. 65), and FAO standardises trade "only for the
-#   principal derived product" (p. 105) and does not standardise co-product
-#   feed (p. 107). The new vintage's import side converts dry whey at 30.6 t
-#   of milk per t (export side 2.3), and that mass lands in feed: China
-#   imports 265 kt of whey (UN Comtrade HS 0404) and feeds 9.6 Mt of milk in
-#   the new vintage against 1.3 Mt in the old. So milk's feed is cut first,
-#   down to the area's old-vintage level (the clamped median old/new feed
-#   ratio over 2010-2013, as for trade), and only the rest of the cut comes out
-#   of food.
+# * product trade closes: FAOSTAT world imports of whole-cow-milk cheese are
+#   4.73 Mt against 4.96 Mt of exports, of dry whey 1.86 against 2.04 Mt
+#   (World rows), and UN Comtrade's mirror sums agree (HS 0406 0.94x, HS 0404
+#   1.05x). IDF puts 2010 world dairy trade at 51.9 Mt (World Dairy Situation
+#   2011, via IDFA), where the new vintage's World row imports 193.7 Mt;
+# * converting each country's product trade (`faostat-trade-totals`) with one
+#   factor per product on both sides gives world imports of 93.6 Mt against
+#   103.6 Mt of exports, and per country about the old vintage's imports:
+#   Netherlands 4.2 Mt (old 4.9, published 16.9), Russia 3.6 (3.6, 16.2),
+#   China 2.8 (3.7, 12.9), United Kingdom 5.7 (5.7, 10.6). The factors are
+#   the medians of FAO's Technical Conversion Factors (1992-1996) over the
+#   countries printing one: cheese 12%, dry whole milk 13%, evaporated and
+#   condensed milk 35-37% (8.3, 7.7 and 2.8 t of milk per t). Whey is left
+#   out as cheese's co-product (FAO 2017, Guidelines for the Compilation of
+#   Food Balance Sheets, pp. 65 and 105), and cream and butter as the trade
+#   of FBS items 2743 and 2740, which take it at 1.00. Ice cream (11.6),
+#   dairy n.e.c. (4.0) and skim milk powder (0) take the new vintage's own
+#   pooled 2010-2013 export-side factors: assumed, unverified.
 #
-# Measured on the pins at 2010: world imports 1.93x to 1.13x exports, feed 79
-# to 37 Mt, food 499 to 461 Mt. FBS's own milk protein over food, in the 69
-# rebased importers whose processing is under a tenth of their food, goes
-# from 32.9 to 34.4 g/kg (old vintage 33.2); a pro-rata cut over food and feed
-# gave 38.5, too dense, which is why it is not used. Two residuals keep the
-# feed-first order provisional: world milk feed ends near 42 Mt, below both
-# vintages (80 Mt new, 74 Mt old), because exporters already feed less in the
-# new vintage than in the old; and in importers that make much butter the
-# food cut is still large (Russia 27.8 to 19.7 Mt at 2010), since part of the
-# excess may sit in the new vintage's processing element (205 Mt world, 0.1
-# Mt in the old), which no cut touches (whep#1583). The 2017 guidelines
-# advise national compilers; they do not say FAOSTAT's 2010- series applies
-# them.
+# Where the excess went is only partly known, so the default does not take it
+# out of anything:
+#
+# * about 30 Mt is imported whey booked as milk fed to animals: over 164
+#   countries, the new vintage's feed above the old one's rises by 12.7 t per
+#   t of whey imported (se 3.0), the import side's own whey factor;
+# * the other ~74 Mt (cheese and milk powders) does not show in feed, and
+#   FBS's own protein over food barely moves with it (median 35.9 g/kg where
+#   it is under 2% of food, 32.9 where it is over 30%), so it is not mostly
+#   in food either. The new vintage's processing element (205 Mt world, 0.1
+#   Mt in the old: milk made into butter) keeps food from being compared
+#   across the vintages.
+#
+# `"rebased_with_milk"` puts milk trade on the old vintage's level and takes
+# the net cut out of feed first, down to the old vintage's feed level (the
+# clamped median old/new feed ratio over 2010-2013), then food. That order is
+# PROVISIONAL: on a real 2009-2011 build it leaves world milk feed at 41.9 Mt,
+# below both vintages (79.7 new, 74.4 old), and Russia's food at 19.7 Mt
+# against 27.8 published and 25.0 in the old vintage.
 # Not listed, though the new vintage's imports exceed its exports there too:
 # "Vegetables, other" (2605) converts even fresh vegetables at 2.45 on the
 # import side against 1.36 on the export side, which is not this mechanism;
@@ -155,8 +159,8 @@
   all_items <- unique(.fbs_rebase_destinies()$item_cbs_code)
   switch(
     basis,
-    rebased = all_items,
-    rebased_no_milk = setdiff(all_items, 2848L),
+    rebased = setdiff(all_items, 2848L),
+    rebased_with_milk = all_items,
     nuts_only = 2551L,
     as_published = integer()
   )
@@ -169,9 +173,9 @@
 
 # One factor per (area_code, item_cbs_code, element) for import, export and,
 # for milk, feed: median(old / new) over the overlap, clamped to [lower bound,
-# 1], for the items `fbs_trade_basis` rebases. Empty under `"as_published"`, and when the
-# build reads no new-vintage row of the items, because then there is nothing
-# to rebase.
+# 1], for the items `fbs_trade_basis` rebases. Empty under `"as_published"`,
+# and when the build reads no new-vintage row of the items, because then
+# there is nothing to rebase.
 #
 # The overlap is read from the pins when the frames this build loaded do not
 # span it, so the factor -- and with it every 2014+ value -- does not depend on
