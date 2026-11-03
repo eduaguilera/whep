@@ -39,6 +39,7 @@ reference:
     cross-model comparison.
   contents:
   - run_spatialize
+  - prepare_polity_crop_inputs
   - build_gridded_landuse
   - build_gridded_livestock
   - read_glw_density
