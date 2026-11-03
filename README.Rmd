@@ -183,6 +183,16 @@ whep::whep_read_file("crop_yields", registry = reg)
 whep::whep_list_file_versions("crop_yields", registry = reg)
 ```
 
+Licensed or confidential inputs can be registered with
+`access = "restricted"`. The bundled registry currently contains public
+entries only. WHEP never reads a restricted input unless
+you ask for it explicitly, by its alias or by an argument value labelled
+**restricted access**, and never swaps one for public data on its own. Each
+authorised person sets their own `WHEP_RESTRICTED_BOARD` and
+`WHEP_RESTRICTED_SECRET` in `~/.Renviron`; `whep_data_access_status()` shows
+what is usable on your machine, and data read this way carries
+`data_access = "restricted"`.
+
 ## The WHEP project
 
 #### **Who Has Eaten the Planet? The paths of food systems beyond the safe and just operating space (1850-2020)**
