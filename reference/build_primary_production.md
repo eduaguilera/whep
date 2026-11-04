@@ -63,10 +63,15 @@ build_primary_production(
   file. Required semantic columns are `year`, `item_prod_code`, `unit`,
   `value`, and one of `area_code` or `polity_area_code`. Names such as
   `item_prod_name`, `item_cbs_name`, and `source` are used when present;
-  WHEP item and area tables fill canonical names where possible.
-  Observed historical rows are retained, and LUH2 proxy filling can use
-  them as anchors. **Rice supplied here is assumed to be on a paddy
-  (rough-rice) basis** and is multiplied by the paddy-to-milled
+  WHEP item and area tables fill canonical names where possible. If
+  supplied, `reporting_polity_code` or `polity_code` each nonblank
+  identity must agree with the canonical consumer identity for the area
+  and year. Missing or blank identity cells are ignored. A mismatch
+  aborts rather than relabelling a whole territory as a component.
+  Agreement checks routing, not equivalence of reconstructed source
+  borders. Observed historical rows are retained, and LUH2 proxy filling
+  can use them as anchors. **Rice supplied here is assumed to be on a
+  paddy (rough-rice) basis** and is multiplied by the paddy-to-milled
   extraction rate, because WHEP's rice item is milled equivalent
   throughout; pre-divide by that rate if the series is already milled.
   Default `NULL`.
