@@ -1340,8 +1340,8 @@ row_promotion_status <- function(crosswalk = NULL) {
   ]
 }
 
-# `(area_code, year)` pairs a source keys to an area that reports NO territory
-# in that year -- a vintage mismatch between the source's area codes and WHEP's.
+# `(area_code, year)` pairs outside the recorded FAOSTAT reporting windows.
+# These source-coverage bounds do not define a polity's territorial validity.
 #
 # A fold is not a mismatch, and that is the whole difficulty. FAOSTAT reports
 # areas 276/277 from 2012 and WHEP sums them into bucket 206, whose own window
@@ -1349,21 +1349,21 @@ row_promotion_status <- function(crosswalk = NULL) {
 # whose window starts 1993. Both look off-window on the bucket's own window while
 # nothing is wrong, so the test is not "is the year inside this area's window"
 # but "does ANY reporting area land on this bucket that year" -- which is false
-# only when the bucket carries a territory nothing reports under that code then.
+# when none of those recorded reporting windows covers the bucket-year.
 # `folded_reporting_areas()` is the report for the folds themselves.
 #
-# The shape this catches is the opposite one: FishStat reports Belgium as area
+# A documented mismatch is FishStat reporting Belgium as area
 # 255 from 1976, while every FAOSTAT product reports that territory as
 # Belgium-Luxembourg (15) until 1999 and only splits 255/256 at 2000. Nothing
 # reports bucket 255 before 2000, so those 459 rows (6,948.4 kt) can never join
 # a CBS keyed 15, and creating the 255 row instead would put two overlapping
 # reporting areas on one territory-year (whep#884).
 #
-# Measured over every CBS-relevant pin, FishStat's pre-2000 Belgium is the only
-# off-window area-year in any of them.
+# That diagnosis is specific to the reporting units examined in whep#884;
+# another source can have valid earlier observations (whep#1633).
 #
-# `(polity_area_code, year)` pairs some reporting area actually reports, i.e.
-# the buckets that carry a territory that year. Built from the areas whose own
+# `(polity_area_code, year)` pairs covered by a recorded reporting window.
+# Built from the areas whose own
 # reporting window contains the year, resolved through the same year-aware
 # helper the builds use, so a fold counts as reported in the years its members
 # report -- bucket 238 is reported in 1961-1992 by area 62 and in 1993-2024 by
@@ -1445,9 +1445,8 @@ row_promotion_status <- function(crosswalk = NULL) {
   ][order(-rows)]
 }
 
-# Warn rather than inform, for the same reason `.warn_folded_areas()` does: the
-# rows are silently unjoinable downstream, and the mismatch is reportable at the
-# point the codes are read.
+# Report the source-window discrepancy where codes are read. Territorial
+# validity and downstream key availability require separate evidence.
 .warn_off_window_area_years <- function(dt, source_label = NULL) {
   if (!isTRUE(getOption("whep.warn_area_vintage", TRUE))) {
     return(invisible(NULL))
@@ -1460,7 +1459,7 @@ row_promotion_status <- function(crosswalk = NULL) {
   # One bullet per area, not a cli-truncated vector: naming them all IS the fix.
   bullets <- stats::setNames(
     sprintf(
-      "Area %d reports %d-%d, but %s has %d-%d (%d row%s)",
+      "Area %d: FAOSTAT window %d-%d; %s has %d-%d (%d row%s)",
       off$area_code,
       off$window_start,
       off$window_end,
@@ -1475,20 +1474,19 @@ row_promotion_status <- function(crosswalk = NULL) {
   n_off <- nrow(off)
   cli::cli_warn(c(
     "!" = "{n_off} reporting area{?s} in {where} carr{?ies/y} rows outside the
-           years WHEP's area vocabulary reports {cli::qty(n_off)}{?it/them}.",
+           recorded FAOSTAT reporting window.",
     bullets,
-    "i" = "The territory reports under a different {.field area_code} in those
-           years, so these rows cannot join a CBS keyed on it, and creating
-           that key would duplicate the territory (whep#884).",
+    "i" = "This check does not establish territorial validity, a different
+           reporting {.field area_code}, or whether those rows can join a CBS.
+           Check source territory and CBS keys separately (whep#884).",
     "i" = "Silence with {.code options(whep.warn_area_vintage = FALSE)}."
   ))
   invisible(off)
 }
 
-# A row must never be CREATED for an area-year the vocabulary does not report:
-# that IS the duplicated territory, not a warning about one. Callers that create
-# CBS rows from a trade record drop these first, so reaching here means a
-# restriction was lifted without the filter (whep#884).
+# Preserve the CBS recovery policy restricting new keys to recorded reporting
+# windows. This guard does not establish source-independent territorial
+# validity or identify a different reporting unit (whep#884, whep#1633).
 .abort_if_off_window_areas <- function(dt, what = "row") {
   off <- .off_window_area_years(dt)
   if (nrow(off) == 0L) {
@@ -1498,11 +1496,12 @@ row_promotion_status <- function(crosswalk = NULL) {
   n_rows <- sum(off$rows)
   cli::cli_abort(
     c(
-      "{n_rows} {what}{?s} would be created for {nrow(off)} area-year
-       {cli::qty(nrow(off))}bucket{?s} the area vocabulary does not report.",
+      "{n_rows} {what}{?s} would be created outside the recorded FAOSTAT
+       reporting window for {nrow(off)} reporting area{?s}.",
       "x" = "Area{?s} {areas}.",
-      "i" = "The territory already reports under another {.field area_code} in
-             those years, so the created rows would duplicate it (whep#884)."
+      "i" = "CBS row recovery is restricted to the recorded FAOSTAT reporting
+             window (whep#884). Verify source territory and CBS key coverage
+             separately."
     ),
     class = "whep_error_off_window_area_year"
   )
