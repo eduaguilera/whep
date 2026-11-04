@@ -66,6 +66,13 @@ the version has not been bumped yet: the last dev-checkout run gave 0 errors,
   They have not been replaced with an unrelated page that happens to load
   (whep#1603).
 
+* **Ciqual: HTTP 503.** On 2026-11-04, the provider home page
+  <https://ciqual.anses.fr/> returned HTTP 503 to our local URL request,
+  while a separate web fetch timed out. The documentation cites the
+  Ciqual 2020 English workbook and its `compo` sheet; this access failure
+  does not show that the source has moved. The provider URL stays, and URL
+  checks remain enabled (whep#1626).
+
 ## Reverse dependencies
 
 whep has no reverse dependencies on CRAN. Checked with

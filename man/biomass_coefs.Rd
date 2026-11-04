@@ -215,7 +215,7 @@ assumed zero (USDA derivation Z) and is not interchangeable with vitamin
 A activity. This interpretation does
 not standardize the activity basis of other rows in the inherited column.
 Sources: \url{https://ciqual.anses.fr/} (2020 English workbook, sheet \code{compo})
-and \url{https://fdc.nal.usda.gov/food-details/173021/nutrients}
+and \url{https://fdc.nal.usda.gov/download-datasets/}
 (SR Legacy April 2018 archive). These are nutrient-specific reference
 values per edible portion, not a paired drying experiment or a claim that
 every fig cultivar has the same composition. No common energy or moisture
@@ -257,7 +257,7 @@ shell, and it reaches \code{Almonds} through \link{items_full}; with an
 kg against an FBS density of 46.6, 4.3x. The edible fraction is FAO's own
 food-composition factor for the FBS, in-shell protein over shelled
 protein per 100 g (FAO, \emph{Food balance sheets: a handbook}, Rome, 2001,
-Annex I, \url{https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf}, PDF
+Annex I, \url{https://www.fao.org/4/x9892e/x9892e00.pdf}, PDF
 page 65): almonds 8.0 / 20.0 = \strong{0.4}, walnuts 6.4 / 14.3 = \strong{0.4476},
 hazelnuts 6.0 / 13.0 = \strong{0.4615}. The shelled figures are this table's
 own kernel densities to within 8\% (20.0, 14.0, 14.1 g/100 g). FAO's
@@ -459,7 +459,7 @@ Two sources fill it, one per use:
 \code{Edible_portion}): FAO's own composition factor for the item, read from
 FAO, \emph{Food balance sheets: a handbook}, Rome, 2001, Annex I "Food
 composition in terms of retail weight", row \verb{AQUATIC PLANTS}, PDF page
-68 (printed 64), \url{https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf}:
+68 (printed 64), \url{https://www.fao.org/4/x9892e/x9892e00.pdf}:
 54 kcal, 2.8 g protein and 0.6 g fat per 100 g of the commodity as
 recorded, i.e. fresh. So nitrogen is 2.8 / 100 / 6.25 = 0.00448 kg per
 kg, the energy cell holds 540 kcal, 2.25936 MJ, per kg, and
