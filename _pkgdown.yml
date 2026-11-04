@@ -16,6 +16,10 @@ authors:
     href: "https://erc.europa.eu/homepage"
 
 reference:
+- title: Direct livestock water
+  contents:
+  - calculate_livestock_water
+  - estimate_dairy_drinking
 - title: Build datasets
   desc: >
     Build full datasets from raw FAOSTAT inputs. These functions
