@@ -1,5 +1,12 @@
 # Package index
 
+## Direct livestock water
+
+- [`calculate_livestock_water()`](https://eduaguilera.github.io/whep/reference/calculate_livestock_water.md)
+  : Account for cohort-specific direct livestock water.
+- [`estimate_dairy_drinking()`](https://eduaguilera.github.io/whep/reference/estimate_dairy_drinking.md)
+  : Estimate free drinking intake of lactating dairy cows.
+
 ## Build datasets
 
 Build full datasets from raw FAOSTAT inputs. These functions orchestrate

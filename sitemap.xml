@@ -136,6 +136,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_food_gini.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_indirect_n2o_nh3.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_livestock_emissions.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/calculate_livestock_water.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_lmdi.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_manner_nh3.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_manner_nh3_default.html</loc></url>
@@ -218,6 +219,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/empty_table_from_schema.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/ensure_admin_shares.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/ensure_columns.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/estimate_dairy_drinking.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/estimate_energy_demand.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/estimate_n_excretion.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/europe_fao_spain_trade.html</loc></url>
