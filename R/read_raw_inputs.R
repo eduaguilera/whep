@@ -811,6 +811,16 @@
   data.table::setattr(out, "bucket_members", members)
   data.table::setattr(out, "source_accounts", attr(dt, "source_accounts"))
   data.table::setattr(out, "stock_convention", attr(dt, "stock_convention"))
+  data.table::setattr(
+    out,
+    "cbs_extract_query",
+    list(
+      pin_alias = pin_alias,
+      all_years = is.null(years),
+      years = years,
+      elements = elements
+    )
+  )
   # Pin the row order. Nothing above this line pins one: `.read_input()` reads
   # the parquet through arrow's multi-threaded scanner, whose row order varies
   # between sessions, and neither the `by=` aggregation in
