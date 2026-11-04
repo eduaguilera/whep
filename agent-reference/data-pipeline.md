@@ -49,16 +49,32 @@ carries the pointer; this file carries the detail.
   LPJmL-derived quantities — grazing excreta, humification fractions, CRU air
   temperature and the HWSD texture products are always computed locally, so
   the pinned and run-derived paths cannot silently disagree.
-- **Regenerate the LPJmL-derived pins together, from one run.** Four pins carry
-  LPJmL model *output* — `lpjml-grass-availability`,
-  `lpjml-grass-productivity`, `lpjml-grass-natural-net-c` and
-  `lpjml-soc-hydrology`. Use the single entry point
-  `regenerate_whep_lpjml_pins()` in the `~/whep_inputs` project: dry-run by
-  default (it prints a manifest plus the change against each pin it would
-  replace), `upload = TRUE` to publish. Refreshing only some of them leaves
-  WHEP mixing two LPJmL versions across its feed, soil-carbon and water chains
-  at once — worse than consistently using either version, and invisible
-  downstream because every pin still loads with the right schema. The six
+- **Regenerate the complete LPJmL output family from one run.** WHEP consumes
+  seven model-output artifacts: `lpjml-grass-availability`,
+  `lpjml-grass-productivity`, `lpjml-grass-natural-net-c`,
+  `lpjml-soc-hydrology`, `lpjml-crop-regime-yield`,
+  `lpjml-crop-irrig-depth` and `lpjml-seepage`. Use the single entry point
+  `regenerate_whep_lpjml_pins()` in `~/whep_inputs`. Its shared output registry
+  (`lpjml_pin_compare_specs()`) and full consumer contracts
+  (`lpjml_pin_consumer_columns()`) must cover the complete family.
+  `lpjml_pin_cohort()` checks common run provenance (`source`, `GIT_hash`,
+  `history`), supported no-leap day axes, native continuity and starts,
+  actual month membership and requested-year coverage before generation.
+  Explicit sparse or pre-1850 years must survive unchanged.
+  `validate_lpjml_pin_family()` requires every member, nonempty requested-year
+  coverage, full consumer schemas and consistent required vintage fields
+  before comparison or upload. A representative comparison value alone does
+  not establish the complete consumer schema. The local manifest records
+  actual year sets, the input cohort and artifact checksums. See
+  [whep#1639](https://github.com/eduaguilera/whep/issues/1639) and
+  [whep_inputs#9](https://github.com/eduaguilera/whep_inputs/pull/9).
+  Generation is a dry-run by default. Inspect the manifest, compare numerical
+  changes and validate consumers before separately authorized publication
+  with `upload = TRUE`; passing cohort/schema guards alone does not validate
+  the resulting numbers. The grazing-water artifact discussed in
+  [PR #116](https://github.com/eduaguilera/whep/pull/116) remains proposed.
+  Register it in this same family, with cohort and full-schema checks, before
+  adoption; it is not one of the seven artifacts above. The six
   `lpjml-wind-*` / `lpjml-rsds-*` / `lpjml-rlds-*` pins are climate **forcing**
   (they feed *into* LPJmL, so they do not change with the model version) and
   must never go through that path; they come from
@@ -101,6 +117,7 @@ So when you touch a producer:
    its name across `R/`: no caller outside `inst/scripts/` is the signature of
    one.
 
-The LPJmL-derived pins carry an extra constraint -- regenerate all four
-together, from one run, via `regenerate_whep_lpjml_pins()`. See the data
-pipeline section.
+The LPJmL-derived pins carry an extra constraint -- regenerate the complete
+registered output family together, from one run, via
+`regenerate_whep_lpjml_pins()`. See the data pipeline section for its seven
+current members and the separate publication gate.
