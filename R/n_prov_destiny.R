@@ -1765,15 +1765,13 @@ build_food_protein_destiny <- function(
 #' processed output (`processing_loss_n`, from `.processing_n_scaling()`) is
 #' allocated back across that item's Irrig_cat rows in proportion to their
 #' share of processed_fm, and tagged with `destiny = "processing_losses"`
-#' instead of being left inside the primary item's own destinies. Downstream
-#' surplus calculations only recognise a fixed set of tracked output
-#' destinies, so this falls into surplus automatically: in particular
-#' `.create_land_surplus_df()` computes cropland surplus as inputs minus
-#' tracked outputs, so every Mg booked here raises reported cropland N
-#' surplus by the same amount it removes from `export`. That is the
-#' methodological choice this destiny embodies — the residue (grape pomace,
-#' olive cake, beet pulp) is counted as surplus rather than as product,
-#' pending explicit by-product items.
+#' instead of being left inside the primary item's own destinies. The residue
+#' (grape pomace, olive cake, beet pulp) is a loss, not product, pending
+#' explicit by-product items. The GRAFS diagram draws it as its own
+#' Cropland arrow ({CRP_PROCLOSS}), so `.create_land_surplus_df()` counts it
+#' as an output rather than inside cropland surplus, which would show it
+#' twice (#1619). Consumers whose surplus does not draw that arrow must
+#' decide for themselves whether it belongs in their surplus.
 #'
 #' @param candidate Production rows with processed_fm, as built by
 #' `.calculate_processed_amounts()`.

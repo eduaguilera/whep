@@ -159,6 +159,7 @@ create_grafs_plot_df <- function(
     "{CROP_EXPORT}",
     "{CROPS_TO_POP}",
     "{CROPS_TO_LIVESTOCK}",
+    "{CROPS_TO_AQUACULTURE}",
     "{CRP_PROCLOSS}"
   )
 
@@ -695,8 +696,17 @@ create_grafs_plot_df <- function(
   method_crop_allocation = "pooled_equal"
 ) {
   n_balance <- whep_read_file("n_balance_ygpit_all")
-  crop_lookup <- whep_read_file("grafs_crop_categories") |>
-    .complete_grafs_crop_types()
+  # From version 20261104T143510Z-c3862 the pin types chicory roots (FADN
+  # 10690) and "Oilcrops, other" (castor, jojoba, melonseed, other oil seeds
+  # n.e.c.; FADN 10608) as non_permanent: FADN RI/CC 1680 v1.3, March 2015,
+  # Table I p.53 lists both under industrial crops, and p.57 excludes
+  # industrial plants from permanent crops even if botanically perennial.
+  # This is a reporting category, not a botanical life-cycle claim. Without a
+  # type, "Oilcrops, other" reads as a processed item and aborts the
+  # processing-origin allocation (#1619, #1620).
+  # https://fadn.pl/wp-content/uploads/2012/12/
+  # RICC-1680-v1.3-accounting-year-2014.pdf
+  crop_lookup <- whep_read_file("grafs_crop_categories")
 
   permanent_biomass <- .biomass_of_type(crop_lookup, "permanent")
   horticulture_biomass <- .biomass_of_type(crop_lookup, "horticulture")
@@ -861,7 +871,6 @@ create_grafs_plot_df <- function(
   method_crop_allocation = c("pooled_equal", "processing_origin")
 ) {
   method_crop_allocation <- rlang::arg_match(method_crop_allocation)
-  crop_lookup <- .complete_grafs_crop_types(crop_lookup)
   item_lookup <- whep_read_file("codes_coefs_items_full") |>
     dplyr::select(Item = item, Name_biomass)
 
@@ -906,12 +915,12 @@ create_grafs_plot_df <- function(
     .processing_item_shares(item_lookup, residue_items)
   }
 
+  # Destiny == "aquaculture" is left out of the crop-type split: its feed
+  # includes processed items with no local crop-origin support. It still has
+  # its own {CROPS_TO_AQUACULTURE} arrow (#1619) and counts in {CRPLNDTOTN},
+  # so for Spain the five categories sum to {CRPLNDTOTN} minus that arrow
+  # (~1.5 Gg N, ~0.2%, in 2015-2020); provinces carry no aquaculture.
   cropland_raw <- prov_destiny_df |>
-    # Destiny == "aquaculture" is excluded the same way {CRPLNDTOTN}
-    # (.create_cropland_total_df()) excludes it: it has no arrow of its own
-    # in the GRAFS diagram (#379), so it is left out of every GRAFS number
-    # rather than only some -- it still exists as its own row in
-    # .create_n_flow_df()'s output for anyone reading the underlying data.
     dplyr::filter(Origin == "Cropland", Destiny != "aquaculture") |>
     dplyr::left_join(item_lookup, by = "Item") |>
     dplyr::mutate(
@@ -1342,10 +1351,12 @@ create_grafs_plot_df <- function(
 #'
 #' @noRd
 .create_land_surplus_df <- function(prov_destiny_df) {
+  # People -> Cropland (urban organic N, drawn as {ORGOT}) is an input like
+  # manure; without it the Cropland box does not balance.
   inputs <- prov_destiny_df |>
     dplyr::filter(
       Origin %in%
-        c("Synthetic", "Fixation", "Deposition", "Livestock") &
+        c("Synthetic", "Fixation", "Deposition", "Livestock", "People") &
         Destiny %in% c("Cropland", "semi_natural_agroecosystems")
     ) |>
     dplyr::mutate(
@@ -1362,18 +1373,12 @@ create_grafs_plot_df <- function(
   # exactly like the edible fraction did, so it belongs in the same output
   # total or the surplus would overstate what is still in the system.
   #
-  # aquaculture is a known, tracked destiny too (#379) -- unlike
-  # processing_losses below, we know exactly where this N went, so it
-  # belongs here even though it has no arrow of its own in the GRAFS
-  # diagram (it is deliberately excluded from {CRPLNDTOTN} instead,
-  # .create_cropland_total_df(), since that total is meant to reconcile
-  # with the diagram's drawn arrows).
+  # aquaculture is a known, tracked destiny too (#379), drawn as its own
+  # outgoing arrow (#1619).
   #
-  # processing_losses is deliberately NOT in this list: per
-  # .compute_processing_losses() (n_prov_destiny.R), that destiny is meant
-  # to fall into surplus rather than count as a tracked output, pending
-  # explicit by-product items -- it gets a display arrow ({CRP_PROCLOSS})
-  # for visibility, but this residual still counts it as unaccounted-for.
+  # processing_losses is drawn as its own arrow ({CRP_PROCLOSS}) and counted
+  # in {CRPLNDTOTN}, so it is an output here as well: left inside the
+  # surplus it was shown twice and the Cropland box did not balance (#1619).
   output_destinies <- c(
     "population_food",
     "population_food_inedible",
@@ -1381,6 +1386,7 @@ create_grafs_plot_df <- function(
     "livestock_rum",
     "livestock_mono",
     "aquaculture",
+    "processing_losses",
     "export"
   )
 
@@ -1440,10 +1446,8 @@ create_grafs_plot_df <- function(
     "{CROP_EXPORT}",
     "{CROPS_TO_POP}",
     "{CROPS_TO_LIVESTOCK}",
-    "{CROPS_TO_AQUACULTURE}",
     "{LIVESTOCK_TO_HUMAN}",
-    "{GRASS_TO_LIVESTOCK}",
-    "{GRASS_TO_AQUACULTURE}"
+    "{GRASS_TO_LIVESTOCK}"
   )
 
   prov_destiny_df |>
@@ -1456,10 +1460,12 @@ create_grafs_plot_df <- function(
         Origin == "Cropland" &
           Destiny %in% c("livestock_rum", "livestock_mono") ~
           "{CROPS_TO_LIVESTOCK}",
-        # Not drawn as its own box in the GRAFS diagram (#379: aquaculture is
-        # sea-based, not land, and the flow is small) -- but it still needs
-        # its own label so {CRPLNDTOTN} (.create_cropland_total_df()) counts
-        # it in cropland's throughput total instead of silently dropping it.
+        # Marine aquaculture lies outside the land-based system, like capture
+        # fisheries, so it gets no box (#379): its feed leaves Cropland as an
+        # outgoing arrow (#1619) and the fish returns as an import
+        # ({IMPHUMFISH}). Like every drawn arrow it counts in {CRPLNDTOTN}
+        # (.create_cropland_total_df()) and as output in {CROP_SURPLUS}
+        # (.create_land_surplus_df()).
         Origin == "Cropland" & Destiny == "aquaculture" ~
           "{CROPS_TO_AQUACULTURE}",
         Origin == "Livestock" &
@@ -1755,8 +1761,11 @@ create_grafs_plot_df <- function(
   # The n_excretion_ygs pin reports excreted N directly as N_excr_MgN;
   # it no longer carries the Gross_Prod_GgN / Net_Prod_GgN pair whose
   # difference this used to take (that also needed a GgN -> MgN factor,
-  # which N_excr_MgN already is).
+  # which N_excr_MgN already is). Aquaculture is reported as a
+  # Province_name == "National" row with zero excretion (1955-2022); kept, it
+  # became a phantom all-zero "National" province in the GRAFS data.
   n_excretion <- whep_read_file("n_excretion_ygs") |>
+    dplyr::filter(Province_name != "National") |>
     dplyr::select(
       Year,
       Province_name,
@@ -2070,11 +2079,14 @@ create_grafs_plot_df <- function(
   ) |>
     dplyr::select(province, year, label, data, align)
 
+  completed_labels <- c(unique(df_combi$label), missing_labels) |>
+    setdiff(.national_only_labels())
+
   df_combi |>
     tidyr::complete(
       province,
       year,
-      label = c(unique(df_combi$label), missing_labels),
+      label = completed_labels,
       fill = list(data = "0", align = "L")
     ) |>
     dplyr::bind_rows(df_meta) |>
@@ -2090,6 +2102,14 @@ create_grafs_plot_df <- function(
       )
     ) |>
     dplyr::arrange(province, year, label)
+}
+
+# Aquaculture feed is reported nationally only (#379), so a province without
+# a row has no allocation, not a zero flow (#1619). These labels are never
+# completed with zeros; the GRAFS template drops the arrow when its label is
+# absent.
+.national_only_labels <- function() {
+  c("{CROPS_TO_AQUACULTURE}", "{GRASS_TO_AQUACULTURE}")
 }
 
 # Source labels remain a scoped compatibility adapter until the nitrogen-Spain
@@ -2294,23 +2314,4 @@ create_grafs_plot_df <- function(
       data = sum(MgN, na.rm = TRUE),
       .by = c(Province_name, Year)
     )
-}
-
-
-# The curated crop-category pin omits industrial chicory roots, although the
-# historical crop input contains them (1961-2001). FADN RI/CC 1680 v1.3,
-# March 2015, Table I p.53 lists chicory under industrial crops (10690);
-# p.57 excludes industrial plants from permanent crops even if botanically
-# perennial. This is a reporting category, not a botanical life-cycle claim.
-# https://fadn.pl/wp-content/uploads/2012/12/
-# RICC-1680-v1.3-accounting-year-2014.pdf
-# Keep a supplied pin entry authoritative; this fills only its documented gap.
-.complete_grafs_crop_types <- function(crop_lookup) {
-  if ("Chicory roots" %in% crop_lookup$Name_biomass) {
-    return(crop_lookup)
-  }
-  dplyr::bind_rows(
-    crop_lookup,
-    tibble::tibble(Name_biomass = "Chicory roots", crop_type = "non_permanent")
-  )
 }
