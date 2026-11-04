@@ -667,6 +667,9 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".annual_water_polity", "summarise", "polity_code", 1L, "year_axis",
+    "Reduces canonical reporting-year metadata to each polity's final
+     reporting year; no water observations are pooled (whep#107, whep#116).",
     ".check_fishstat_area_iso3", "distinct", "area_code, <dynamic>, area_iso3c",
     1L, "identity_lookup",
     "One row per FAOSTAT area code and its ISO3, the vocabulary a FishStat
