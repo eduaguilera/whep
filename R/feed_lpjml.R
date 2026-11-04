@@ -495,6 +495,7 @@ read_lpjml_grass_productivity <- function(
 .read_lpjml_bands <- function(path, var_name, band_names, years, first_year) {
   nc <- ncdf4::nc_open(path)
   on.exit(ncdf4::nc_close(nc))
+  .check_lpjml_band_dims(nc, var_name)
   pft <- as.character(ncdf4::ncvar_get(nc, "NamePFT"))
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
@@ -533,6 +534,22 @@ read_lpjml_grass_productivity <- function(
     )
   })
   data.table::rbindlist(rows)
+}
+
+# Slab indexing below is positional. Equal-sized axes can swap cell values
+# without changing totals, so establish their names and order before reading.
+.check_lpjml_band_dims <- function(nc, var_name) {
+  dims <- vapply(nc$var[[var_name]]$dim, `[[`, character(1), "name")
+  expected <- c("lon", "lat", "pft", "time")
+  if (!identical(dims, expected)) {
+    cli::cli_abort(
+      c(
+        "LPJmL variable {.val {var_name}} has unsupported dimensions.",
+        i = "Expected {.val {expected}} in that order; found {.val {dims}}."
+      ),
+      class = "whep_lpjml_band_dimensions"
+    )
+  }
 }
 
 # Restrict requested years to the run's output time axis, warning about (and
