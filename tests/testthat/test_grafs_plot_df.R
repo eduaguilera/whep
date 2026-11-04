@@ -71,19 +71,44 @@ test_that(".create_n_flow_df labels and sums crop and livestock flows", {
     dplyr::pull(data)
   expect_equal(crops_to_livestock, 50)
 
-  # all seven flow labels are always present (completed with zeros), even
-  # though this fixture has no aquaculture rows
+  # the five land-system flow labels are always present (completed with
+  # zeros); the aquaculture labels are not, since this fixture has no
+  # aquaculture rows and aquaculture is national-only (#1619)
   expect_setequal(
     unique(out$label),
     c(
       "{CROP_EXPORT}",
       "{CROPS_TO_POP}",
       "{CROPS_TO_LIVESTOCK}",
-      "{CROPS_TO_AQUACULTURE}",
       "{LIVESTOCK_TO_HUMAN}",
-      "{GRASS_TO_LIVESTOCK}",
-      "{GRASS_TO_AQUACULTURE}"
+      "{GRASS_TO_LIVESTOCK}"
     )
+  )
+})
+
+test_that("aquaculture labels stay absent, not zero, where unallocated (#1619)", {
+  fixture <- .fixture_prov_destiny() |>
+    dplyr::bind_rows(
+      tibble::tribble(
+        ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN,
+        "Spain", 2000, "Barley and products", NA, "Cropland", "Cropland", "aquaculture", 7,
+        "Spain", 2000, "Wheat and products", NA, "Cropland", "Cropland", "export", 1
+      )
+    )
+
+  out <- .create_n_flow_df(fixture) |>
+    dplyr::mutate(data = as.character(data)) |>
+    .fill_finalize_labels()
+  aqua <- dplyr::filter(out, label %in% .national_only_labels())
+
+  # Huesca has other flows but no aquaculture allocation: no row at all,
+  # rather than a "0" the template would draw as a zero-width arrow.
+  expect_equal(aqua$province, "Spain")
+  expect_equal(aqua$label, "{CROPS_TO_AQUACULTURE}")
+  expect_equal(aqua$data, "7")
+  # Other labels are still completed for every province.
+  expect_true(
+    all(c("Huesca", "Spain") %in% out$province[out$label == "{CROP_EXPORT}"])
   )
 })
 
@@ -222,12 +247,26 @@ test_that(".create_land_surplus_df counts aquaculture as output (#379)", {
   expect_equal(out$data, 60)
 })
 
-test_that(".create_land_surplus_df leaves processing_losses in surplus", {
-  # Per .compute_processing_losses() (n_prov_destiny.R), processing_losses
-  # is deliberately NOT a tracked output: it falls into surplus rather than
-  # counting as product, pending explicit by-product items. It still gets
-  # its own display arrow ({CRP_PROCLOSS}), but that is a separate concern
-  # from this residual.
+test_that(".create_land_surplus_df counts urban organic N ({ORGOT}) as input", {
+  # People -> Cropland is drawn as its own input arrow ({ORGOT}), so the
+  # surplus must count it too, or the Cropland box cannot balance.
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Synthetic", "Cropland", 100,
+    "Huesca", 2000, "People", "Cropland", 20,
+    "Huesca", 2000, "Cropland", "population_food", 30
+  )
+
+  out <- .create_land_surplus_df(prov_destiny_df) |>
+    dplyr::filter(label == "{CROP_SURPLUS}")
+
+  # (100 + 20) input - 30 output = 90, not 70.
+  expect_equal(out$data, 90)
+})
+
+test_that(".create_land_surplus_df counts processing_losses as output", {
+  # processing_losses has its own arrow ({CRP_PROCLOSS}) and counts in
+  # {CRPLNDTOTN}; inside the surplus as well, it would be shown twice.
   prov_destiny_df <- tibble::tribble(
     ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
     "Huesca", 2000, "Synthetic", "Cropland", 100,
@@ -238,8 +277,8 @@ test_that(".create_land_surplus_df leaves processing_losses in surplus", {
   out <- .create_land_surplus_df(prov_destiny_df) |>
     dplyr::filter(label == "{CROP_SURPLUS}")
 
-  # 100 input - 30 output = 70; processing_losses stays inside surplus.
-  expect_equal(out$data, 70)
+  # 100 input - (30 + 15) output = 55, not 70.
+  expect_equal(out$data, 55)
 })
 
 
@@ -682,6 +721,28 @@ test_that(".create_animal_losses_df sums excreted N as animal losses", {
   expect_true(all(out$align == "R"))
 })
 
+test_that(".create_animal_losses_df drops the National aquaculture row", {
+  # n_excretion_ygs reports aquaculture as a Province_name == "National"
+  # row; kept, it became a phantom all-zero "National" province.
+  testthat::local_mocked_bindings(
+    whep_read_file = function(alias) {
+      tibble::tribble(
+        ~Year, ~Province_name, ~Livestock_cat, ~N_excr_MgN,
+        2000, "Huesca", "Cattle", 500,
+        2000, "National", "Aquaculture", 0
+      )
+    }
+  )
+  prov <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Bovine Meat", NA, "Livestock", "Livestock", "export", 1
+  )
+
+  out <- .create_animal_losses_df(prov)
+
+  expect_equal(unique(out$province), "Huesca")
+})
+
 
 # .create_livestock_lu_df ------------------------------------------------------
 
@@ -738,6 +799,7 @@ test_that(".create_n_input_df aggregates greenhouse, grass, area and km2", {
   pick <- function(l) dplyr::pull(dplyr::filter(out, label == l), data)
 
   expect_equal(pick("{GREHha}"), 50)
+  # aquaculture feed is left out of the crop-type split (#1619).
   expect_equal(pick("{GREHN}"), 9)
   expect_equal(pick("{HAGRASS}"), 500)
   expect_equal(pick("{HACULT}"), 150)
@@ -950,6 +1012,22 @@ test_that(".create_cropland_total_df sums the four cropland-output labels", {
   expect_equal(pick("Spain"), 10)
   expect_true(all(out$align == "R"))
   expect_equal(unique(out$label), "{CRPLNDTOTN}")
+})
+
+test_that(".create_cropland_total_df counts the aquaculture arrow (#1619)", {
+  df_flow <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Spain", 2000, "{CROPS_TO_POP}", 40, "L",
+    "Spain", 2000, "{CROPS_TO_AQUACULTURE}", 7, "L"
+  )
+  df_processing_losses <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Spain", 2000, "{CRP_PROCLOSS}", 3, "L"
+  )
+
+  out <- .create_cropland_total_df(df_flow, df_processing_losses)
+
+  expect_equal(out$data, 50)
 })
 
 test_that(".create_cropland_total_df counts CRP_PROCLOSS as-is", {
@@ -1605,6 +1683,59 @@ testthat::test_that("crop categories retain each residue item origin", {
     20
   )
   testthat::expect_equal(sum(out$data), 36)
+})
+testthat::test_that("Oilcrops, other is a primary crop, not a processed item", {
+  # The pin has no "Oilcrops, other" row; before .complete_grafs_crop_types()
+  # filled it, the item fell to the processed-item path, found no
+  # crop-origin support and aborted the whole GRAFS build (#1619).
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      tibble::tibble(item = "Oilcrops, Other", Name_biomass = "Oilcrops, other")
+    },
+    .package = "whep"
+  )
+  flows <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2000,
+    Item = "Oilcrops, Other",
+    Irrig_cat = "Rainfed",
+    Origin = "Cropland",
+    Destiny = "processing_losses",
+    MgN = 5
+  )
+  support <- tibble::tibble(
+    Province_name = character(),
+    Year = numeric(),
+    Item = character(),
+    Name_biomass = character(),
+    Irrig_cat = character(),
+    support_n = numeric()
+  )
+  balance <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2000,
+    LandUse = "Cropland",
+    Name_biomass = "Oilcrops, other",
+    Irrig_cat = "Rainfed",
+    Prod_MgN = 5,
+    UsedResidue_MgN = 0,
+    GrazedWeeds_MgN = 0
+  )
+  lookup <- tibble::tibble(
+    Name_biomass = "Sunflower seed",
+    crop_type = "non_permanent"
+  )
+  out <- whep:::.create_crop_type_n_df(
+    flows,
+    lookup,
+    balance,
+    support,
+    "processing_origin"
+  )
+  testthat::expect_equal(
+    out |> dplyr::filter(label == "{NPErN}") |> dplyr::pull(data),
+    5
+  )
 })
 testthat::test_that("historical chicory root residue has a crop category", {
   testthat::local_mocked_bindings(
