@@ -321,3 +321,31 @@ test_that("eligible impact is typed separately from the original ledger basis", 
   )
   expect_equal(out$impact_quantity_basis, rep("net_consumptive_blue_water", 2))
 })
+
+
+test_that("annual water excludes derived caches but keeps source evidence", {
+  ledger <- .annual_water_ledger()
+  inventory <- .annual_water_inventory()
+  attr(ledger, "source_manifest") <- list(source = "ledger evidence")
+  attr(inventory, "source_manifest") <- list(source = "inventory evidence")
+  clean <- whep::as_annual_livestock_water(ledger, inventory)
+  cache <- list(unrelated_cbs = as.raw(rep(0:255, length.out = 100000)))
+  attr(ledger, ".cb_extracts") <- cache
+  attr(inventory, ".cb_extracts") <- cache
+  out <- whep::as_annual_livestock_water(ledger, inventory)
+  expect_null(attr(out, ".cb_extracts"))
+  expect_null(attr(attr(out, "source_water_ledger"), ".cb_extracts"))
+  expect_null(attr(attr(out, "exposure_inventory"), ".cb_extracts"))
+  expect_identical(out, clean)
+  expect_identical(length(serialize(out, NULL)), length(serialize(clean, NULL)))
+  expect_identical(attr(ledger, ".cb_extracts"), cache)
+  expect_identical(attr(inventory, ".cb_extracts"), cache)
+  expect_identical(
+    attr(attr(out, "source_water_ledger"), "source_manifest"),
+    attr(ledger, "source_manifest")
+  )
+  expect_identical(
+    attr(attr(out, "exposure_inventory"), "source_manifest"),
+    attr(inventory, "source_manifest")
+  )
+})

@@ -39,7 +39,9 @@ row. \code{"partial"} warns and retains all inventory rows, with unknown
 A tibble retaining ledger fields and inventory identities, with
 \code{coverage_status}, \code{impact_u} (eligible consumptive cubic metres only),
 \code{impact_quantity_basis}, \code{method_livestock_water} and \code{polity_year_basis}.
-The source ledger and independent inventory are retained as attributes.
+The source ledger and independent inventory are retained as attributes,
+excluding the unrelated derived CBS extract cache (\code{.cb_extracts}).
+Source provenance columns and other attributes are preserved.
 Structural mismatches
 and invalid annual scope always abort, even under partial coverage.
 }

@@ -43,7 +43,9 @@
 #' @return A tibble retaining ledger fields and inventory identities, with
 #'   `coverage_status`, `impact_u` (eligible consumptive cubic metres only),
 #'   `impact_quantity_basis`, `method_livestock_water` and `polity_year_basis`.
-#'   The source ledger and independent inventory are retained as attributes.
+#'   The source ledger and independent inventory are retained as attributes,
+#'   excluding the unrelated derived CBS extract cache (`.cb_extracts`).
+#'   Source provenance columns and other attributes are preserved.
 #'   Structural mismatches
 #'   and invalid annual scope always abort, even under partial coverage.
 #' @export
@@ -74,6 +76,8 @@ as_annual_livestock_water <- function(
   coverage = c("abort", "partial")
 ) {
   coverage <- rlang::arg_match(coverage)
+  ledger <- .annual_water_uncache(ledger)
+  inventory <- .annual_water_uncache(inventory)
   keys <- c(
     "exposure_id",
     "year",
@@ -125,6 +129,13 @@ as_annual_livestock_water <- function(
   attr(out, "exposure_inventory") <- inventory
   attr(out, "source_water_ledger") <- ledger
   out
+}
+
+.annual_water_uncache <- function(data) {
+  # This derived CBS cache can hold global tables unrelated to these exposures.
+  # Retain the actual ledger and its provenance, not duplicated cache payloads.
+  attr(data, ".cb_extracts") <- NULL
+  data
 }
 
 .annual_water_scope <- function(data, keys) {
