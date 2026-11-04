@@ -1337,6 +1337,16 @@ totals.
 - [`europe_fao_spain_trade`](https://eduaguilera.github.io/whep/reference/europe_fao_spain_trade.md)
   : Spain's historical export and import series, 1849-1960
 
+## Grazing-water methods
+
+Build native grassland evapotranspiration and compare explicitly
+supplied biomass, occupation and economic attribution bases.
+
+- [`build_grazing_water_lpjml()`](https://eduaguilera.github.io/whep/reference/build_grazing_water_lpjml.md)
+  : Build native grassland evapotranspiration from an LPJmL run.
+- [`calculate_grazing_water()`](https://eduaguilera.github.io/whep/reference/calculate_grazing_water.md)
+  : Attribute grazing water with an explicit accounting basis.
+
 ## Multi-regional input-output model
 
 Build and analyze multi-regional input-output (MRIO) models following

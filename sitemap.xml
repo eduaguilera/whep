@@ -83,6 +83,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grassland_intensity_classes.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grassland_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_grazing_feed_footprint.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_grazing_water_lpjml.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_landuse.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_livestock.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_livestock_emissions.html</loc></url>
@@ -135,6 +136,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_crop_roots.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_enteric_ch4.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_food_gini.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/calculate_grazing_water.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_indirect_n2o_nh3.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_livestock_emissions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/calculate_livestock_water.html</loc></url>
