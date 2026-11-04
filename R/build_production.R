@@ -25,7 +25,12 @@
 #'   `item_prod_code`, `unit`, `value`, and one of `area_code` or
 #'   `polity_area_code`. Names such as `item_prod_name`, `item_cbs_name`, and
 #'   `source` are used when present; WHEP item and area tables fill canonical
-#'   names where possible. Observed historical rows are retained, and LUH2 proxy
+#'   names where possible. If supplied, `reporting_polity_code` or `polity_code`
+#'   each nonblank identity must agree with the canonical consumer identity
+#'   for the area and year. Missing or blank identity cells are ignored.
+#'   A mismatch aborts rather than relabelling a whole territory as a component.
+#'   Agreement checks routing, not equivalence of reconstructed source borders.
+#'   Observed historical rows are retained, and LUH2 proxy
 #'   filling can use them as anchors. **Rice supplied here is assumed to be
 #'   on a paddy (rough-rice) basis** and is multiplied by the paddy-to-milled
 #'   extraction rate, because WHEP's rice item is milled equivalent throughout;
@@ -3174,6 +3179,7 @@ build_primary_production <- function(
     raw,
     c("area_code", "polity_area_code")
   )
+  .check_historical_identity(raw, area_code, years)
   item_prod <- .coalesce_historical_cols(
     raw,
     c("item_prod", "item_prod_name")
@@ -3382,6 +3388,64 @@ build_primary_production <- function(
   cli::cli_abort(
     "{.arg historical_data} path must be a {.file .parquet} or {.file .csv} file."
   )
+}
+
+# A source identity describes its reporting footprint. Numeric area keys must
+# not silently replace it (whep#1645). This checks compatibility with the
+# consumer's authority and backcast convention, not historical boundary truth.
+# Rows without an area retain the separate reported-skip contract below.
+.check_historical_identity <- function(raw, area_code, years) {
+  keys <- .historical_identity_keys(raw, area_code) |>
+    dplyr::filter(
+      .data$year %in% years,
+      !is.na(.data$area_code),
+      !is.na(.data$source_polity),
+      .data$source_polity != ""
+    ) |>
+    dplyr::distinct()
+  if (nrow(keys) == 0L) {
+    return(invisible(NULL))
+  }
+  resolved <- add_polity_code(keys)
+  conflict <- is.na(resolved$polity_code) |
+    resolved$source_polity != resolved$polity_code
+  if (any(conflict)) {
+    cli::cli_abort(
+      c(
+        "Historical source identity conflicts with the consumer polity.",
+        "i" = "Check the reporting footprint and year; do not relabel a
+          whole territory as one component."
+      ),
+      class = "whep_error_historical_identity",
+      conflicts = resolved[conflict, ]
+    )
+  }
+  invisible(NULL)
+}
+
+.historical_identity_keys <- function(raw, area_code) {
+  columns <- intersect(c("reporting_polity_code", "polity_code"), names(raw))
+  if (length(columns) == 0L) {
+    return(tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      identity_column = character(),
+      source_polity = character()
+    ))
+  }
+  raw |>
+    dplyr::select(dplyr::all_of(columns)) |>
+    dplyr::mutate(dplyr::across(dplyr::everything(), as.character)) |>
+    dplyr::bind_cols(tibble::tibble(
+      year = suppressWarnings(as.integer(raw$year)),
+      area_code = suppressWarnings(as.integer(as.numeric(area_code)))
+    )) |>
+    tidyr::pivot_longer(
+      dplyr::all_of(columns),
+      names_to = "identity_column",
+      values_to = "source_polity"
+    ) |>
+    dplyr::mutate(source_polity = stringr::str_trim(.data$source_polity))
 }
 
 .empty_historical_production <- function() {
