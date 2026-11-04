@@ -18,6 +18,7 @@ authors:
 reference:
 - title: Direct livestock water
   contents:
+  - as_annual_livestock_water
   - calculate_livestock_water
   - estimate_dairy_drinking
 - title: Build datasets

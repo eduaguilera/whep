@@ -683,7 +683,9 @@ test_that("every year-free territorial grouping is classified", {
   # 158 with whep#1618: the FAOSTAT area/ISO3 vocabulary the FishStat ISO3
   # check reads (+1). Re-derived by running
   # `sum(.territorial_grouping_baseline()$n)`.
-  expect_lte(sum(full$n), 158L)
+  # 159: annual livestock water reduces canonical reporting-year metadata
+  # to each polity's final reporting year (year_axis); measured on this tree.
+  expect_lte(sum(full$n), 159L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
