@@ -657,6 +657,14 @@ reference:
   - plot_national_trade_validation
   - europe_fao_spain_trade
 
+- title: Grazing-water methods
+  desc: >
+    Build native grassland evapotranspiration and compare explicitly supplied
+    biomass, occupation and economic attribution bases.
+  contents:
+  - build_grazing_water_lpjml
+  - calculate_grazing_water
+
 - title: Multi-regional input-output model
   desc: >
     Build and analyze multi-regional input-output (MRIO) models following the FABIO framework.
