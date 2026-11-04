@@ -259,9 +259,9 @@ assumed zero (USDA derivation Z) and is not interchangeable with vitamin
 A activity. This interpretation does not standardize the activity basis
 of other rows in the inherited column. Sources:
 <https://ciqual.anses.fr/> (2020 English workbook, sheet `compo`) and
-<https://fdc.nal.usda.gov/food-details/173021/nutrients> (SR Legacy
-April 2018 archive). These are nutrient-specific reference values per
-edible portion, not a paired drying experiment or a claim that every fig
+<https://fdc.nal.usda.gov/download-datasets/> (SR Legacy April 2018
+archive). These are nutrient-specific reference values per edible
+portion, not a paired drying experiment or a claim that every fig
 cultivar has the same composition. No common energy or moisture
 multiplier is applied across nutrients. Agronomic nitrogen, dry matter,
 and the other inherited fig cells are unchanged and are not validated by
@@ -307,11 +307,11 @@ with an `Edible_portion` of 1 the shell was counted as food, 200 g of
 protein per kg against an FBS density of 46.6, 4.3x. The edible fraction
 is FAO's own food-composition factor for the FBS, in-shell protein over
 shelled protein per 100 g (FAO, *Food balance sheets: a handbook*, Rome,
-2001, Annex I, <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>,
-PDF page 65): almonds 8.0 / 20.0 = **0.4**, walnuts 6.4 / 14.3 =
-**0.4476**, hazelnuts 6.0 / 13.0 = **0.4615**. The shelled figures are
-this table's own kernel densities to within 8% (20.0, 14.0, 14.1 g/100
-g). FAO's *Technical conversion factors for agricultural commodities*
+2001, Annex I, <https://www.fao.org/4/x9892e/x9892e00.pdf>, PDF page
+65): almonds 8.0 / 20.0 = **0.4**, walnuts 6.4 / 14.3 = **0.4476**,
+hazelnuts 6.0 / 13.0 = **0.4615**. The shelled figures are this table's
+own kernel densities to within 8% (20.0, 14.0, 14.1 g/100 g). FAO's
+*Technical conversion factors for agricultural commodities*
 (<https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf>)
 corroborates the range: its per-country shelled-from-unshelled
 extraction rates run 30-65% for almonds (median 35), 35-70% for walnuts
@@ -562,14 +562,13 @@ protein or energy (whep#970). Two sources fill it, one per use:
   `Edible_portion`): FAO's own composition factor for the item, read
   from FAO, *Food balance sheets: a handbook*, Rome, 2001, Annex I "Food
   composition in terms of retail weight", row `AQUATIC PLANTS`, PDF page
-  68 (printed 64),
-  <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>: 54 kcal, 2.8
-  g protein and 0.6 g fat per 100 g of the commodity as recorded, i.e.
-  fresh. So nitrogen is 2.8 / 100 / 6.25 = 0.00448 kg per kg, the energy
-  cell holds 540 kcal, 2.25936 MJ, per kg, and `Edible_portion` is 1
-  because FAO applies the factor to the recorded quantity directly. The
-  energy is FAO's dietary energy, not bomb-calorimeter gross energy: it
-  is what
+  68 (printed 64), <https://www.fao.org/4/x9892e/x9892e00.pdf>: 54 kcal,
+  2.8 g protein and 0.6 g fat per 100 g of the commodity as recorded,
+  i.e. fresh. So nitrogen is 2.8 / 100 / 6.25 = 0.00448 kg per kg, the
+  energy cell holds 540 kcal, 2.25936 MJ, per kg, and `Edible_portion`
+  is 1 because FAO applies the factor to the recorded quantity directly.
+  The energy is FAO's dietary energy, not bomb-calorimeter gross energy:
+  it is what
   [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
   turns into `energy_kcal_cap_day`, against FBS element 664. Oracle:
   FAOSTAT FBS item 2775, World (area 5000), 2010, implies 26.5 g protein
