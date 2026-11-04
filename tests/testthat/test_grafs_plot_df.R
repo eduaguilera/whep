@@ -1685,9 +1685,10 @@ testthat::test_that("crop categories retain each residue item origin", {
   testthat::expect_equal(sum(out$data), 36)
 })
 testthat::test_that("Oilcrops, other is a primary crop, not a processed item", {
-  # The pin has no "Oilcrops, other" row; before .complete_grafs_crop_types()
-  # filled it, the item fell to the processed-item path, found no
-  # crop-origin support and aborted the whole GRAFS build (#1619).
+  # Crop-category pins before 20261104T143510Z-c3862 had no "Oilcrops, other"
+  # row, so the item fell to the processed-item path, found no crop-origin
+  # support and aborted the whole GRAFS build (#1619). With the type in the
+  # lookup it is a primary crop.
   testthat::local_mocked_bindings(
     whep_read_file = function(...) {
       tibble::tibble(item = "Oilcrops, Other", Name_biomass = "Oilcrops, other")
@@ -1722,7 +1723,7 @@ testthat::test_that("Oilcrops, other is a primary crop, not a processed item", {
     GrazedWeeds_MgN = 0
   )
   lookup <- tibble::tibble(
-    Name_biomass = "Sunflower seed",
+    Name_biomass = c("Sunflower seed", "Oilcrops, other"),
     crop_type = "non_permanent"
   )
   out <- whep:::.create_crop_type_n_df(
@@ -1775,7 +1776,7 @@ testthat::test_that("historical chicory root residue has a crop category", {
     GrazedWeeds_MgN = 0
   )
   lookup <- tibble::tibble(
-    Name_biomass = "Roots, other",
+    Name_biomass = c("Roots, other", "Chicory roots"),
     crop_type = "non_permanent"
   )
   out <- whep:::.create_crop_type_n_df(

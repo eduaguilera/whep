@@ -696,8 +696,17 @@ create_grafs_plot_df <- function(
   method_crop_allocation = "pooled_equal"
 ) {
   n_balance <- whep_read_file("n_balance_ygpit_all")
-  crop_lookup <- whep_read_file("grafs_crop_categories") |>
-    .complete_grafs_crop_types()
+  # From version 20261104T143510Z-c3862 the pin types chicory roots (FADN
+  # 10690) and "Oilcrops, other" (castor, jojoba, melonseed, other oil seeds
+  # n.e.c.; FADN 10608) as non_permanent: FADN RI/CC 1680 v1.3, March 2015,
+  # Table I p.53 lists both under industrial crops, and p.57 excludes
+  # industrial plants from permanent crops even if botanically perennial.
+  # This is a reporting category, not a botanical life-cycle claim. Without a
+  # type, "Oilcrops, other" reads as a processed item and aborts the
+  # processing-origin allocation (#1619, #1620).
+  # https://fadn.pl/wp-content/uploads/2012/12/
+  # RICC-1680-v1.3-accounting-year-2014.pdf
+  crop_lookup <- whep_read_file("grafs_crop_categories")
 
   permanent_biomass <- .biomass_of_type(crop_lookup, "permanent")
   horticulture_biomass <- .biomass_of_type(crop_lookup, "horticulture")
@@ -862,7 +871,6 @@ create_grafs_plot_df <- function(
   method_crop_allocation = c("pooled_equal", "processing_origin")
 ) {
   method_crop_allocation <- rlang::arg_match(method_crop_allocation)
-  crop_lookup <- .complete_grafs_crop_types(crop_lookup)
   item_lookup <- whep_read_file("codes_coefs_items_full") |>
     dplyr::select(Item = item, Name_biomass)
 
@@ -2306,22 +2314,4 @@ create_grafs_plot_df <- function(
       data = sum(MgN, na.rm = TRUE),
       .by = c(Province_name, Year)
     )
-}
-
-
-# The curated crop-category pin omits two industrial crops the historical crop
-# input contains: chicory roots (1961-2001) and "Oilcrops, other" (castor,
-# jojoba, melonseed, other oil seeds n.e.c.; Spain 1860-2023). Without a type,
-# "Oilcrops, other" reads as a processed item and aborts the processing-origin
-# allocation (#1619).
-.complete_grafs_crop_types <- function(crop_lookup) {
-  supplements <- tibble::tribble(
-    ~Name_biomass,     ~crop_type,
-    "Chicory roots",   "non_permanent",
-    "Oilcrops, other", "non_permanent"
-  )
-  dplyr::bind_rows(
-    crop_lookup,
-    dplyr::anti_join(supplements, crop_lookup, by = "Name_biomass")
-  )
 }
