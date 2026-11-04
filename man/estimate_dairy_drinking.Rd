@@ -46,6 +46,8 @@ Table 3.8 (\url{https://waterfootprint.org/resources/Report13.pdf}): mean of
 industrial 70 and grazing 40 L/day. Its adult lactation
 assumption is a sensitivity, not an observed population coefficient.
 Neither method includes service water, leakage or net consumption.
+Existing generated rate, quantity and method columns are rejected rather
+than overwritten; supply the original predictor/exposure columns.
 }
 \examples{
 # Published rounded means/exposure, not raw individual cow-day records.

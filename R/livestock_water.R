@@ -9,6 +9,8 @@
 #' Drinking intake or water requirements are not automatically withdrawals or
 #' net consumptive blue water. No demographic or consumption fraction is
 #' inferred. Supplied provenance is an attestation, not verified evidence.
+#' Existing generated output columns and conflicting join columns abort
+#' rather than silently replacing prior quantities or provenance.
 #'
 #' @param exposure Tibble with `item_cbs_code`, `cohort`, `production_system`,
 #'   `animal_days`, `rate_id`, `assessment_period`, `exposure_source`, and
@@ -57,6 +59,16 @@
 #' )
 #' calculate_livestock_water(x, rates)
 calculate_livestock_water <- function(exposure, rates, consumption = NULL) {
+  outputs <- c(
+    "drinking_m3",
+    "service_m3",
+    "direct_water_m3",
+    "consumption_m3",
+    "coverage_direct_water"
+  )
+  .livestock_water_no_output(exposure, outputs)
+  .livestock_water_no_output(rates, outputs)
+  .livestock_water_no_output(consumption, outputs)
   keys <- c("rate_id", "item_cbs_code", "cohort", "production_system")
   .livestock_water_schema(
     exposure,
@@ -147,6 +159,8 @@ calculate_livestock_water <- function(exposure, rates, consumption = NULL) {
 #' industrial 70 and grazing 40 L/day. Its adult lactation
 #' assumption is a sensitivity, not an observed population coefficient.
 #' Neither method includes service water, leakage or net consumption.
+#' Existing generated rate, quantity and method columns are rejected rather
+#' than overwritten; supply the original predictor/exposure columns.
 #'
 #' @param data Tibble with `animal_days`, `item_cbs_code` (960), `cohort`
 #'   (`"lactating"`), and `production_system`. Cardot methods require
@@ -189,6 +203,18 @@ estimate_dairy_drinking <- function(
 ) {
   method <- rlang::arg_match(method)
   extrapolation <- rlang::arg_match(extrapolation)
+  .livestock_water_no_output(
+    data,
+    c(
+      "drinking_l_day",
+      "drinking_m3",
+      "water_extrapolated",
+      "method_drinking_water",
+      "drinking_rate_source",
+      "drinking_rate_basis",
+      "quantity_basis"
+    )
+  )
   .livestock_water_schema(
     data,
     c(
@@ -234,6 +260,16 @@ estimate_dairy_drinking <- function(
         "free_drinking_intake"
       }
     )
+}
+
+.livestock_water_no_output <- function(data, columns) {
+  conflicting <- intersect(names(data), columns)
+  if (length(conflicting)) {
+    cli::cli_abort(
+      "Livestock-water inputs must not overwrite columns: {.field {conflicting}}.",
+      class = "whep_livestock_water_input"
+    )
+  }
 }
 
 .livestock_water_schema <- function(data, columns, allow_na = character()) {
@@ -289,6 +325,7 @@ estimate_dairy_drinking <- function(
   if (is.null(consumption)) {
     return(dplyr::mutate(out, consumption_m3 = NA_real_))
   }
+  .livestock_water_no_output(consumption, setdiff(names(out), "rate_id"))
   .livestock_water_schema(
     consumption,
     c(

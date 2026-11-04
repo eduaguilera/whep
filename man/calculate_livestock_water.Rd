@@ -50,6 +50,8 @@ ISBN 978-92-5-131713-6.
 Drinking intake or water requirements are not automatically withdrawals or
 net consumptive blue water. No demographic or consumption fraction is
 inferred. Supplied provenance is an attestation, not verified evidence.
+Existing generated output columns and conflicting join columns abort
+rather than silently replacing prior quantities or provenance.
 }
 \examples{
 x <- tibble::tibble(

@@ -283,3 +283,86 @@ testthat::test_that("empirical rates retain their own source and modelling basis
   legacy <- whep::estimate_dairy_drinking(.water_intake_case(), "legacy_adult")
   testthat::expect_identical(legacy$drinking_rate_basis, "assumed")
 })
+
+testthat::test_that("accounting refuses to erase supplied output quantities", {
+  outputs <- c(
+    "drinking_m3",
+    "service_m3",
+    "direct_water_m3",
+    "consumption_m3",
+    "coverage_direct_water"
+  )
+  purrr::walk(outputs, function(column) {
+    x <- .water_cohort_fixture()
+    x[[column]] <- 777
+    testthat::expect_error(
+      whep::calculate_livestock_water(x, .water_rates_fixture()),
+      class = "whep_livestock_water_input"
+    )
+    rates <- .water_rates_fixture()
+    rates[[column]] <- 999
+    testthat::expect_error(
+      whep::calculate_livestock_water(.water_cohort_fixture(), rates),
+      class = "whep_livestock_water_input"
+    )
+  })
+})
+
+testthat::test_that("estimation refuses to erase supplied rates or their basis", {
+  outputs <- c(
+    "drinking_l_day",
+    "drinking_m3",
+    "water_extrapolated",
+    "method_drinking_water",
+    "drinking_rate_source",
+    "drinking_rate_basis",
+    "quantity_basis"
+  )
+  purrr::walk(outputs, function(column) {
+    x <- .dairy_water_fixture()
+    x[[column]] <- 777
+    testthat::expect_error(
+      whep::estimate_dairy_drinking(x),
+      class = "whep_livestock_water_input"
+    )
+    testthat::expect_error(
+      whep::estimate_dairy_drinking(x, "legacy_adult"),
+      class = "whep_livestock_water_input"
+    )
+  })
+})
+
+testthat::test_that("consumption joins reject conflicting quantities and context", {
+  x <- .water_cohort_fixture()
+  rates <- .water_rates_fixture()
+  fractions <- tibble::tibble(
+    rate_id = rates$rate_id,
+    drinking_fraction = 0.8,
+    service_fraction = 0.05,
+    consumption_source = "Assumed fixture",
+    consumption_basis = "assumed"
+  )
+  purrr::walk(
+    c(
+      "consumption_m3",
+      "drinking_m3",
+      "year",
+      "animal_days",
+      "quantity_basis",
+      "coverage_direct_water"
+    ),
+    function(column) {
+      conflicting <- fractions
+      conflicting[[column]] <- 999
+      testthat::expect_error(
+        whep::calculate_livestock_water(x, rates, conflicting),
+        class = "whep_livestock_water_input"
+      )
+    }
+  )
+  x$consumption_source <- "Existing source must not be replaced"
+  testthat::expect_error(
+    whep::calculate_livestock_water(x, rates, fractions),
+    class = "whep_livestock_water_input"
+  )
+})
