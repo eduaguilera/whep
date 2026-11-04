@@ -787,6 +787,11 @@ not carry. A `unit` column says each row's denomination: `"tonnes"`, or
 `"heads"` for the live-animal rows (see
 [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)).
 
+The `palm_kernel_support` attribute records the queried old-vintage
+history and annual new-vintage oil proxy support, including supplied
+empty inputs, row counts and partial-member exclusions. Reading that
+support does not expand the requested output years.
+
 `fao_flag` is FAOSTAT's own observation-status code for the value, taken
 from the source that `source` names (`"A"` official, `"E"` estimated,
 `"I"` imputed, `"S"` standardized, `"SD"`, `"X"`). It is `NA` wherever

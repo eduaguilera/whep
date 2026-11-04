@@ -780,6 +780,10 @@ observations; <code>input_accounts</code> the raw ones, in each source's own cod
 unit, sign and pin version; and <code>unmatched_source_accounts</code> any
 observation on a key the balance does not carry. A <code>unit</code> column says each row's denomination:
 <code>"tonnes"</code>, or <code>"heads"</code> for the live-animal rows (see <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>).</p>
+<p>The <code>palm_kernel_support</code> attribute records the queried old-vintage
+history and annual new-vintage oil proxy support, including supplied
+empty inputs, row counts and partial-member exclusions. Reading that
+support does not expand the requested output years.</p>
 <p><code>fao_flag</code> is FAOSTAT's own observation-status code for the value, taken
 from the source that <code>source</code> names (<code>"A"</code> official, <code>"E"</code> estimated,
 <code>"I"</code> imputed, <code>"S"</code> standardized, <code>"SD"</code>, <code>"X"</code>). It is <code>NA</code> wherever
