@@ -2,6 +2,8 @@
 
 ## Direct livestock water
 
+- [`as_annual_livestock_water()`](https://eduaguilera.github.io/whep/reference/as_annual_livestock_water.md)
+  : Validate annual livestock consumption against cohort exposure.
 - [`calculate_livestock_water()`](https://eduaguilera.github.io/whep/reference/calculate_livestock_water.md)
   : Account for cohort-specific direct livestock water.
 - [`estimate_dairy_drinking()`](https://eduaguilera.github.io/whep/reference/estimate_dairy_drinking.md)
