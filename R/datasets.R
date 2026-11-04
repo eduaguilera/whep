@@ -243,7 +243,7 @@
 #'   `Edible_portion`): FAO's own composition factor for the item, read from
 #'   FAO, *Food balance sheets: a handbook*, Rome, 2001, Annex I "Food
 #'   composition in terms of retail weight", row `AQUATIC PLANTS`, PDF page
-#'   68 (printed 64), <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>:
+#'   68 (printed 64), <https://www.fao.org/4/x9892e/x9892e00.pdf>:
 #'   54 kcal, 2.8 g protein and 0.6 g fat per 100 g of the commodity as
 #'   recorded, i.e. fresh. So nitrogen is 2.8 / 100 / 6.25 = 0.00448 kg per
 #'   kg, the energy cell holds 540 kcal, 2.25936 MJ, per kg, and
@@ -479,7 +479,7 @@
 #' A activity. This interpretation does
 #' not standardize the activity basis of other rows in the inherited column.
 #' Sources: <https://ciqual.anses.fr/> (2020 English workbook, sheet `compo`)
-#' and <https://fdc.nal.usda.gov/food-details/173021/nutrients>
+#' and <https://fdc.nal.usda.gov/download-datasets/>
 #' (SR Legacy April 2018 archive). These are nutrient-specific reference
 #' values per edible portion, not a paired drying experiment or a claim that
 #' every fig cultivar has the same composition. No common energy or moisture
@@ -522,7 +522,7 @@
 #' kg against an FBS density of 46.6, 4.3x. The edible fraction is FAO's own
 #' food-composition factor for the FBS, in-shell protein over shelled
 #' protein per 100 g (FAO, *Food balance sheets: a handbook*, Rome, 2001,
-#' Annex I, <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>, PDF
+#' Annex I, <https://www.fao.org/4/x9892e/x9892e00.pdf>, PDF
 #' page 65): almonds 8.0 / 20.0 = **0.4**, walnuts 6.4 / 14.3 = **0.4476**,
 #' hazelnuts 6.0 / 13.0 = **0.4615**. The shelled figures are this table's
 #' own kernel densities to within 8% (20.0, 14.0, 14.1 g/100 g). FAO's
@@ -1399,8 +1399,8 @@
 #' @source Eurostat dissemination API
 #'   ([API guide](https://ec.europa.eu/eurostat/web/user-guides/data-browser/api-data-access/api-getting-started/sdmx2.1)), dataflows
 #'   `apro_cpshr`, `apro_cpnhr_h`, `apro_mt_ls_r` and `ef_lsk_poultry`; IBGE
-#'   SIDRA aggregate metadata
-#'   (<https://servicodados.ibge.gov.br/api/v3/agregados>), tables 5457,
+#'   SIDRA aggregate metadata from the IBGE aggregates API v3
+#'   ([API documentation](https://servicodados.ibge.gov.br/api/docs/agregados?versao=3)), tables 5457,
 #'   3939 and 94; Ronchetti, G. et al. (2024). Harmonized European Union
 #'   subnational crop statistics reveal climate impacts and crop cultivation
 #'   shifts. *Earth System Science Data*, 16, 1623-1649.

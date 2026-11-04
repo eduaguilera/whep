@@ -606,7 +606,8 @@ survives, so the issue can be rescoped rather than closed by accident.
 The function catalogue (primary production, CBS, soil water/carbon/
 nitrogen, footprints, LPJmL pins) moved to
 `agent-reference/data-pipeline.md`. Read it before touching a pipeline
-stage or a pin.
+stage or a pin, including the shared LPJmL output-family registry and
+regeneration guards.
 
 ## Package data updates
 

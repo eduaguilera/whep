@@ -2797,6 +2797,14 @@ utils::globalVariables(
     "r_export",
     "r_import",
     "rebase_old_new",
+    # fbs_vintage_rebase.R (whep#1550) -- rebase destinies beyond food
+    "in_food",
+    "in_feed",
+    "room_food",
+    "room_feed",
+    "cut_feed",
+    "cut_food",
+    "r_feed",
     # livestock_manure.R (whep#601) -- the 2019 Tier 1 N excretion table
     "ipcc_n_excretion_tier1",
     # grafs_plot_df.R: resolved source-geography joins and support coverage.
@@ -2809,12 +2817,41 @@ utils::globalVariables(
     "residue_mgn",
     # polity_source_targets.R -- source-specific territorial interval join.
     "source_area_code",
+    # reporting_support.R -- source footprints and physical domain audit.
+    "domain_area_ha",
+    "domain_land_area_ha",
+    "domain_water_ha",
+    "domain_ice_free_ha",
+    "domain_water_excess_ha",
+    "water_fraction_ice_free",
+    "reporting_land_ha",
+    "unrepresented_land_ha",
+    "measured_land_area_ha",
+    "measured_reporting_land_ha",
+    "area_adjustment_ha",
+    "overlap_ha",
     # typologies_uaa_sensitivity.R -- duplicate source aliases.
     "uaa_source_labels",
     # Append sentinel. Keeps every entry above it comma-terminated, so two
     # branches appending at once merge into valid R; `c()` drops it.
     # cbs_coverage.R — bucket source-policy stamp (whep#1481).
     "method_cbs_coverage",
+    # cbs_source_accounts.R, conservation.R (whep#412) -- source accounts
+    "accounting_balanced",
+    "accounting_diff",
+    "balance_discrepancy",
+    "flow_use",
+    "losses",
+    "method_cbs_account",
+    "residuals",
+    "source_alias",
+    "source_element",
+    "source_item_code",
+    "source_rank",
+    "source_stock_convention",
+    "source_unit",
+    "tourist_consumption",
+    "version",
     NULL
   )
 )

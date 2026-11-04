@@ -2554,3 +2554,77 @@
     )
   list(n_balance_drivers = loss, n_balance_leaching_drivers = leaching)
 }
+
+# Eight cells of the IMAGE-GNM supplement's two runoff layers
+# (doi:10.5194/gmd-8-4045-2015-supplement), as read_image_gnm_runoff()
+# returns them: flat to mountainous cells in the Netherlands, the Alps, Iowa,
+# central Spain, the Nile delta, Sichuan, central India and Amazonia.
+.example_image_gnm_runoff <- function() {
+  tibble::tribble(
+    ~lon,    ~lat,  ~surface_runoff_fraction, ~slope_m_per_km,
+    5.25,    52.25, 0.0135612,                1.2113556,
+    10.25,   46.25, 0.5247850,                220.75122,
+    -93.25,  41.75, 0.0532064,                6.0198779,
+    -3.75,   40.25, 0.1117080,                11.114079,
+    31.25,   30.25, 0.0339244,                3.1460800,
+    100.25,  30.25, 0.5223400,                114.84342,
+    78.25,   22.25, 0.2886630,                26.057310,
+    -60.25,  -3.25, 0.0485854,                3.6591377
+  ) |>
+    dplyr::mutate(source_image_gnm = "doi:10.5194/gmd-8-4045-2015-supplement")
+}
+
+# Native 2010 readback from LPJmL 6.1.1, commit e6e6c42b. The small blue
+# depths are retained as recorded, including on rainfed grass stands.
+.example_grazing_water_lpjml <- function() {
+  run <- paste0(
+    "global_1750-2023_spinup_300_our_inputs_lpjml611_preindus",
+    "trial_v2/scenario_1, started Mon Aug 31 14:13:10 2026"
+  )
+  basis <- paste0(
+    "grid_scaled=false; config SHA-256 be1e9ca7224aafa63faa60",
+    "354649ddd8e6acffaeb0ac91ffb9e8db6652af083a"
+  )
+  tibble::tribble(
+    ~component,
+    ~lon,
+    ~lat,
+    ~water_mm,
+    ~stand_frac,
+    ~cell_area_ha,
+    ~grass_area_ha,
+    ~grass_water_m3,
+    "blue", -176.25, -43.75,
+    2.3827470487132463e-13, 0.009115466848015785,
+    223287.6213862137, 2035.3709103183314, 4.849774029597797e-9,
+    "green", -176.25, -43.75,
+    576.3916015625, 0.009115466848015785,
+    223287.6213862137, 2035.3709103183314, 11731706.987721065,
+    "blue", -172.25, -13.75,
+    3.4847024896721146e-13, 0.007305257022380829,
+    300248.4505214371, 2193.3921016306913, 7.64331891737962e-9,
+    "green", -172.25, -13.75,
+    1257.2015380859375, 0.007305257022380829,
+    300248.4505214371, 2193.3921016306913, 27575359.23795652,
+    "blue", -156.25, 20.75,
+    0.0001253153313882649, 0.15165260434150696,
+    289056.66341646475, 43836.195809373276, 54.933474046524815,
+    "green", -156.25, 20.75,
+    1126.78564453125, 0.15165260434150696,
+    289056.66341646475, 43836.195809373276, 493939961.4886275
+  ) |>
+    dplyr::mutate(
+      year = 2010L,
+      band_name = "rainfed grassland",
+      water_input_status = "supplied",
+      source_water = "LPJmL_native_grassland_ET",
+      lpjml_version = "LPJmL C Version 6.1.1",
+      lpjml_git_hash = "e6e6c42b88354f4a0df945e55f2ccf3c4a3cb605",
+      lpjml_run = run,
+      water_input_basis = "stand",
+      source_water_basis = basis,
+      water_scenario = run,
+      source_fraction_basis = basis
+    ) |>
+    dplyr::relocate("year", "band_name", .after = "lat")
+}

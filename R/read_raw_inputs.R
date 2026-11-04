@@ -214,7 +214,10 @@
     "Feed" = "feed",
     "Seed" = "seed",
     "Processing" = "processing",
-    "Production" = "production"
+    "Production" = "production",
+    "Losses" = "losses",
+    "Residuals" = "residuals",
+    "Tourist consumption" = "tourist_consumption"
   )
   # "Processed" (element 5023, Commodity Balances (non-food) from the
   # 2026-06-15 release) is deliberately left unmapped, so .extract_fao()
@@ -680,6 +683,9 @@
     "seed",
     "processing",
     "other_uses",
+    "losses",
+    "residuals",
+    "tourist_consumption",
     keep_elements
   )
 
@@ -717,9 +723,12 @@
   if ("Flag" %in% names(dt)) {
     data.table::setnames(dt, "Flag", "fao_flag")
   }
+  # Keep the original source quantity and unit before any harmonization.
+  source_accounts <- .cbs_input_account_records(dt, pin_alias)
   # Before anything normalises the label into an ordinary-looking string.
   .assert_unit_labels(dt$unit, pin_alias)
   dt <- .harmonize_element_names(dt)
+  dt <- .normalise_fao_stock_sign(dt, pin_alias)
   if (!is.null(elements)) {
     dt <- dt[element %in% elements]
   }
@@ -766,6 +775,8 @@
       names(out)
     )
   )
+  data.table::setattr(out, "source_accounts", source_accounts)
+  data.table::setattr(out, "stock_convention", "addition_positive")
   out
 }
 
@@ -795,8 +806,21 @@
   members <- attr(dt, "bucket_members")
   out <- merge(dt, items, by = "item_cbs_code", sort = FALSE)
   # `merge()` drops the member record `.aggregate_to_polities()` wrote, and the
-  # CBS needs it to see a bucket two sources sum differently (whep#588).
+  # CBS needs it to see a bucket two sources sum differently (whep#588). It
+  # drops the source account ledger and the stock-sign marker too (whep#412).
   data.table::setattr(out, "bucket_members", members)
+  data.table::setattr(out, "source_accounts", attr(dt, "source_accounts"))
+  data.table::setattr(out, "stock_convention", attr(dt, "stock_convention"))
+  data.table::setattr(
+    out,
+    "cbs_extract_query",
+    list(
+      pin_alias = pin_alias,
+      all_years = is.null(years),
+      years = years,
+      elements = elements
+    )
+  )
   # Pin the row order. Nothing above this line pins one: `.read_input()` reads
   # the parquet through arrow's multi-threaded scanner, whose row order varies
   # between sessions, and neither the `by=` aggregation in

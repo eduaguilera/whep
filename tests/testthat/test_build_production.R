@@ -1579,6 +1579,10 @@ test_that(".prepare_historical_production reports rows with no area", {
     1800L, NA,         NA,                "TAN-1891-1920",     "15",            "tonnes", 7
   )
 
+  historical$polity_code[1L] <- whep::add_polity_code(
+    tibble::tibble(area_code = 203L, year = 1950L)
+  )$polity_code
+
   expect_message(
     result <- whep:::.prepare_historical_production(
       historical,
@@ -3519,4 +3523,66 @@ test_that("the label goes back on each row from its own bucket-year", {
     )
   )
   expect_s3_class(result, "tbl_df")
+})
+
+test_that("historical rows reject a conflicting reporting identity", {
+  historical <- tibble::tribble(
+    ~year, ~area_code, ~reporting_polity_code, ~item_prod_code, ~unit, ~value,
+    1950L, 165L, "PAK-1949-1971", "156", "tonnes", 7849000
+  )
+  expect_error(
+    whep:::.prepare_historical_production(historical, 1950L),
+    class = "whep_error_historical_identity"
+  )
+  historical$reporting_polity_code <- "unknown-source-identity"
+  expect_error(
+    whep:::.prepare_historical_production(historical, 1950L),
+    class = "whep_error_historical_identity"
+  )
+  historical$reporting_polity_code <- "PAK-WP-1949-1971"
+  out <- whep:::.prepare_historical_production(historical, 1950L)
+  expect_equal(out$value, historical$value)
+  expect_equal(out$area_code, historical$area_code)
+})
+test_that("every supplied historical identity is checked", {
+  x <- tibble::tribble(
+    ~year, ~area_code, ~reporting_polity_code, ~polity_code, ~item_prod_code, ~unit, ~value,
+    1950L, 165L, "PAK-WP-1949-1971", "PAK-1949-1971", "156", "tonnes", 7849000
+  )
+  expect_error(
+    whep:::.prepare_historical_production(x, 1950L),
+    class = "whep_error_historical_identity"
+  )
+  x$reporting_polity_code <- ""
+  expect_error(
+    whep:::.prepare_historical_production(x, 1950L),
+    class = "whep_error_historical_identity"
+  )
+  x$polity_code <- "PAK-WP-1949-1971"
+  expect_equal(whep:::.prepare_historical_production(x, 1950L)$value, x$value)
+  x$reporting_polity_code <- NA_character_
+  expect_equal(whep:::.prepare_historical_production(x, 1950L)$value, x$value)
+  x$reporting_polity_code <- "  "
+  expect_equal(whep:::.prepare_historical_production(x, 1950L)$value, x$value)
+})
+
+test_that("legacy identities and unresolved areas have explicit behavior", {
+  x <- tibble::tribble(
+    ~year, ~area_code, ~polity_code, ~item_prod_code, ~unit, ~value,
+    1950L, 165L, "PAK-WP-1949-1971", "156", "tonnes", 7849000
+  )
+  expect_equal(whep:::.prepare_historical_production(x, 1950L)$value, x$value)
+  x$polity_code <- "PAK-1949-1971"
+  expect_error(
+    whep:::.prepare_historical_production(x, 1950L),
+    class = "whep_error_historical_identity"
+  )
+  x$area_code <- 999999L
+  expect_error(
+    whep:::.prepare_historical_production(x, 1950L),
+    class = "whep_error_historical_identity"
+  )
+  x$area_code <- 165L
+  x$polity_code <- NA_character_
+  expect_equal(whep:::.prepare_historical_production(x, 1950L)$value, x$value)
 })

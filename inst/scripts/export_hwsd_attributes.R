@@ -40,6 +40,21 @@
 #   FAO/IIASA/ISRIC/ISSCAS/JRC (2012) "Harmonized World Soil Database
 #   version 1.2" -- attribute database field list, T_USDA_TEX_CLASS,
 #   T_PH_H2O and T_CLAY (Topsoil Clay Fraction, % wt.).
+#
+# drainage is the HWSD field DRAINAGE (code 1-7, the drainage class on a
+# 0-0.5% slope), exported as the CODE and not its label:
+# whep::read_soil_drainage() maps the codes to the IMAGE-GNM drainage classes.
+# The labels of this SQLite conversion are not trustworthy: d_drainage holds
+# "* TRIAL *" for code 1, and d_usda_tex_class and d_swr hold the same marker
+# for codes the documentation prints in full. HWSD.mdb and HWSD_META.mdb, the
+# official files, give code 1 as "Very Poor".
+#
+# su_symbol74 and su_symbol90 are the FAO-74 and FAO-90 soil unit symbols
+# (d_symbol74.symbol and d_symbol90.symbol, joined on su_code74 and su_code90).
+# whep::read_soil_texture_fao() reads them to find Histosols, which are the
+# organic soils. Every row carries a FAO-74 or a FAO-90 symbol, so the FAO-85
+# symbols, which only occur beside a FAO-90 one, are not needed. The symbols
+# are exported because the labels of both tables also hold "* TRIAL *".
 
 hwsd_dir <- Sys.getenv("WHEP_HWSD_DIR")
 if (!nzchar(hwsd_dir)) {
@@ -57,12 +72,30 @@ if (!file.exists(sqlite_path)) {
 db <- DBI::dbConnect(RSQLite::SQLite(), sqlite_path)
 hwsd_attr <- DBI::dbGetQuery(
   db,
-  "SELECT mu_global, t_usda_tex_class AS t_usda_tex, share, t_clay, t_ph_h2o,
-          t_sand, t_silt, t_oc, t_bulk_density, t_ref_bulk_density,
-          t_gravel
-   FROM hwsd_data"
+  "SELECT h.mu_global, h.t_usda_tex_class AS t_usda_tex, h.share, h.t_clay,
+          h.t_ph_h2o, h.t_sand, h.t_silt, h.t_oc, h.t_bulk_density,
+          h.t_ref_bulk_density, h.t_gravel, h.drainage,
+          s74.symbol AS su_symbol74, s90.symbol AS su_symbol90
+   FROM hwsd_data AS h
+   LEFT JOIN d_symbol74 AS s74 ON s74.code = h.su_code74
+   LEFT JOIN d_symbol90 AS s90 ON s90.code = h.su_code90
+   ORDER BY h.id"
 )
+n_source_rows <- DBI::dbGetQuery(db, "SELECT count(*) AS n FROM hwsd_data")$n
 DBI::dbDisconnect(db)
+
+# The joins are on the primary keys of the symbol tables, so they cannot change
+# the number of rows; a changed count means a join duplicated or dropped
+# components.
+if (nrow(hwsd_attr) != n_source_rows) {
+  stop(
+    "The export holds ",
+    nrow(hwsd_attr),
+    " rows but hwsd_data holds ",
+    n_source_rows,
+    "; the symbol joins duplicated or dropped components."
+  )
+}
 
 hwsd_attr <- tibble::as_tibble(hwsd_attr)
 

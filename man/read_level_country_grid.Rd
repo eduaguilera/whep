@@ -20,7 +20,9 @@ read_level_country_grid(
 is today's cell-to-\code{area_code} grid.}
 
 \item{support}{Polycell support table in the \code{\link[=build_polycell_support]{build_polycell_support()}}
-grain, overriding \code{\link[=read_polycell_support]{read_polycell_support()}}. Not read at \code{level = 0L}
+grain, overriding \code{\link[=read_polycell_support]{read_polycell_support()}}. For \code{geographic_key = "polity"}, a \code{\link[=build_reporting_support]{build_reporting_support()}} bundle retains its complete
+physical denominator. Default-loaded native support must carry explicit
+reporting-partition provenance. Not read at \code{level = 0L}
 with \code{grid_vintage = "snapshot_2015"}, which resolves the support itself.}
 
 \item{containment}{Containment edge table in the \link{polity_containment}

@@ -269,3 +269,14 @@ testthat::test_that("native method labels survive capacity redistribution", {
   testthat::expect_equal(out$method_irrigation, rep("luh2_proportional", 2))
   testthat::expect_equal(sum(out$rainfed_ha), 100)
 })
+
+testthat::test_that("native preparation retains independent reporting domain", {
+  data <- .polity_preparation_data()
+  data$support$land_area_ha <- 50
+  data$support$domain_land_area_ha <- 100
+  data$support$partition_method <- "explicit_reporting_inventory"
+  out <- whep::prepare_polity_crop_inputs(data, method = "luh2")
+  testthat::expect_equal(out$country_grid$cell_area_frac, 0.5)
+  testthat::expect_equal(out$country_areas$irrigated_area_ha, c(3, 7))
+  testthat::expect_equal(out$country_areas$harvested_area_ha, c(30, 70))
+})

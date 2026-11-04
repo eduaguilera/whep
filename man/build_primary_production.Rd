@@ -39,7 +39,12 @@ parquet/csv file. Required semantic columns are \code{year},
 \code{item_prod_code}, \code{unit}, \code{value}, and one of \code{area_code} or
 \code{polity_area_code}. Names such as \code{item_prod_name}, \code{item_cbs_name}, and
 \code{source} are used when present; WHEP item and area tables fill canonical
-names where possible. Observed historical rows are retained, and LUH2 proxy
+names where possible. If supplied, \code{reporting_polity_code} or \code{polity_code}
+each nonblank identity must agree with the canonical consumer identity
+for the area and year. Missing or blank identity cells are ignored.
+A mismatch aborts rather than relabelling a whole territory as a component.
+Agreement checks routing, not equivalence of reconstructed source borders.
+Observed historical rows are retained, and LUH2 proxy
 filling can use them as anchors. \strong{Rice supplied here is assumed to be
 on a paddy (rough-rice) basis} and is multiplied by the paddy-to-milled
 extraction rate, because WHEP's rice item is milled equivalent throughout;
