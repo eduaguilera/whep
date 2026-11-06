@@ -35,10 +35,12 @@
 #
 # On a pull request this is the ONLY run of the suite (R-CMD-check runs
 # `--no-tests` there, #1347), so it is split into three shards that run side by
-# side. Each shard takes every third test file in sorted order; together they
-# take every file exactly once, and a new file joins a shard with no list to
-# update. Run locally (2026-10-06, origin/main 5e4bf894) the shards took 5.1,
-# 2.7 and 3.9 min against 11.7 min for the whole suite in one process. Shards,
+# side. Files are assigned to shards by measured duration
+# (`.github/scripts/test_durations.csv`, longest-first onto the lightest
+# shard), so a new file still joins a shard with no list to update. Measured
+# locally (2026-11-06, origin/main 2ac135c5, one process, 299 files, 1181 s):
+# round-robin gave shards of 295, 348 and 538 s; duration-balanced gives 394 s
+# each. Shards,
 # not `Config/testthat/parallel`: testthat's own workers made the parent
 # process grow past a runner's 16 GB (measured on #1347).
 #
