@@ -252,12 +252,28 @@ testthat::test_that("the CBS reader refuses held rows by name", {
     },
     .package = "whep"
   )
+  # The held rows are refused before the weight basis is applied, so this is
+  # read under the legacy basis, which keeps the adopted row to look at
+  # (whep#1617 withholds the whole pin by default).
   testthat::expect_warning(
-    out <- whep:::.read_fishstat_trade(),
+    testthat::expect_message(
+      out <- whep:::.read_fishstat_trade(fishstat_trade = "as_live_weight"),
+      class = "whep_fishstat_product_weight"
+    ),
     class = "whep_fishstat_unadopted"
   )
   testthat::expect_equal(out$year, 1991L)
   testthat::expect_equal(out$value, 6)
+  # Under the default the held rows are still refused by name, and nothing
+  # reaches the CBS.
+  testthat::expect_warning(
+    testthat::expect_message(
+      withheld <- whep:::.read_fishstat_trade(),
+      "6 t of imports"
+    ),
+    class = "whep_fishstat_unadopted"
+  )
+  testthat::expect_null(withheld)
 })
 
 testthat::test_that("a pin without the coverage column reads as before", {

@@ -698,6 +698,7 @@ build_commodity_balances <- function(
   residue_backcast = .cbs_residue_backcast_choices(),
   bucket_coverage = .cbs_coverage_choices(),
   method_cbs_account = c("source", "balance_residual"),
+  fishstat_trade = .fishstat_trade_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
@@ -718,6 +719,7 @@ build_commodity_balances <- function(
   tobacco_leaf_use <- rlang::arg_match(tobacco_leaf_use)
   fbs_trade_basis <- rlang::arg_match(fbs_trade_basis)
   residue_backcast <- rlang::arg_match(residue_backcast)
+  fishstat_trade <- rlang::arg_match(fishstat_trade)
   if (example) {
     return(
       if (format == "wide") {
@@ -758,7 +760,8 @@ build_commodity_balances <- function(
       tobacco_leaf_use = tobacco_leaf_use,
       fbs_trade_basis = fbs_trade_basis,
       residue_backcast = residue_backcast,
-      bucket_coverage = bucket_coverage
+      bucket_coverage = bucket_coverage,
+      fishstat_trade = fishstat_trade
     )
     coverage_log <- attr(raw, ".cbs_coverage_log")
     scale_log <- attr(raw, ".hist_trade_scale_log")
@@ -869,6 +872,12 @@ build_commodity_balances <- function(
     if (residue_backcast != "own_method") {
       cli::cli_warn(
         "{.arg residue_backcast} is ignored when {.arg .fixed_data} is \
+         supplied."
+      )
+    }
+    if (fishstat_trade != "withhold") {
+      cli::cli_warn(
+        "{.arg fishstat_trade} is ignored when {.arg .fixed_data} is \
          supplied."
       )
     }
@@ -1135,7 +1144,8 @@ build_commodity_balances <- function(
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
-  bucket_coverage = .cbs_coverage_choices()
+  bucket_coverage = .cbs_coverage_choices(),
+  fishstat_trade = .fishstat_trade_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -1160,7 +1170,8 @@ build_commodity_balances <- function(
     tobacco_leaf_use = tobacco_leaf_use,
     fbs_trade_basis = fbs_trade_basis,
     residue_backcast = residue_backcast,
-    aggregate_proxy = aggregate_proxy
+    aggregate_proxy = aggregate_proxy,
+    fishstat_trade = fishstat_trade
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -1622,7 +1633,8 @@ build_processing_coefs <- function(
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
-  aggregate_proxy = .cbs_aggregate_proxy_choices()
+  aggregate_proxy = .cbs_aggregate_proxy_choices(),
+  fishstat_trade = .fishstat_trade_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
     hist_trade_scale,
@@ -1688,7 +1700,10 @@ build_processing_coefs <- function(
   # Trade
   fao_trade <- .read_fao_trade(years = years) |>
     .trade_silk_mass_basis(silk_basis)
-  fishstat_trade <- .read_fishstat_trade(years = years)
+  fishstat_rows <- .read_fishstat_trade(
+    years = years,
+    fishstat_trade = fishstat_trade
+  )
   # The screen bounds a pre-1961 reporter flow by the largest world flow
   # FAOSTAT records for the same item, so it reads its reference from the
   # FAOSTAT trade this build has already loaded -- no extra pin read
@@ -1730,7 +1745,7 @@ build_processing_coefs <- function(
     cbs_animals = cbs_animals,
     cbs_new = cbs_new,
     fao_trade = fao_trade,
-    fishstat_trade = fishstat_trade,
+    fishstat_trade = fishstat_rows,
     trade_hist = trade_hist,
     gdp_pop = gdp_pop,
     primary_cbs = primary_cbs,
@@ -1956,8 +1971,15 @@ build_processing_coefs <- function(
 
 # Read FishStat trade data (pre-aggregated to CBS items) from pins.
 # Returns a data.table: year, area_code, item_cbs_code, element, value.
-# Returns NULL if the pin is not registered yet.
-.read_fishstat_trade <- function(years = NULL) {
+# Returns NULL if the pin is not registered yet, or when it is withheld.
+#
+# `fishstat_trade` selects whether the pin's net product weight reaches the
+# live-weight fish balances at all; see `.fishstat_weight_basis()` (whep#1617).
+.read_fishstat_trade <- function(
+  years = NULL,
+  fishstat_trade = .fishstat_trade_choices()
+) {
+  fishstat_trade <- rlang::arg_match(fishstat_trade, .fishstat_trade_choices())
   # Check if fishstat-trade is registered in whep_inputs
   if (!"fishstat-trade" %in% whep::whep_inputs$alias) {
     cli::cli_alert_info("fishstat-trade pin not registered, skipping")
@@ -1979,6 +2001,10 @@ build_processing_coefs <- function(
     )
   ]
   dt <- dt[element %in% c("import", "export")]
+  dt <- .fishstat_weight_basis(dt, fishstat_trade)
+  if (is.null(dt)) {
+    return(NULL)
+  }
 
   .aggregate_to_polities(dt, item_cbs_code, source_label = "fishstat-trade")
 }
