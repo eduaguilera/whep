@@ -20,9 +20,10 @@ calculate_crop_residues(
 - x:
 
   A tibble with `item_prod_code`, `production_t` (fresh matter) and
-  `area_ha`. Optional `water_regime` enables the irrigation adjustment;
-  optional `year` plus `region_hanpp` enable the modern-variety
-  adjustment.
+  `area_ha`. Optional `water_regime` (`"Irrigated"`, `"Rainfed"` or
+  `"Mixed"`; any other value, including `NA`, aborts) enables the
+  irrigation adjustment; optional `year` plus `region_hanpp` enable the
+  modern-variety adjustment.
 
 - method:
 

@@ -22,7 +22,9 @@ calculate_crop_roots(
 
   A tibble with `item_prod_code`, `product_dm_t`, `residue_dm_t` and
   `area_ha`. Optional `n_input_kg_ha` enables the nitrogen adjustment;
-  optional `water_regime` enables the irrigation adjustment.
+  optional `water_regime` (`"Irrigated"`, `"Rainfed"` or `"Mixed"`; any
+  other value, including `NA`, aborts) enables the irrigation
+  adjustment.
 
 - method:
 
