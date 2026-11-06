@@ -85,9 +85,9 @@
 # Residue and root dry matter on one hectare at the yield in `yield_col`,
 # with the part's regime or with none (the crop's own evaluation). Each
 # distinct row is evaluated once and joined back, through the soil chain's
-# own `.sci_crop_npp()` (cereals on the CBS's residue method, rice on a paddy
-# basis; whep#1519), so the denominator is the evaluation the crop's own
-# residue and root come from.
+# own `.sci_crop_npp()` (cereals and the IPCC-lined non-cereals on the CBS's
+# residue methods, rice on a paddy basis; whep#1519, whep#1609), so the
+# denominator is the evaluation the crop's own residue and root come from.
 .rr_model_at <- function(base, yield_col, with_regime) {
   covariates <- c("item_prod_code", "area_code", "year", "region_hanpp")
   if (with_regime) {

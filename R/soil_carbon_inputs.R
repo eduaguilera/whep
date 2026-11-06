@@ -1403,16 +1403,26 @@ build_soil_carbon_inputs <- function(
     )
 }
 
-# The crop-NPP chain on the straw the commodity balance books (whep#1519).
-# The recovered and the soil-returned residue are two parts of the same straw
-# (whep#1003), so cereals take the cereal method of get_primary_residues()
-# and rice is priced per tonne of paddy, as the CBS prices it on the
-# `crop_residues` pin's production. Before this, the soil chain ran the
-# `"ensemble"` default on milled rice and booked 16% (2010) less cereal
-# straw than the CBS. Non-cereals keep the `"ensemble"` default: the CBS's
-# non-cereal line is a separate choice (whep#1518), not part of this one.
+# The crop-NPP chain on the residue the commodity balance books. The
+# recovered and the soil-returned residue are two parts of the same straw
+# (whep#1003), so each crop is priced by the model get_primary_residues()
+# prices it with:
+# - cereals by its `cereal_residue` default, with rice per tonne of paddy as
+#   the CBS prices it on the `crop_residues` pin's production (whep#1519);
+# - the non-cereals with their own IPCC Table 11.2 line
+#   (`.residue_ipcc_line_codes()`: soybean, groundnut, the pulses, potato and
+#   the tubers) by its `non_cereal_residue` default (whep#1609);
+# - every other crop by the estimator's `"ensemble"`. The CBS keeps the pin's
+#   ratio there (or re-anchors oil palm and sugar cane), which has no
+#   counterpart in calculate_crop_residues(); `"ipcc"` would price these
+#   crops at zero, as IPCC gives them no line.
+# Before whep#1609 the lined non-cereals ran the ensemble here while the CBS
+# ran `"ipcc"`: on the same 2010 production the soil chain booked 778 Tg DM
+# of their residue against the CBS model's 699 Tg.
 .sci_crop_npp <- function(wide) {
-  cereal <- as.character(wide$item_prod_code) %in% .residue_cereal_codes()
+  codes <- as.character(wide$item_prod_code)
+  cereal <- codes %in% .residue_cereal_codes()
+  lined <- !cereal & codes %in% .residue_ipcc_line_codes()
   cereals <- wide[cereal, ] |>
     .sci_paddy_basis(1 / .rice_milled_extraction_rate()) |>
     calculate_crop_npp(residue_method = .cbs_cereal_residue_method()) |>
@@ -1420,7 +1430,15 @@ build_soil_carbon_inputs <- function(
     dplyr::mutate(
       crop_npp_dm_t = .data$product_dm_t + .data$residue_dm_t + .data$root_dm_t
     )
-  dplyr::bind_rows(cereals, calculate_crop_npp(wide[!cereal, ]))
+  non_cereals <- calculate_crop_npp(
+    wide[lined, ],
+    residue_method = .sci_residue_method(.cbs_non_cereal_residue_method())
+  )
+  dplyr::bind_rows(
+    cereals,
+    non_cereals,
+    calculate_crop_npp(wide[!cereal & !lined, ])
+  )
 }
 
 # The cereal residue method the commodity balance prices straw with: the
@@ -1429,6 +1447,32 @@ build_soil_carbon_inputs <- function(
 # validation of its crop, regional or historical applicability.
 .cbs_cereal_residue_method <- function() {
   eval(formals(get_primary_residues)$cereal_residue)[[1]]
+}
+
+# The method the commodity balance prices the lined non-cereals with: the
+# default of get_primary_residues()'s `non_cereal_residue` (`"ipcc"`; PR
+# #1561). Shared, as for cereals, so the two chains cannot drift apart.
+.cbs_non_cereal_residue_method <- function() {
+  eval(formals(get_primary_residues)$non_cereal_residue)[[1]]
+}
+
+# A CBS residue method the soil chain can evaluate per crop-polity-year.
+# `"pin"` (the predecessor's ratio) exists only as pin rows, so a CBS
+# default of `"pin"` has no soil-chain counterpart: abort rather than
+# quietly price the same residue with a different model.
+.sci_residue_method <- function(method) {
+  available <- c("ipcc", "ensemble", "ratio")
+  if (!method %in% available) {
+    cli::cli_abort(
+      c(
+        "The commodity balance prices residue with {.val {method}}, which
+         the soil chain cannot evaluate.",
+        i = "The soil chain evaluates {.or {.val {available}}}."
+      ),
+      class = "whep_soil_residue_method"
+    )
+  }
+  method
 }
 
 # Rescale rice's product columns by `factor`. get_primary_production()

@@ -103,15 +103,22 @@
 # Whether each pin crop name maps, through its production item code, to a
 # non-cereal crop with its own IPCC Table 11.2 line.
 .residue_has_ipcc_line <- function(item_prod) {
-  lined <- whep::whep_coef_table("ipcc_crop_mapping") |>
-    dplyr::filter(.data$ipcc_crop %in% .residue_ipcc_lines()$ipcc_crop) |>
-    dplyr::pull("item_prod_code") |>
-    as.character()
   codes <- tibble::tibble(item_prod = as.character(item_prod)) |>
     add_item_prod_code(name_column = "item_prod") |>
     dplyr::pull("item_prod_code") |>
     as.character()
-  !.residue_is_cereal(item_prod) & codes %in% lined
+  codes %in% .residue_ipcc_line_codes()
+}
+
+# The production item codes of those non-cereal crops, the key the soil
+# carbon and nitrogen chain selects the same rows by (`.sci_crop_npp()`,
+# whep#1609). Cereals are excluded: they take the cereal method first.
+.residue_ipcc_line_codes <- function() {
+  whep::whep_coef_table("ipcc_crop_mapping") |>
+    dplyr::filter(.data$ipcc_crop %in% .residue_ipcc_lines()$ipcc_crop) |>
+    dplyr::pull("item_prod_code") |>
+    as.character() |>
+    setdiff(.residue_cereal_codes())
 }
 
 # Whether each pin crop name is a cereal: its CBS item belongs to the
