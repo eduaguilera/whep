@@ -12,8 +12,10 @@ calculate_crop_residues(
 }
 \arguments{
 \item{x}{A tibble with \code{item_prod_code}, \code{production_t} (fresh matter) and
-\code{area_ha}. Optional \code{water_regime} enables the irrigation adjustment;
-optional \code{year} plus \code{region_hanpp} enable the modern-variety adjustment.}
+\code{area_ha}. Optional \code{water_regime} (\code{"Irrigated"}, \code{"Rainfed"} or
+\code{"Mixed"}; any other value, including \code{NA}, aborts) enables the
+irrigation adjustment; optional \code{year} plus \code{region_hanpp} enable the
+modern-variety adjustment.}
 
 \item{method}{Residue method: \code{"ensemble"} (default, weighted IPCC + ratio),
 \code{"ipcc"} (IPCC linear only) or \code{"ratio"} (\code{bio_coefs} ratio only).}
