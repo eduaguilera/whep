@@ -976,3 +976,44 @@ testthat::test_that("an all-zero seepage pin is refused, not read as dry", {
     )
   )
 })
+
+test_that(".read_hydro_one keeps each value at its own cell (#1643)", {
+  skip_if_not_installed("ncdf4")
+  purrr::walk(c(1L, 2L, 3L), function(n_lat) {
+    lat <- 0.25 + (seq_len(n_lat) - 1) * 0.5
+    four <- .test_lpjml_band_file(n_lat = n_lat) |>
+      whep:::.read_hydro_one("depth", 1750L, 1750L, 1L) |>
+      dplyr::filter(layer == 1L)
+    three <- .test_lpjml_band_file(c("lon", "lat", "time"), n_lat) |>
+      whep:::.read_hydro_one("depth", 1750L, 1750L, 1L)
+    expected <- tidyr::expand_grid(lat = lat, lon = c(0.25, 0.75))
+    for (out in list(four, three)) {
+      expect_identical(out$lon, expected$lon)
+      expect_identical(out$lat, expected$lat)
+      expect_identical(out$value, as.numeric(seq_len(2L * n_lat)))
+    }
+    expect_identical(four$band_name, rep("rainfed grassland", 2L * n_lat))
+  })
+})
+
+test_that(".read_hydro_one rejects reordered or unrecognized axes (#1643)", {
+  skip_if_not_installed("ncdf4")
+  layouts <- list(
+    c("lat", "lon", "pft", "time"),
+    c("lat", "lon", "time"),
+    c("lon", "lat", "time", "pft"),
+    c("x", "lat", "pft", "time")
+  )
+  purrr::walk(layouts, function(layout) {
+    path <- .test_lpjml_band_file(layout)
+    expect_error(
+      whep:::.read_hydro_one(path, "depth", 1750L, 1750L, 1L),
+      class = "whep_lpjml_band_dimensions"
+    )
+  })
+  path <- .test_lpjml_band_file(c("lat", "lon", "pft", "time"), n_lat = 3L)
+  expect_error(
+    whep:::.read_hydro_one(path, "depth", 1750L, 1750L, 1L),
+    class = "whep_lpjml_band_dimensions"
+  )
+})

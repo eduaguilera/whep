@@ -679,10 +679,11 @@ crops <- nbd_stage("crops", .nbd_crops_table(primary_prod, year))
 # returns to the soil) and to `residue_destiny_input` for the used, bedding
 # and burnt residue outputs, both with the one argument set given in
 # `nbd_data` below.
-# `.sci_crop_npp()` is the soil carbon chain's crop NPP: cereal straw on the
-# commodity balance's residue method and rice on paddy (whep#1519), so the
-# recycled residue is the straw the CBS books, and the regime split
-# (`.rr_part_factors()`) evaluates the same model.
+# `.sci_crop_npp()` is the soil carbon chain's crop NPP: cereal straw and the
+# IPCC-lined non-cereals on the commodity balance's residue methods and rice
+# on paddy (whep#1519, whep#1609), so the recycled residue is the residue the
+# CBS books, and the regime split (`.rr_part_factors()`) evaluates the same
+# model.
 npp_national <- nbd_stage(
   "npp_n_input (national)",
   crops |> whep:::.sci_crop_npp() |> calculate_npp_carbon_nitrogen()

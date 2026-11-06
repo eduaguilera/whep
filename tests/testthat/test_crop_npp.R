@@ -555,3 +555,65 @@ test_that("an unknown root irrigation method is refused", {
     class = "rlang_error"
   )
 })
+
+# A `water_regime` label outside the `irrigation_adj` vocabulary used to join
+# nothing, so the row took a residue and root:shoot factor of 1 -- read as
+# rainfed -- with no message (whep#1034). WHEP's own regime columns elsewhere
+# spell the labels in lower case, so that is the label a caller is most likely
+# to pass.
+.regime_label_rows <- function(regime) {
+  tibble::tibble(
+    item_prod_code = "56",
+    production_t = 100,
+    area_ha = 40,
+    water_regime = regime
+  )
+}
+
+test_that("an unrecognised water_regime label is refused, not read as 1", {
+  bad <- .regime_label_rows(c("rainfed", "irrigated"))
+  testthat::expect_error(
+    whep::calculate_crop_residues(bad),
+    class = "whep_regime_label"
+  )
+  testthat::expect_error(
+    whep::calculate_crop_roots(
+      dplyr::mutate(
+        .root_regime_rows("56"),
+        water_regime = c("rainfed", "irrigated")
+      )
+    ),
+    class = "whep_regime_label"
+  )
+  testthat::expect_error(
+    whep::calculate_crop_npp(bad),
+    class = "whep_regime_label"
+  )
+})
+
+test_that("a missing water_regime value is refused, not read as rainfed", {
+  testthat::expect_error(
+    whep::calculate_crop_residues(.regime_label_rows(c("Irrigated", NA))),
+    class = "whep_regime_label"
+  )
+  testthat::expect_error(
+    whep::calculate_crop_roots(.root_regime_rows("56", c("Irrigated", NA))),
+    class = "whep_regime_label"
+  )
+})
+
+test_that("every irrigation_adj label still moves the residue", {
+  irr <- whep::whep_coef_table("irrigation_adj")
+  out <- whep::calculate_crop_residues(
+    .regime_label_rows(irr$water_regime),
+    method = "ratio"
+  )
+  # Maize has residue sensitivity 1, so each row carries its own factor.
+  testthat::expect_equal(
+    out$residue_dm_t / out$residue_dm_t[irr$water_regime == "Rainfed"],
+    irr$residue_ratio_factor /
+      irr$residue_ratio_factor[
+        irr$water_regime == "Rainfed"
+      ]
+  )
+})

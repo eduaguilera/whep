@@ -630,6 +630,7 @@ read_lpjml_hydrology <- function(
   netcdf_var <- .hydro_resolve_var(nc, netcdf_var, path)
   first_year <- .lpjml_resolve_first_year(nc, first_year, basename(path))
   .hydro_check_coverage(nc, first_year, years, path, steps_per_year)
+  .check_lpjml_axes(nc, netcdf_var)
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
   slice <- .hydro_time_slice(

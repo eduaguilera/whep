@@ -86,16 +86,16 @@ testthat::test_that("the irrigation-label guard fires on a capitalisation mismat
     .package = "whep"
   )
   row <- tibble::tibble(item_prod_code = "56", production_t = 7.2, area_ha = 1)
-  irrigated <- whep::calculate_crop_npp(
-    dplyr::mutate(row, water_regime = "Irrigated")
+  # The mismatch used to leave an identity intact -- the irrigated row took
+  # factor 1 and equalled the unadjusted one. The exported model now refuses
+  # the label itself (whep#1034), and the part split's own guard still fires.
+  testthat::expect_error(
+    whep::calculate_crop_npp(dplyr::mutate(row, water_regime = "Irrigated")),
+    class = "whep_regime_label"
   )
-  unadjusted <- whep::calculate_crop_npp(row)
-  expect_supplied_guard(
-    # The identity a vocabulary mismatch leaves intact: the irrigated row
-    # silently takes factor 1 and equals the unadjusted one.
-    identity = identical(irrigated$residue_dm_t, unadjusted$residue_dm_t) &&
-      identical(irrigated$root_dm_t, unadjusted$root_dm_t),
-    guard = whep:::.rr_part_factors(.rrs_maize_parts()),
+  testthat::expect_no_error(whep::calculate_crop_npp(row))
+  testthat::expect_error(
+    whep:::.rr_part_factors(.rrs_maize_parts()),
     class = "whep_absent_label"
   )
 })
@@ -142,4 +142,28 @@ testthat::test_that("a crop with no residue or root in the model keeps factor 1"
   out <- whep:::.rr_part_factors(parts)
   testthat::expect_identical(out$residue_factor, 1)
   testthat::expect_identical(out$root_factor, 1)
+})
+
+testthat::test_that("a lined non-cereal's regime evaluates the CBS's model", {
+  # Soybean has its own IPCC Table 11.2 line, so the soil chain prices it
+  # with get_primary_residues()'s `non_cereal_residue` default (whep#1609),
+  # and the regime split must evaluate that same model.
+  part <- tibble::tibble(
+    item_prod_code = "236",
+    area_code = 203L,
+    year = 2010L,
+    region_hanpp = "West Europe",
+    yield_t_ha = 2.5,
+    water_regime = "Irrigated"
+  )
+  out <- whep:::.rr_model_at(part, "yield_t_ha", with_regime = TRUE)
+  on_hectare <- dplyr::mutate(part, production_t = 2.5, area_ha = 1)
+  cbs <- whep::calculate_crop_npp(on_hectare, residue_method = "ipcc")
+  ensemble <- whep::calculate_crop_npp(on_hectare)
+  testthat::expect_equal(out$residue_dm_t, cbs$residue_dm_t)
+  testthat::expect_equal(out$root_dm_t, cbs$root_dm_t)
+  testthat::expect_false(isTRUE(all.equal(
+    out$residue_dm_t,
+    ensemble$residue_dm_t
+  )))
 })

@@ -87,19 +87,21 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'     dry matter = slope x grain dry-matter yield + intercept, through
 #'     [calculate_crop_residues()] with its modern-variety correction.
 #'   - `"ensemble"`: the same estimator's mean of that line and the static
-#'     [biomass_coefs] ratio, as the soil carbon and nitrogen chain uses it.
+#'     [biomass_coefs] ratio, its default for crops without a line.
 #'   - `"ratio"`: the static [biomass_coefs] ratio alone.
 #'   - `"wirsenius"`: the predecessor's model, Wirsenius (2000) Table 3.16
 #'     regional ratios, applied directly on Wirsenius's own region membership.
 #'
-#'   See the "Cereal residue" section. Other crops are not affected.
+#'   See the "Cereal residue" section. Other crops are not affected. The soil
+#'   carbon and nitrogen chain prices cereals with this argument's default.
 #' @param non_cereal_residue How the residue of a non-cereal crop with its
 #'   own line in IPCC (2006) Table 11.2 is estimated: soybean, groundnut, dry
 #'   beans, peas, chickpeas, lentils and the other pulses, potato, and,
 #'   through IPCC's "Tubers" line, cassava, sweet potato, yams and the other
 #'   roots. One of `"ipcc"` (default), `"ensemble"` and `"ratio"`, the same
 #'   estimators as for `cereal_residue`, or `"pin"`, the pin's ratio as for
-#'   every other crop. See the "Non-cereal residue" section.
+#'   every other crop. See the "Non-cereal residue" section. The soil carbon
+#'   and nitrogen chain prices these crops with this argument's default.
 #' @param oil_palm_residue How oil palm residue (fronds and trunks) is
 #'   obtained. One of:
 #'   - `"per_product"` (default): 60 Mt DM / 83.09 Mt of fresh fruit bunches
@@ -316,6 +318,18 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #' correction and the product dry-matter content of `bio_coefs`. No published
 #' global non-cereal series exists to check them against independently
 #' (whep#1399).
+#'
+#' The soil carbon and nitrogen chain prices these crops with this argument's
+#' default as well, so the residue it returns to the soil and the residue the
+#' commodity balance books come from one model (whep#1609). Soybean, the crop
+#' whose residue moves most, has one independent check: the field trials
+#' compiled by Ludemann et al. (2025), \doi{10.5061/dryad.djh9w0w4m}, with
+#' 348 paired grain and residue dry-matter yields from 21 articles. Evaluated
+#' at each trial's yield and averaged per article, without the modern-variety
+#' correction, the Table 11.2 line books 8.6% less residue than measured, the
+#' `"ensemble"` 8.0% more and the `"ratio"` 24.6% more; their mean absolute
+#' errors are 1.20, 1.28 and 1.77 t DM/ha. Trials are not a random sample of
+#' farms, and no such check exists for the other crops.
 #'
 #' @section Oil palm residue:
 #' Oil palm residue is replaced rather than taken from the pin (whep#1424).
