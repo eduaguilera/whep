@@ -139,10 +139,10 @@ create_grafs_plot_df <- function(
   if (return_support) {
     return(.grafs_destiny_bundle())
   }
-  prov_destiny_df <- create_n_prov_destiny() |>
+  prov_destiny_df <- create_n_prov_destiny(import_processing = "product") |>
     .rename_destiny_pascal()
 
-  nat_destiny_df <- create_n_nat_destiny() |>
+  nat_destiny_df <- create_n_nat_destiny(import_processing = "product") |>
     .rename_destiny_pascal() |>
     dplyr::mutate(Province_name = "Spain")
 
@@ -2180,7 +2180,10 @@ create_grafs_plot_df <- function(
 
 
 .grafs_destiny_bundle <- function() {
-  raw <- .build_n_prov_destiny_raw(return_support = TRUE)
+  raw <- .build_n_prov_destiny_raw(
+    return_support = TRUE,
+    import_processing = "product"
+  )
   provincial <- raw$flows |>
     dplyr::filter(province_name != "National") |>
     .split_food_inedible_loss() |>

@@ -373,7 +373,7 @@ plot_input_output_four_panel <- function(example = FALSE) {
 # Private helpers --------------------------------------------------------------
 
 .load_nat_destiny <- function(example) {
-  create_n_nat_destiny(example = example) |>
+  create_n_nat_destiny(example = example, import_processing = "product") |>
     .rename_destiny_pascal()
 }
 

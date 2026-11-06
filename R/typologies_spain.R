@@ -10,8 +10,9 @@ create_typologies_spain <- function(
     shapefile_path <- .provinces_shapefile(shapefile_path)
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
 
   livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
   npp_ygpit <- whep_read_file("npp_ygpit")

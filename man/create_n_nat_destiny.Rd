@@ -4,11 +4,73 @@
 \alias{create_n_nat_destiny}
 \title{GRAFS Nitrogen (N) flows – National Spain}
 \usage{
-create_n_nat_destiny(example = FALSE)
+create_n_nat_destiny(
+  example = FALSE,
+  import_processing = c("feedstock", "product"),
+  processing_origin = c("proportional", "domestic_first", "imports_first")
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
+
+\item{import_processing}{How processing that Spain runs on imported
+feedstock is booked (#1014). The CBS processing volume can exceed what
+Spain grows: the soybean crush, about 3 Mt a year, runs almost entirely
+on imported beans. One of:
+\itemize{
+\item \code{"feedstock"} (default): each processing target of a Cropland item
+Spain grows is split between post-seed domestic production and gross
+imports in the commodity balance sheet (\code{\link[=get_wide_cbs]{get_wide_cbs()}}), as
+\code{processing_origin} says. The domestic part is processed in the
+provinces that grow the crop, as before. The imported part is booked
+as \code{Outside} -> \code{processing} on the primary item; the outputs it
+yields replace imports of the outputs and carry origin
+\code{Agro-industry}, what they yield beyond the imports they replace is
+exported from \code{Agro-industry}, and its N loss is booked as
+\code{processing_losses} with origin \code{Agro-industry}. Consumption, and so
+livestock intake, is unchanged. Every crop, soybeans included, is
+crushed where its outputs are eaten in place of imports, in
+proportion to the output N each province takes from the crush (no
+plant location or capacity series exists back to 1860). A crush none
+of whose outputs Spain imports, or whose outputs carry no N, is sited
+where Spain grows, and so processes, the same crop, with a warning of
+class \code{whep_import_fed_unsited}. This follows the food balance sheet
+convention: imports are booked on the commodity that crosses the
+border, and the production of a processed commodity "comprises output
+from domestic and imported raw materials" (FAO 2001, \emph{Food Balance
+Sheets: A Handbook}, ch. II.2). For Spain, "soybeans intended for
+crushing are imported" (Guerrero 2023, USDA GAIN report SP2023-0018).
+The analyses in this package that classify N by origin (GRAFS plot,
+typologies, indicators) still read these flows as \code{"product"} books
+them (whep#1592).
+\item \code{"product"}: only domestic production is processed, up to the whole
+post-seed harvest. Spain's demand for the outputs (soybean cake and
+oil) is met by importing the outputs, so the import is booked on the
+cake, not on the beans, and the crush's own N loss is not booked.
+}
+
+Processing that the supply cannot cover is left out either way and
+reported in a warning of class \code{whep_processing_excess}; no stock or
+other origin is invented for it (#1625).}
+
+\item{processing_origin}{With \code{import_processing = "feedstock"}, which
+physical origin a processing target is drawn from. No source observes
+it, so this is an assumption. One of:
+\itemize{
+\item \code{"proportional"} (default): domestic and imported feedstock are
+equally likely to be processed, so the target is shared in proportion
+to post-seed domestic production and gross imports, as in afsetools
+(\code{calculate_footprints.R}) and FABIO (Bruckner et al. 2019,
+\doi{10.1021/acs.est.9b03554}).
+\item \code{"domestic_first"}: domestic production first, imports only for the
+rest. This is the processing share the \code{"product"} booking uses.
+\item \code{"imports_first"}: imports first, domestic production only for the
+rest.
+}
+
+The two orders bound the proportional split and are kept for
+sensitivity analysis. Ignored with \code{import_processing = "product"}.}
 }
 \value{
 A final tibble containing national N flow data by origin and destiny.

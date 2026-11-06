@@ -1,5 +1,5 @@
 province_landuse_n_inputs_plot <- function(year_plot = 1980) {
-  n_flows <- create_n_prov_destiny()
+  n_flows <- create_n_prov_destiny(import_processing = "product")
   area <- whep_read_file("npp_ygpit") |> dplyr::rename_with(tolower)
   indicators <- create_typologies_spain(make_map = FALSE)
 

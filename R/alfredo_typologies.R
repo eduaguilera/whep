@@ -58,8 +58,9 @@ create_alfredos_typologies <- function(
   }
 
   if (is.null(prod_destiny)) {
-    prod_destiny <- create_n_prov_destiny()
+    prod_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  prod_destiny <- .as_product_booking(prod_destiny)
 
   prod_destiny_mean <- prod_destiny |>
     dplyr::filter(year %in% years) |>

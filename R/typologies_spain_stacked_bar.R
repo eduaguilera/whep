@@ -4,7 +4,7 @@ typology_stacked_bars <- function(
   benchmark_years = seq(1860, 2020, by = 20)
 ) {
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
   indicators <- create_typo_ts_plot(
     n_prov_destiny = n_prov_destiny,
@@ -187,7 +187,7 @@ typology_stacked_bars <- function(
 
 typology_area_stacked_bars <- function(out_dir = NULL, n_prov_destiny = NULL) {
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
   indicators <- create_typo_ts_plot(n_prov_destiny = n_prov_destiny)
   npp_ygpit <- whep_read_file("npp_ygpit")

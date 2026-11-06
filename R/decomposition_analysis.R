@@ -65,8 +65,9 @@ decompose_cropland_surplus <- function(
     return(.example_decomp_cropland())
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
   if (is.null(npp_ygpit)) {
     npp_ygpit <- whep_read_file("npp_ygpit")
   }
@@ -169,8 +170,9 @@ decompose_semi_natural_surplus <- function(
     return(.example_decomp_seminat())
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
   if (is.null(npp_ygpit)) {
     npp_ygpit <- whep_read_file("npp_ygpit")
   }
@@ -258,8 +260,9 @@ decompose_manure_losses <- function(
     return(.example_decomp_manure())
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
   raw <- .default_raw_inputs(
     list(
       intake_ygiac = intake_ygiac,
@@ -362,8 +365,9 @@ decompose_urban_losses <- function(
     return(.example_decomp_urban())
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
   if (is.null(population_yg)) {
     population_yg <- whep_read_file("population_yg") |>
       .forwardfill_population(max(
@@ -436,8 +440,9 @@ decompose_terr_losses <- function(
     return(.example_decomp_terr())
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
   if (is.null(raw)) {
     raw <- list()
   }
@@ -524,8 +529,9 @@ decompose_terr_losses_periods <- function(
     return(.example_decomp_terr_periods())
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
   if (is.null(raw)) {
     raw <- list()
   }
@@ -630,8 +636,9 @@ decompose_specialization_cov <- function(
     return(.example_decomp_spec_cov())
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
   if (is.null(raw)) {
     raw <- list()
   }
@@ -722,8 +729,9 @@ decompose_crop_livestock_conn <- function(
     return(.example_decomp_cl_conn())
   }
   if (is.null(n_prov_destiny)) {
-    n_prov_destiny <- create_n_prov_destiny()
+    n_prov_destiny <- create_n_prov_destiny(import_processing = "product")
   }
+  n_prov_destiny <- .as_product_booking(n_prov_destiny)
 
   by_province <- .crop_livestock_conn_panel(n_prov_destiny)
 
@@ -775,8 +783,9 @@ decompose_destiny_mix <- function(n_nat_destiny = NULL, example = FALSE) {
     return(.example_decomp_destiny())
   }
   if (is.null(n_nat_destiny)) {
-    n_nat_destiny <- create_n_nat_destiny()
+    n_nat_destiny <- create_n_nat_destiny(import_processing = "product")
   }
+  n_nat_destiny <- .as_product_booking(n_nat_destiny)
 
   .crop_output_by_destiny(n_nat_destiny) |>
     dplyr::summarise(

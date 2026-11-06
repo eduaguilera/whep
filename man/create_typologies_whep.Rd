@@ -5,7 +5,7 @@
 \title{Create WHEP typologies for Spain}
 \usage{
 create_typologies_whep(
-  prod_destiny = create_n_prov_destiny(),
+  prod_destiny = create_n_prov_destiny(import_processing = "product"),
   prod_n = dplyr::rename(create_n_production(), production_n = prod),
   years = 2020
 )

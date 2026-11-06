@@ -2852,6 +2852,24 @@ utils::globalVariables(
     "source_unit",
     "tourist_consumption",
     "version",
+    # n_prov_destiny.R (whep#1014) -- crush of imported feedstock booked on
+    # the primary item (`import_processing = "feedstock"`)
+    "import_fed_fm",
+    "primary_item",
+    "output_n",
+    "feedstock_n",
+    "loss_n",
+    "booked_n",
+    "consumed",
+    "produced",
+    "import_n",
+    "crushed_n",
+    "outside_n",
+    "moved_share",
+    "moved_n",
+    "processing_losses",
+    "absorbed_n",
+    "surplus_n",
     NULL
   )
 )

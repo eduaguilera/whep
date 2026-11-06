@@ -143,7 +143,7 @@ create_n_production <- function(example = FALSE) {
   if (example) {
     return(.example_create_n_production())
   }
-  create_n_prov_destiny() |>
+  create_n_prov_destiny(import_processing = "product") |>
     .calculate_n_production()
 }
 
