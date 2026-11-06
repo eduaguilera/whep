@@ -1068,22 +1068,35 @@ build_primary_production <- function(
 }
 
 # The median yield of each of `rows`' own (area, item) series over the years
-# within `.int_yield_half_window` of it, in the order of `rows`.
+# within `.int_yield_half_window` of it, in the order of `rows`. Each target is
+# expanded to one row per window year and joined to the series on that year.
 .int_yield_window_median <- function(dt, rows = seq_len(nrow(dt))) {
   dt <- data.table::as.data.table(dt)
-  windows <- dt[rows, c("area_code", "item_prod_code", "year"), with = FALSE]
-  windows[, `:=`(
-    .row = .I,
-    .from = year - .int_yield_half_window,
-    .to = year + .int_yield_half_window
-  )]
-  medians <- dt[
-    windows,
-    on = c("area_code", "item_prod_code", "year>=.from", "year<=.to"),
-    list(.row = i..row, .median = stats::median(x.yield)),
-    by = .EACHI
+  offsets <- seq(-.int_yield_half_window, .int_yield_half_window)
+  each <- length(offsets)
+  windows <- data.table::data.table(
+    .row = rep(seq_along(rows), each = each),
+    area_code = rep(dt$area_code[rows], each = each),
+    item_prod_code = rep(dt$item_prod_code[rows], each = each),
+    year = rep(dt$year[rows], each = each) + offsets
+  )
+  series <- dt[,
+    c("area_code", "item_prod_code", "year", "yield"),
+    with = FALSE
   ]
-  medians$.median[order(medians$.row)]
+  neighbours <- merge(
+    windows,
+    series,
+    by = c("area_code", "item_prod_code", "year"),
+    sort = FALSE
+  )
+  medians <- neighbours[,
+    list(.median = stats::median(yield)),
+    by = ".row"
+  ]
+  out <- rep(NA_real_, length(rows))
+  out[medians$.row] <- medians$.median
+  out
 }
 
 # -- Flax fibre basis (whep#1351) ---------------------------------------------
