@@ -1025,6 +1025,14 @@ build_primary_production <- function(
 # `fill_proxy_growth()`'s chain, which would lose every earlier year of the
 # series instead of one.
 #
+# A run of up to `.int_yield_half_window` spiked years is caught (India's is
+# five); a longer one moves the median itself. Nor can the guard see a whole
+# stretch on the wrong scale, and where the one right value sits inside such a
+# stretch it damps that value to the stretch's level: Canada maize 1952 (4.29
+# t/ha among 1840-1959 values near 0.004) and New Zealand barley 1869 (1.81
+# among 1850-1874 values near 0.15). Those stretches need rescaling at the
+# source (whep#1657), after which the guard leaves the values alone.
+#
 # Only upward spikes are damped. A national yield cannot reach several times
 # its decade median and fall back the next year, but it can collapse in a
 # failed harvest or a war, so a low value is not evidence of an error on its
