@@ -1834,14 +1834,16 @@ build_processing_coefs <- function(
   fao <- .mass_only_trade(
     .aggregate_fao_trade_to_cbs(fao_trade),
     "faostat-trade-totals"
-  )
+  ) |>
+    data.table::as.data.table()
   fao[, source := "FAOSTAT_trade"]
   # FishStat is all tonnes today, but it goes through the same gate so a future
   # non-mass unit cannot slip in silently. The gate can empty it.
   if (is.null(fishstat_trade) || nrow(fishstat_trade) == 0L) {
     return(fao)
   }
-  fish <- .mass_only_trade(fishstat_trade, "fishstat-trade")
+  fish <- .mass_only_trade(fishstat_trade, "fishstat-trade") |>
+    data.table::as.data.table()
   if (nrow(fish) == 0L) {
     return(fao)
   }
