@@ -713,6 +713,11 @@ the number is not one FAOSTAT published under a flag: a WHEP-derived row
 extension), a row whose source carries no flag, and a row summed or
 averaged from parts whose flags disagree. The flag is a claim about the
 value, so it is dropped rather than guessed when the parts do not agree.
+Trade filled from a standalone record carries that record's source and
+flag, including an unknown flag for the legacy FishStat input. A mixed
+or partly unflagged trade sum has no single observation flag. Trade
+derived from the balance is labelled \code{"trade_balance_residual"};
+an unsupported working zero is labelled \code{"trade_default_zero"}.
 Rows sourced from \code{"FAOSTAT_prod"} are \code{NA} today because
 \code{\link[=build_primary_production]{build_primary_production()}} does not carry the flag out of the
 production pin.

@@ -14,7 +14,8 @@ calculate_crop_roots(
 \arguments{
 \item{x}{A tibble with \code{item_prod_code}, \code{product_dm_t}, \code{residue_dm_t} and
 \code{area_ha}. Optional \code{n_input_kg_ha} enables the nitrogen adjustment;
-optional \code{water_regime} enables the irrigation adjustment.}
+optional \code{water_regime} (\code{"Irrigated"}, \code{"Rainfed"} or \code{"Mixed"}; any
+other value, including \code{NA}, aborts) enables the irrigation adjustment.}
 
 \item{method}{Root method: \code{"ensemble"} (default, weighted root:shoot +
 reference), \code{"root_shoot"} (root:shoot ratio only) or \code{"reference"}
