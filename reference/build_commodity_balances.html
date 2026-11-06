@@ -178,7 +178,12 @@ Meal, whep#1450) is dropped. It moves no food supply: the largest change
 in protein supply against <code>"net_import"</code> is 0.0003 g/cap/day.
 <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>, <code><a href="get_processing_coefs.html">get_processing_coefs()</a></code> and <code><a href="build_io_model.html">build_io_model()</a></code> take the
 same argument and pass it into the shared build chain, each method under
-its own cache slot, so a downstream build can be run either way.</p></dd>
+its own cache slot, so a downstream build can be run either way.
+A created row names the trade dataset that supplied it in <code>source</code>
+(<code>"FAOSTAT_trade"</code> or <code>"FishStat_trade"</code>) with that record's <code>fao_flag</code>,
+<code>NA</code> where the record has none; an export capped at its import is no
+longer the record's number, so its <code>source</code> carries a
+<code>"_capped_at_import"</code> suffix and its <code>fao_flag</code> is <code>NA</code>.</p></dd>
 
 
 <dt id="arg-trade-zero">trade_zero<a class="anchor" aria-label="anchor" href="#arg-trade-zero"></a></dt>
@@ -792,6 +797,11 @@ the number is not one FAOSTAT published under a flag: a WHEP-derived row
 extension), a row whose source carries no flag, and a row summed or
 averaged from parts whose flags disagree. The flag is a claim about the
 value, so it is dropped rather than guessed when the parts do not agree.
+Trade filled from a standalone record carries that record's source and
+flag, including an unknown flag for the legacy FishStat input. A mixed
+or partly unflagged trade sum has no single observation flag. Trade
+derived from the balance is labelled <code>"trade_balance_residual"</code>;
+an unsupported working zero is labelled <code>"trade_default_zero"</code>.
 Rows sourced from <code>"FAOSTAT_prod"</code> are <code>NA</code> today because
 <code><a href="build_primary_production.html">build_primary_production()</a></code> does not carry the flag out of the
 production pin.</p>

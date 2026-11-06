@@ -137,7 +137,11 @@ build_commodity_balances(
   [`build_io_model()`](https://eduaguilera.github.io/whep/reference/build_io_model.md)
   take the same argument and pass it into the shared build chain, each
   method under its own cache slot, so a downstream build can be run
-  either way.
+  either way. A created row names the trade dataset that supplied it in
+  `source` (`"FAOSTAT_trade"` or `"FishStat_trade"`) with that record's
+  `fao_flag`, `NA` where the record has none; an export capped at its
+  import is no longer the record's number, so its `source` carries a
+  `"_capped_at_import"` suffix and its `fao_flag` is `NA`.
 
 - trade_zero:
 
@@ -800,7 +804,12 @@ the number is not one FAOSTAT published under a flag: a WHEP-derived row
 extension), a row whose source carries no flag, and a row summed or
 averaged from parts whose flags disagree. The flag is a claim about the
 value, so it is dropped rather than guessed when the parts do not agree.
-Rows sourced from `"FAOSTAT_prod"` are `NA` today because
+Trade filled from a standalone record carries that record's source and
+flag, including an unknown flag for the legacy FishStat input. A mixed
+or partly unflagged trade sum has no single observation flag. Trade
+derived from the balance is labelled `"trade_balance_residual"`; an
+unsupported working zero is labelled `"trade_default_zero"`. Rows
+sourced from `"FAOSTAT_prod"` are `NA` today because
 [`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
 does not carry the flag out of the production pin.
 
