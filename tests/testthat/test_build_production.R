@@ -247,6 +247,151 @@ test_that(".add_historical_yields back-casts a periodized-name country", {
   expect_equal(tonnes_1960, 4800)
 })
 
+# -- international-yields spikes (whep#1652) ----------------------------------
+
+# A pin-shaped `international-yields` table: Turkiye wheat (223) with the
+# pin's single 1940 value of 30.38 t/ha among ~0.8, India wheat (100) with its
+# 1905-1909 run of 6.2-12.1 t/ha among ~1, and an olive-like series (260) with
+# a genuine 2.4x swing that must survive. The reader mock honours `years` the
+# way `.read_input()` does, so a scoped read sees only its own window.
+.int_yields_spike_pin <- function() {
+  turkiye <- tibble::tibble(
+    year = 1930:1966,
+    item_code = 15,
+    area_code = 223,
+    yield = 0.78 + 0.02 * sin(seq_along(1930:1966))
+  ) |>
+    dplyr::mutate(yield = dplyr::if_else(year == 1940, 30.38, yield))
+  india <- tibble::tibble(
+    year = 1895:1920,
+    item_code = 15,
+    area_code = 100,
+    yield = 1 + 0.1 * cos(seq_along(1895:1920))
+  ) |>
+    dplyr::mutate(
+      yield = dplyr::case_when(
+        year == 1905 ~ 6.22,
+        year == 1906 ~ 11.68,
+        year == 1907 ~ 7.60,
+        year == 1908 ~ 12.09,
+        year == 1909 ~ 6.54,
+        .default = yield
+      )
+    )
+  olives <- tibble::tibble(
+    year = 1930:1966,
+    item_code = 260,
+    area_code = 223,
+    yield = rep(c(0.5, 1.2), length.out = 37)
+  )
+  data.table::as.data.table(dplyr::bind_rows(turkiye, india, olives))
+}
+
+.mock_int_yields_pin <- function(pin) {
+  function(pin_alias, years = NULL, year_col = NULL) {
+    if (is.null(years)) {
+      return(data.table::copy(pin))
+    }
+    pin[year >= min(years) & year <= max(years)]
+  }
+}
+
+test_that(".read_int_yields replaces isolated yield spikes (whep#1652)", {
+  pin <- .int_yields_spike_pin()
+  testthat::local_mocked_bindings(.read_input = .mock_int_yields_pin(pin))
+
+  result <- suppressMessages(whep:::.read_int_yields()) |>
+    tibble::as_tibble()
+  yield_at <- function(code, item, yr) {
+    result |>
+      dplyr::filter(
+        .data$area_code == code,
+        .data$item_prod_code == item,
+        .data$year == yr
+      ) |>
+      dplyr::pull(yield)
+  }
+
+  # The spikes sit at their own series' level, not 6-40x above it.
+  expect_lt(yield_at(223L, "15", 1940), 1)
+  expect_true(all(
+    purrr::map_dbl(1905:1909, \(y) yield_at(100L, "15", y)) < 1.5
+  ))
+  # A yield that is not a spike passes through untouched.
+  expect_equal(
+    yield_at(223L, "15", 1939),
+    pin[area_code == 223 & item_code == 15 & year == 1939, yield]
+  )
+  olives_out <- result |>
+    dplyr::filter(.data$item_prod_code == "260") |>
+    dplyr::arrange(.data$year) |>
+    dplyr::pull(yield)
+  olives_in <- pin[item_code == 260 & year < 1962][order(year), yield]
+  expect_equal(olives_out, olives_in)
+})
+
+test_that("no international yield exceeds its spike bound (whep#1652)", {
+  pin <- .int_yields_spike_pin()
+  testthat::local_mocked_bindings(.read_input = .mock_int_yields_pin(pin))
+
+  result <- suppressMessages(whep:::.read_int_yields())
+  # The invariant over the whole output, independent of which rows were bad:
+  # every yield is within the bound of its own series' centred window median.
+  windows <- whep:::.int_yield_window_median(result)
+  expect_true(all(
+    result$yield <= whep:::.int_yield_spike_ratio * windows + 1e-12
+  ))
+})
+
+test_that("a scoped international-yields read damps as a full one (#1652)", {
+  pin <- .int_yields_spike_pin()
+  testthat::local_mocked_bindings(.read_input = .mock_int_yields_pin(pin))
+
+  full <- suppressMessages(whep:::.read_int_yields())
+  scoped <- suppressMessages(whep:::.read_int_yields(years = 1940:1965))
+
+  expect_equal(range(scoped$year), c(1940, 1961))
+  key <- c("year", "area_code", "item_prod_code")
+  expected <- full[year >= 1940][order(year, area_code, item_prod_code)]
+  observed <- scoped[order(year, area_code, item_prod_code)]
+  expect_equal(observed[, ..key], expected[, ..key])
+  expect_equal(observed$yield, expected$yield)
+})
+
+test_that("a yield spike no longer becomes a back-cast tonnage spike", {
+  pin <- .int_yields_spike_pin()
+  testthat::local_mocked_bindings(.read_input = .mock_int_yields_pin(pin))
+  int_yields <- suppressMessages(whep:::.read_int_yields())
+
+  df <- tidyr::expand_grid(year = 1935:1961, unit = c("tonnes", "ha")) |>
+    dplyr::mutate(
+      area = "Turkiye",
+      area_code = 223L,
+      item_prod = "Wheat",
+      item_prod_code = "15",
+      item_cbs = "Wheat and products",
+      item_cbs_code = 2511L,
+      land_use = "cropland",
+      live_anim = NA_character_,
+      live_anim_code = NA_integer_,
+      value = dplyr::case_when(
+        unit == "ha" ~ 5e6,
+        year == 1961 ~ 4.5e6,
+        .default = 0
+      ),
+      source = dplyr::if_else(year == 1961, "FAOSTAT_prod", "LUH2_cropland")
+    )
+
+  tonnes <- whep:::.add_historical_yields(df, int_yields) |>
+    tibble::as_tibble() |>
+    dplyr::arrange(.data$year) |>
+    dplyr::pull(tonnes, name = year)
+
+  # Without the guard 1940 comes out ~39x its neighbours (177 Mt in the issue).
+  expect_lt(tonnes[["1940"]] / tonnes[["1939"]], 1.5)
+  expect_lt(tonnes[["1940"]] / tonnes[["1941"]], 1.5)
+})
+
 
 # -- merge_euadb_fodder --------------------------------------------------------
 
