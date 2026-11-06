@@ -178,3 +178,59 @@ test_that("empty and unknown-source aggregates keep an honest schema", {
   expect_identical(empty$source, character())
   expect_identical(empty$fao_flag, character())
 })
+
+test_that("vectorised source labels match the scalar rule per key", {
+  trade <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2017L, 1L, 10L, "import", 1, "b_trade", "A",
+    2017L, 1L, 10L, "import", 2, "a_trade", "A",
+    2017L, 1L, 10L, "import", 3, "b_trade", "A",
+    2017L, 2L, 10L, "import", 4, "a_trade", "E",
+    2017L, 3L, 10L, "export", 5, NA_character_, "A",
+    2017L, 3L, 10L, "export", 6, "a_trade", "A",
+    2017L, 4L, 10L, "export", 7, "", "A",
+    2017L, NA, 10L, "export", 8, "c_trade", NA_character_,
+    2017L, NA, 10L, "export", 9, "a_trade", NA_character_,
+    2017L, 5L, 10L, "export", NA, "c_trade", "I"
+  )
+  expected <- trade |>
+    dplyr::summarise(
+      value = sum(.data$value, na.rm = TRUE),
+      source = whep:::.trade_source_label(.data$source),
+      .by = dplyr::all_of(whep:::.cbs_trade_keys())
+    )
+  out <- whep:::.sum_trade_provenance(trade)
+  expect_identical(
+    dplyr::select(out, -"fao_flag"),
+    expected,
+    ignore_attr = ".internal.selfref"
+  )
+  expect_identical(
+    out$source,
+    c("a_trade + b_trade", "a_trade", NA, NA, "a_trade + c_trade", "c_trade")
+  )
+  # Flags fold on their own rule, independent of whether the source is known.
+  expect_identical(out$fao_flag, c("A", "E", "A", "A", NA, "I"))
+})
+
+test_that("source labels past the 52-bit mask match the scalar rule", {
+  trade <- tibble::tibble(
+    year = 2017L,
+    area_code = rep(1:2, c(53L, 1L)),
+    item_cbs_code = 10L,
+    element = "import",
+    value = 1,
+    source = c(sprintf("source_%02d", 53:1), NA),
+    fao_flag = NA_character_
+  )
+  out <- whep:::.sum_trade_provenance(trade)
+  expect_identical(
+    out$source,
+    c(paste(sprintf("source_%02d", 1:53), collapse = " + "), NA)
+  )
+  expect_equal(out$value, c(53, 1))
+  expect_identical(
+    whep:::.sum_trade_provenance(trade[-1L, ])$source[1],
+    paste(sprintf("source_%02d", 1:52), collapse = " + ")
+  )
+})

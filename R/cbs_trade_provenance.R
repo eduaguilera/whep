@@ -6,18 +6,60 @@
   c("year", "area_code", "item_cbs_code", "element")
 }
 
+# Sums trade by `keys` and names the datasets behind each sum. Vectorised:
+# it runs over millions of trade keys per build, where a per-group R call to
+# the labelling function took ~80 s on 2.6M keys. The data.table `sum()` also
+# keeps the values bit-identical to the plain aggregation it replaced.
 .sum_trade_provenance <- function(trade, keys = .cbs_trade_keys()) {
   rows <- tibble::as_tibble(trade) |>
     ensure_columns(tibble::tibble(source = character(), fao_flag = character()))
-  out <- rows |>
-    dplyr::summarise(
-      value = sum(.data$value, na.rm = TRUE),
-      source = .trade_source_label(.data$source),
-      .by = dplyr::all_of(keys)
-    )
+  dt <- data.table::as.data.table(rows)
+  labels <- .trade_source_labels(dt, keys)
+  out <- dt[, list(value = sum(value, na.rm = TRUE)), by = keys]
+  out[, source := NA_character_]
+  out[labels, source := i.source, on = keys]
   # An unflagged contribution cannot inherit the flag of a different source.
   .add_folded_fao_flags(out, rows, keys, unflagged = "blocks") |>
     tibble::as_tibble()
+}
+
+# One label per key: its distinct sources sorted and joined by `" + "`. A key
+# with any missing or empty source is unattributable and labels as `NA`.
+# Equivalent to `.trade_source_label()` applied per group, which
+# `test_cbs_trade_provenance.R` asserts.
+#
+# Each source is one bit of a per-key mask, so the per-key work is a GForce
+# `sum()` and only the few distinct masks are ever pasted. A missing or empty
+# source has no bit, and its `NA` propagates through the sum to block the key.
+# A mask is exact only while it fits a double's 53-bit significand; past 52
+# sources the labels are pasted per key instead, which is slower but the same.
+.trade_source_labels <- function(dt, keys) {
+  known <- !is.na(dt$source) & nzchar(dt$source)
+  # Base `sort()` sets the order, so labels match the scalar helper's collation.
+  sources <- sort(unique(dt$source[known]))
+  if (length(sources) > 52L) {
+    return(dt[, list(source = .trade_source_label(source)), by = keys])
+  }
+  bits <- data.table::as.data.table(dt[, keys, with = FALSE])
+  bits[, .source_bit := 2^(match(dt$source, sources) - 1)]
+  masks <- unique(bits)[,
+    list(.source_mask = sum(.source_bit)),
+    by = keys
+  ]
+  distinct <- unique(masks$.source_mask[!is.na(masks$.source_mask)])
+  masks[,
+    source := .mask_source_labels(distinct, sources)[
+      match(.source_mask, distinct)
+    ]
+  ]
+  masks[, .source_mask := NULL]
+  masks
+}
+
+.mask_source_labels <- function(masks, sources) {
+  members <- outer(masks, 2^(seq_along(sources) - 1), `%/%`) %% 2 == 1
+  apply(members, 1L, \(row) paste(sources[row], collapse = " + ")) |>
+    as.character()
 }
 
 .trade_source_label <- function(source) {
