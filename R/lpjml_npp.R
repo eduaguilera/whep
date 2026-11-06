@@ -136,6 +136,7 @@ read_lpjml_npp <- function(
   first_year,
   time_index
 ) {
+  .check_lpjml_axes(nc, netcdf_var, n_dims = 4L)
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
   n_pft <- length(names_pft)
