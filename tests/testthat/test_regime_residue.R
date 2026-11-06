@@ -86,16 +86,16 @@ testthat::test_that("the irrigation-label guard fires on a capitalisation mismat
     .package = "whep"
   )
   row <- tibble::tibble(item_prod_code = "56", production_t = 7.2, area_ha = 1)
-  irrigated <- whep::calculate_crop_npp(
-    dplyr::mutate(row, water_regime = "Irrigated")
+  # The mismatch used to leave an identity intact -- the irrigated row took
+  # factor 1 and equalled the unadjusted one. The exported model now refuses
+  # the label itself (whep#1034), and the part split's own guard still fires.
+  testthat::expect_error(
+    whep::calculate_crop_npp(dplyr::mutate(row, water_regime = "Irrigated")),
+    class = "whep_regime_label"
   )
-  unadjusted <- whep::calculate_crop_npp(row)
-  expect_supplied_guard(
-    # The identity a vocabulary mismatch leaves intact: the irrigated row
-    # silently takes factor 1 and equals the unadjusted one.
-    identity = identical(irrigated$residue_dm_t, unadjusted$residue_dm_t) &&
-      identical(irrigated$root_dm_t, unadjusted$root_dm_t),
-    guard = whep:::.rr_part_factors(.rrs_maize_parts()),
+  testthat::expect_no_error(whep::calculate_crop_npp(row))
+  testthat::expect_error(
+    whep:::.rr_part_factors(.rrs_maize_parts()),
     class = "whep_absent_label"
   )
 })
