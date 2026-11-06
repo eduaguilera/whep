@@ -29,6 +29,7 @@ build_commodity_balances(
   residue_backcast = .cbs_residue_backcast_choices(),
   bucket_coverage = .cbs_coverage_choices(),
   method_cbs_account = c("source", "balance_residual"),
+  fishstat_trade = .fishstat_trade_choices(),
   .fixed_data = NULL
 )
 }
@@ -674,6 +675,50 @@ moves 2,945 production keys at 2015-2020 (49.4 Mt in absolute value, net
 1,984 kt to none, and Malaysia's 2020 palm kernel oil from 760 kt to
 2,178 kt.}
 
+\item{fishstat_trade}{One of \code{"withhold"} (default) or \code{"as_live_weight"},
+selecting whether the \code{fishstat-trade} pin reaches the fish balances
+(whep#1617). The pin holds FishStat's net product weight (measure
+\code{Q_tpw}, "Tonnes – net product weight", FishStat FI_Trade 2025.1.0),
+while FAO's fish balance sheets, which the fish items 2761-2775 come
+from, are calculated in live-weight equivalent (FAO 2019, \emph{Fishery and
+Aquaculture Statistics 2017: Food balance sheets}, General notes,
+p. vii). Both are tonnes, so the mass-unit check passes them, but a
+tonne of fillets or fishmeal is several tonnes of fish. The pin is
+aggregated to CBS items, so it keeps no commodity to convert by, and its
+2781/2782 "oil" items hold pearls, corals and sponges (ISSCAAP 81-83).
+\itemize{
+\item \code{"withhold"} keeps it out: it fills no balance-sheet gap and creates
+no trade-only row. The pin is still read, a raw candidate still aborts,
+and the build states the tonnage withheld: the pin rows at keys where
+the balance sheet books no trade, which is what \code{"as_live_weight"}
+would fill, next to the pin's gross total.
+\item \code{"as_live_weight"} books the product weight as live weight, tonne for
+tonne, as builds did before whep#1617. It reproduces them exactly and is
+not a conversion.
+}
+
+The long output records the choice in \code{method_fish_trade} on the rows of
+the fish items the pin can reach (2761-2767, 2769, 2775, 2781, 2782),
+\code{NA} on every other item, and \code{"not_applied"} under \code{.fixed_data}.
+
+\strong{The default moves published values, fish items only.} Measured on
+complete 2017 builds, \code{"as_live_weight"} fills 1,040 keys where the
+balance sheet books zero trade (4.17 Mt of exports, 2.44 Mt of imports)
+and 63 where it books none (0.48 Mt), and creates 3.60 Mt of trade-only
+rows. Most of the zero fills count again what the balance sheet already
+holds in another item: Peru's 1.25 Mt of Marine Fish, Other exports in
+the pin is 1.03 Mt of fishmeal and 0.17 Mt of body oil, which its balance
+books as Pelagic Fish and Fish, Body Oil. Under \code{"withhold"} world fish
+imports fall from 67.2 to 61.6 Mt (-8.3\%), exports from 65.9 to 60.8 Mt
+(-7.7\%), fish food from 168.4 to 166.0 Mt (-1.4\%), and the fish
+\code{balance_discrepancy} from -2.34 Mt to +0.02 Mt; no other item moves. At
+2010 the same figures are -3.02 Mt of imports (-4.7\%), -3.11 Mt of
+exports (-5.4\%) and -0.80 Mt of food (-0.6\%). Areas FAOSTAT's balance
+sheets do not cover keep no fish account rather than one made of
+product-weight trade and no production: Japan (1.57 Mt of fish food at
+2017), Singapore, Mali, Togo, Bahrain and seven more at 2017, six at
+2010.}
+
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
 supplied, \code{primary_all} is ignored and the pipeline skips directly
@@ -687,7 +732,8 @@ For \code{format = "long"}, a tibble with columns: \code{year}, legacy numeric
 \code{area_code}, numeric \code{polity_area_code}, \code{reporting_polity_code},
 \code{reporting_polity_name}, \code{reporting_polity_has_geometry},
 \code{item_cbs_code}, \code{element} (e.g. \code{"production"}, \code{"import"}, \code{"food"}),
-\code{value}, \code{source}, \code{fao_flag} and \code{method_cbs_account}. The elements
+\code{value}, \code{source}, \code{fao_flag}, \code{method_cbs_account},
+\code{method_cbs_coverage} and \code{method_fish_trade}. The elements
 include \code{losses}, \code{residuals}, \code{tourist_consumption} and
 \code{balance_discrepancy} under \code{method_cbs_account = "source"}; see that
 argument for the identity they close. For \code{format = "wide"}, the elements

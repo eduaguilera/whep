@@ -155,7 +155,8 @@ test_that("build_commodity_balances returns expected columns", {
     "source",
     "fao_flag",
     "method_cbs_account",
-    "method_cbs_coverage"
+    "method_cbs_coverage",
+    "method_fish_trade"
   )
   expect_equal(names(result), expected_cols)
 })
@@ -315,7 +316,13 @@ test_that("build_commodity_balances matches expected output", {
     whep:::.add_reporting_polity_columns() |>
     dplyr::mutate(
       method_cbs_account = "balance_residual",
-      method_cbs_coverage = "not_checked"
+      method_cbs_coverage = "not_checked",
+      # A supplied balance never read the FishStat pin (whep#1617).
+      method_fish_trade = dplyr::if_else(
+        .data$item_cbs_code %in% c(2761:2767, 2769, 2775, 2781, 2782),
+        "not_applied",
+        NA_character_
+      )
     )
   expect_equal(
     result,
