@@ -32,13 +32,14 @@
 #'   If NULL, computes all years in the intersection of
 #'   available data across inputs. If specified, must be
 #'   a subset of available years.
-#' @param endogenize_losses Logical. If `TRUE` and `cbs`
-#'   contains a `losses` column, losses are moved from final
-#'   demand to the diagonal of `Z` (self-use), following the
-#'   FABIO convention. The `losses` column is removed from Y
-#'   and `fd_labels`. [get_wide_cbs()] emits no `losses` column, so `TRUE`
-#'   with such a `cbs` warns and builds the same model as `FALSE`. Defaults
-#'   to `FALSE`.
+#' @param endogenize_losses Logical. Losses and tourist consumption are
+#'   final demand categories whenever `cbs` carries them, as in FABIO's
+#'   final demand labels; the statistical `residuals` and
+#'   `balance_discrepancy` never are. If `TRUE`,
+#'   losses are moved from final demand to the diagonal of `Z` (self-use),
+#'   following the FABIO convention, and the `losses` column is removed from
+#'   Y and `fd_labels`. A `cbs` with no `losses` column warns and builds the
+#'   same model as `FALSE`. Defaults to `FALSE`.
 #' @param method Co-product allocation method. `"mass"` (default) splits a
 #'   multi-output process's inputs across its products by physical mass;
 #'   `"value"` splits them by economic value (mass times export price), so
@@ -56,11 +57,18 @@
 #'   method does. It has no effect on an input supplied directly, so a `cbs`
 #'   built with one method and the rest left to build under another is the
 #'   caller's to avoid; pass the same value everywhere.
+#' @param stock_coverage What to do with CBS rows whose stock change is
+#'   unobserved (`NA` `stock_addition`/`stock_withdrawal`), which is every
+#'   key FAOSTAT does not report one for. `"known_flows"` (default) books no
+#'   inventory for them and warns, as FABIO does; `"abort"` refuses. The
+#'   choice is returned in the `method_stock_coverage` column and the rows in
+#'   the `unknown_stock_accounts` attribute.
 #'
 #' @return A tibble with one row per year and list-columns:
 #'   - `Z`: Inter-industry flow matrix (product-by-product).
 #'   - `Y`: Final demand matrix.
 #'   - `X`: Total output vector.
+#'   - `method_stock_coverage`: the `stock_coverage` choice.
 #'   - `labels`: Tibble mapping row/column indices to
 #'     `area_code`, `item_cbs_code`, and reporting polity metadata.
 #'   - `fd_labels`: Tibble mapping each Y column to its
@@ -84,8 +92,10 @@ build_io_model <- function(
   endogenize_losses = FALSE,
   method = c("mass", "value"),
   prices = NULL,
-  trade_recovery = .cbs_trade_recovery_choices()
+  trade_recovery = .cbs_trade_recovery_choices(),
+  stock_coverage = c("known_flows", "abort")
 ) {
+  stock_coverage <- rlang::arg_match(stock_coverage)
   method <- rlang::arg_match(method)
   trade_recovery <- rlang::arg_match(trade_recovery)
   if (!is.null(years) && !is.numeric(years)) {
@@ -102,7 +112,8 @@ build_io_model <- function(
       endogenize_losses = endogenize_losses,
       method = method,
       prices = prices,
-      trade_recovery = trade_recovery
+      trade_recovery = trade_recovery,
+      stock_coverage = stock_coverage
     ))
   }
   build_years <- .build_years(years)
@@ -192,6 +203,7 @@ build_io_model <- function(
   } else {
     .validate_years(years, common_years)
   }
+  stock_missing <- .io_stock_coverage(cbs, stock_coverage)
   endogenize_losses <- .check_losses_column(cbs, endogenize_losses)
   fd_cols <- .detect_fd_columns(cbs, endogenize_losses)
   n_years <- length(years)
@@ -226,7 +238,10 @@ build_io_model <- function(
   })
 
   cli::cli_alert_success("IO model complete.")
-  .io_results_to_tibble(results, years)
+  out <- .io_results_to_tibble(results, years) |>
+    dplyr::mutate(method_stock_coverage = stock_coverage)
+  attr(out, "unknown_stock_accounts") <- stock_missing
+  out
 }
 
 .io_should_build_sparse_years <- function(years, supply_use, cbs) {
@@ -264,7 +279,8 @@ build_io_model <- function(
   endogenize_losses,
   method = "mass",
   prices = NULL,
-  trade_recovery = .cbs_trade_recovery_choices()[[1]]
+  trade_recovery = .cbs_trade_recovery_choices()[[1]],
+  stock_coverage = "known_flows"
 ) {
   years <- .io_requested_years(years)
   cli::cli_inform(c(
@@ -286,7 +302,8 @@ build_io_model <- function(
         endogenize_losses = endogenize_losses,
         method = method,
         prices = .io_filter_optional_years(prices, yr),
-        trade_recovery = trade_recovery
+        trade_recovery = trade_recovery,
+        stock_coverage = stock_coverage
       )
     }
   ) |>
@@ -496,19 +513,53 @@ build_io_model <- function(
       "{.arg endogenize_losses} is {.val {TRUE}} but {.arg cbs} has no
        {.field losses} column, so there are no losses to endogenize.",
       i = "The model is built without it, identical to
-           {.code endogenize_losses = FALSE}. {.fn get_wide_cbs} emits no
-           {.field losses} element; supply a {.arg cbs} that carries one."
+           {.code endogenize_losses = FALSE}. Supply a {.arg cbs} that
+           carries the {.field losses} element, as {.fn get_wide_cbs} does."
     ),
     class = "whep_endogenize_losses_unmet"
   )
   FALSE
 }
 
-.detect_fd_columns <- function(cbs, endogenize_losses = FALSE) {
-  possible <- c("food", "other_uses", "stock_addition")
-  if (endogenize_losses && "losses" %in% names(cbs)) {
-    possible <- c(possible, "losses")
+# FAOSTAT reports no stock change for most derived products and for every
+# key outside its balances, so the CBS carries those as NA rather than as a
+# balancing residual (whep#412). "known_flows" builds the IO table from the
+# flows that are known and books no inventory for them, as FABIO's `na_sum()`
+# does (fineprint-global/fabio@66a9298, R/03_1a_build_cbs.R); "abort" refuses.
+.io_stock_coverage <- function(cbs, method) {
+  unknown <- cbs |>
+    dplyr::filter(is.na(stock_addition) | is.na(stock_withdrawal)) |>
+    dplyr::select(dplyr::any_of(c(
+      "year",
+      "reporting_polity_code",
+      "area_code",
+      "item_cbs_code"
+    )))
+  if (nrow(unknown) > 0L) {
+    text <- c(
+      "{nrow(unknown)} CBS account{?s} report no stock change.",
+      "i" = "{.val known_flows} books no inventory for them: incomplete \
+        coverage, not an observed zero. {.arg stock_coverage} = \
+        {.val abort} refuses instead."
+    )
+    if (method == "abort") {
+      cli::cli_abort(text, class = "whep_io_stock_coverage")
+    }
+    cli::cli_warn(text, class = "whep_io_stock_coverage")
   }
+  unknown
+}
+
+.detect_fd_columns <- function(cbs, endogenize_losses = FALSE) {
+  # Losses are a physical use whether kept in final demand or explicitly
+  # endogenized into Z. Statistical residuals are not physical final demand.
+  possible <- c(
+    "food",
+    "other_uses",
+    "stock_addition",
+    "losses",
+    "tourist_consumption"
+  )
   intersect(possible, names(cbs))
 }
 
@@ -700,7 +751,7 @@ build_io_model <- function(
   idx <- match(cbs_item$area_code, areas)
   valid <- !is.na(idx)
   own <- cbs_item$production[valid] +
-    cbs_item$stock_withdrawal[valid] -
+    dplyr::coalesce(cbs_item$stock_withdrawal[valid], 0) -
     cbs_item$export[valid]
   result[idx[valid]] <- pmax(own, 0)
   result

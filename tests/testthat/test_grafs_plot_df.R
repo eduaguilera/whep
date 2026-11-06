@@ -71,17 +71,49 @@ test_that(".create_n_flow_df labels and sums crop and livestock flows", {
     dplyr::pull(data)
   expect_equal(crops_to_livestock, 50)
 
-  # all five flow labels are always present (completed with zeros)
+  # all seven flow labels are always present (completed with zeros), even
+  # though this fixture has no aquaculture rows
   expect_setequal(
     unique(out$label),
     c(
       "{CROP_EXPORT}",
       "{CROPS_TO_POP}",
       "{CROPS_TO_LIVESTOCK}",
+      "{CROPS_TO_AQUACULTURE}",
       "{LIVESTOCK_TO_HUMAN}",
-      "{GRASS_TO_LIVESTOCK}"
+      "{GRASS_TO_LIVESTOCK}",
+      "{GRASS_TO_AQUACULTURE}"
     )
   )
+})
+
+test_that(".create_n_flow_df labels aquaculture feed separately from livestock feed (#379)", {
+  fixture <- .fixture_prov_destiny() |>
+    dplyr::bind_rows(
+      tibble::tribble(
+        ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN,
+        "Huesca", 2000, "Fishmeal", NA, "Agro-industry", "Cropland", "aquaculture", 12,
+        "Huesca", 2000, "Grassland", NA, "semi_natural_agroecosystems", "semi_natural_agroecosystems", "aquaculture", 4
+      )
+    )
+
+  out <- .create_n_flow_df(fixture)
+
+  crops_to_aqua <- out |>
+    dplyr::filter(label == "{CROPS_TO_AQUACULTURE}") |>
+    dplyr::pull(data)
+  expect_equal(crops_to_aqua, 12)
+
+  grass_to_aqua <- out |>
+    dplyr::filter(label == "{GRASS_TO_AQUACULTURE}") |>
+    dplyr::pull(data)
+  expect_equal(grass_to_aqua, 4)
+
+  # Aquaculture feed must not also be counted as livestock feed.
+  crops_to_livestock <- out |>
+    dplyr::filter(label == "{CROPS_TO_LIVESTOCK}") |>
+    dplyr::pull(data)
+  expect_equal(crops_to_livestock, 50)
 })
 
 
@@ -129,6 +161,19 @@ test_that(".create_livestock_total_df sums livestock output to a single label", 
   expect_equal(out$data, 28)
 })
 
+test_that(".create_livestock_total_df includes population_food_inedible", {
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Livestock", "population_food", 10,
+    "Huesca", 2000, "Livestock", "population_food_inedible", 5,
+    "Huesca", 2000, "Cropland", "population_food_inedible", 999
+  )
+
+  out <- .create_livestock_total_df(prov_destiny_df)
+
+  expect_equal(out$data, 15)
+})
+
 
 # .create_land_surplus_df ------------------------------------------------------
 
@@ -142,6 +187,59 @@ test_that(".create_land_surplus_df computes inputs minus outputs", {
   # crop inputs are synthetic and fixation; crop outputs are export, food,
   # ruminant feed and monogastric feed
   expect_equal(crop_surplus, (60 + 10) - (100 + 40 + 30 + 20))
+})
+
+test_that(".create_land_surplus_df counts population_food_inedible as output", {
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Synthetic", "Cropland", 100,
+    "Huesca", 2000, "Cropland", "population_food", 30,
+    "Huesca", 2000, "Cropland", "population_food_inedible", 10
+  )
+
+  out <- .create_land_surplus_df(prov_destiny_df) |>
+    dplyr::filter(label == "{CROP_SURPLUS}")
+
+  # 100 input - (30 + 10) output = 60, not 70.
+  expect_equal(out$data, 60)
+})
+
+test_that(".create_land_surplus_df counts aquaculture as output (#379)", {
+  # aquaculture is a known, tracked destiny (unlike processing_losses
+  # below), so it belongs in output even though it has no arrow of its
+  # own in the GRAFS diagram.
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Synthetic", "Cropland", 100,
+    "Huesca", 2000, "Cropland", "population_food", 30,
+    "Huesca", 2000, "Cropland", "aquaculture", 10
+  )
+
+  out <- .create_land_surplus_df(prov_destiny_df) |>
+    dplyr::filter(label == "{CROP_SURPLUS}")
+
+  # 100 input - (30 + 10) output = 60, not 70.
+  expect_equal(out$data, 60)
+})
+
+test_that(".create_land_surplus_df leaves processing_losses in surplus", {
+  # Per .compute_processing_losses() (n_prov_destiny.R), processing_losses
+  # is deliberately NOT a tracked output: it falls into surplus rather than
+  # counting as product, pending explicit by-product items. It still gets
+  # its own display arrow ({CRP_PROCLOSS}), but that is a separate concern
+  # from this residual.
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Synthetic", "Cropland", 100,
+    "Huesca", 2000, "Cropland", "population_food", 30,
+    "Huesca", 2000, "Cropland", "processing_losses", 15
+  )
+
+  out <- .create_land_surplus_df(prov_destiny_df) |>
+    dplyr::filter(label == "{CROP_SURPLUS}")
+
+  # 100 input - 30 output = 70; processing_losses stays inside surplus.
+  expect_equal(out$data, 70)
 })
 
 
@@ -171,7 +269,7 @@ test_that(".sum_land_n sums the three N components under a mask", {
 
 # .create_land_df --------------------------------------------------------------
 
-test_that(".create_land_df aggregates area and N by GRAFS land labels", {
+test_that(".create_land_df aggregates area from n_balance and N from destiny data", {
   local_mocked_bindings(
     whep_read_file = function(alias) {
       if (alias == "n_balance_ygpit_all") {
@@ -184,15 +282,43 @@ test_that(".create_land_df aggregates area and N by GRAFS land labels", {
           )
         )
       }
+      if (alias == "grafs_crop_categories") {
+        return(
+          tibble::tribble(
+            ~crop_type, ~Name_biomass,
+            "permanent", "Olive",
+            "non_permanent", "Wheat"
+          )
+        )
+      }
+      # codes_coefs_items_full: bridges prov_destiny_df$Item to Name_biomass.
       tibble::tribble(
-        ~crop_type, ~Name_biomass,
-        "permanent", "Olive",
-        "non_permanent", "Wheat"
+        ~item, ~Name_biomass,
+        "Olives (including preserved)", "Olive",
+        "Wheat and products", "Wheat"
+      )
+    },
+    # Both fixture items are primary crops (their own Name_biomass already
+    # resolves), so no processed item needs a parent-crop share here.
+    .processing_item_shares = function(...) {
+      tibble::tibble(
+        Item = character(),
+        Name_biomass = character(),
+        share = double()
       )
     }
   )
 
-  out <- .create_land_df()
+  # No residue-item rows here, so .compute_residue_shares()'s reallocation
+  # contributes zero and the PERiN/NPErN totals below come only from the
+  # matching Cropland rows.
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Olives (including preserved)", "Irrigated", "Cropland", "export", 40,
+    "Huesca", 2000, "Wheat and products", "Rainfed", "Cropland", "export", 60
+  )
+
+  out <- dplyr::filter(.create_land_df(prov_destiny_df), province == "Huesca")
 
   peri_ha <- out |>
     dplyr::filter(label == "{PERiha}") |>
@@ -204,10 +330,241 @@ test_that(".create_land_df aggregates area and N by GRAFS land labels", {
     dplyr::pull(data)
   expect_equal(forn, 3 + 0 + 1)
 
-  npe_r_n <- out |>
+  peri_n <- out |>
+    dplyr::filter(label == "{PERiN}") |>
+    dplyr::pull(data)
+  expect_equal(peri_n, 40)
+
+  nper_n <- out |>
     dplyr::filter(label == "{NPErN}") |>
     dplyr::pull(data)
-  expect_equal(npe_r_n, 8 + 2 + 0)
+  expect_equal(nper_n, 60)
+})
+
+
+# .create_crop_type_n_df: horticulture folding and byproduct remap ------------
+
+test_that(".create_crop_type_n_df folds horticulture into non-permanent", {
+  local_mocked_bindings(
+    whep_read_file = function(alias) {
+      tibble::tribble(
+        ~item, ~Name_biomass,
+        "Tomatoes and products", "Tomato"
+      )
+    },
+    # Tomato is a primary crop (its own Name_biomass already resolves), so
+    # no processed item needs a parent-crop share here.
+    .processing_item_shares = function(...) {
+      tibble::tibble(
+        Item = character(),
+        Name_biomass = character(),
+        share = double()
+      )
+    }
+  )
+  crop_lookup <- tibble::tribble(
+    ~crop_type, ~Name_biomass,
+    "horticulture", "Tomato"
+  )
+  n_balance <- tibble::tibble(
+    Province_name = character(),
+    Year = numeric(),
+    LandUse = character(),
+    Name_biomass = character(),
+    Irrig_cat = character(),
+    Prod_MgN = numeric(),
+    UsedResidue_MgN = numeric(),
+    GrazedWeeds_MgN = numeric()
+  )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Tomatoes and products", "Irrigated", "Cropland", "export", 70
+  )
+
+  out <- .create_crop_type_n_df(prov_destiny_df, crop_lookup, n_balance)
+  huesca <- dplyr::filter(out, province == "Huesca")
+
+  # Tomato has no permanent/non_permanent crop_type of its own -- only
+  # "horticulture" -- so it must land in {NPEiN}, not vanish.
+  expect_equal(
+    dplyr::pull(dplyr::filter(huesca, label == "{NPEiN}"), data),
+    70
+  )
+  expect_false(any(huesca$data[huesca$label == "{PERiN}"] > 0))
+})
+
+test_that(".create_crop_type_n_df remaps a processed byproduct to its parent crop", {
+  local_mocked_bindings(
+    whep_read_file = function(alias) {
+      tibble::tribble(
+        ~item, ~Name_biomass,
+        "Soyabean Cake", "Soyabean cake biomass"
+      )
+    },
+    # Real get_processing_coefs()-derived share: Soyabean Cake comes 100%
+    # from Soyabeans. .processing_item_shares() itself is tested separately.
+    .processing_item_shares = function(...) {
+      tibble::tribble(
+        ~Item, ~Name_biomass, ~share,
+        "Soyabean Cake", "Soyabeans", 1
+      )
+    }
+  )
+  crop_lookup <- tibble::tribble(
+    ~crop_type, ~Name_biomass,
+    "non_permanent", "Soyabeans"
+  )
+  # Soyabeans production is 100% Irrigated for this province/year (the
+  # explicit zero Rainfed row matters: an absent row, rather than a zero
+  # one, would leave .compute_irrigation_shares() with nothing to join
+  # against and fall back to 0.5 for that combination), so the byproduct
+  # (which carries Irrig_cat = NA) must be allocated fully to {NPEiN}, none
+  # to {NPErN}.
+  n_balance <- tibble::tribble(
+    ~Province_name, ~Year, ~LandUse, ~Name_biomass, ~Irrig_cat, ~Prod_MgN, ~UsedResidue_MgN, ~GrazedWeeds_MgN,
+    "Huesca", 2000, "Cropland", "Soyabeans", "Irrigated", 50, 0, 0,
+    "Huesca", 2000, "Cropland", "Soyabeans", "Rainfed", 0, 0, 0
+  )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Soyabean Cake", NA_character_, "Cropland", "export", 20
+  )
+
+  out <- .create_crop_type_n_df(prov_destiny_df, crop_lookup, n_balance)
+  huesca <- dplyr::filter(out, province == "Huesca")
+
+  expect_equal(
+    dplyr::pull(dplyr::filter(huesca, label == "{NPEiN}"), data),
+    20
+  )
+  expect_equal(
+    sum(dplyr::filter(huesca, label == "{NPErN}")$data),
+    0
+  )
+})
+
+
+# .processing_item_shares -------------------------------------------------------
+
+test_that(".processing_item_shares computes real parent-crop shares from processed volumes", {
+  local_mocked_bindings(
+    get_processing_coefs = function(years) {
+      tibble::tribble(
+        ~area_code, ~item_cbs_code_to_process, ~item_cbs_code_processed, ~value_to_process,
+        203L, 1L, 100L, 75,
+        203L, 2L, 100L, 25,
+        203L, 3L, 200L, 10,
+        # A different country must not leak into Spain's shares.
+        999L, 1L, 100L, 999
+      )
+    },
+    add_item_cbs_name = function(table, code_column, name_column) {
+      dplyr::mutate(
+        table,
+        "{name_column}" := paste0("code_", .data[[code_column]])
+      )
+    }
+  )
+  item_lookup <- tibble::tribble(
+    ~Item, ~Name_biomass,
+    "code_1", "CropA",
+    "code_2", "CropB",
+    "code_3", "CropC"
+  )
+
+  out <- .processing_item_shares(item_lookup, exclude_items = character())
+  processed_100 <- dplyr::filter(out, Item == "code_100")
+
+  expect_equal(nrow(processed_100), 2)
+  expect_equal(
+    dplyr::pull(dplyr::filter(processed_100, Name_biomass == "CropA"), share),
+    0.75
+  )
+  expect_equal(
+    dplyr::pull(dplyr::filter(processed_100, Name_biomass == "CropB"), share),
+    0.25
+  )
+  # code_200's only parent gets share 1, same as a single-source byproduct.
+  expect_equal(
+    dplyr::pull(dplyr::filter(out, Item == "code_200"), share),
+    1
+  )
+})
+
+test_that(".processing_item_shares drops excluded output items and unresolved parents", {
+  local_mocked_bindings(
+    get_processing_coefs = function(years) {
+      tibble::tribble(
+        ~area_code, ~item_cbs_code_to_process, ~item_cbs_code_processed, ~value_to_process,
+        203L, 1L, 100L, 50,
+        203L, 1L, 300L, 50,
+        # code_4 has no Name_biomass in item_lookup below -- must be
+        # dropped rather than leaving a Name_biomass = NA row.
+        203L, 4L, 400L, 999
+      )
+    },
+    add_item_cbs_name = function(table, code_column, name_column) {
+      dplyr::mutate(
+        table,
+        "{name_column}" := paste0("code_", .data[[code_column]])
+      )
+    }
+  )
+  item_lookup <- tibble::tribble(
+    ~Item, ~Name_biomass,
+    "code_1", "CropA"
+  )
+
+  out <- .processing_item_shares(item_lookup, exclude_items = "code_300")
+
+  expect_false("code_300" %in% out$Item)
+  expect_true("code_100" %in% out$Item)
+  expect_false("code_400" %in% out$Item)
+})
+
+
+# .add_national_n_balance ------------------------------------------------------
+
+test_that(".add_national_n_balance sums provinces into a Spain row", {
+  n_balance <- tibble::tribble(
+    ~Province_name, ~Year, ~LandUse, ~Name_biomass, ~Irrig_cat, ~Prod_MgN, ~UsedResidue_MgN, ~GrazedWeeds_MgN,
+    "Huesca", 2000, "Cropland", "Wheat", "Irrigated", 10, 1, 0,
+    "Teruel", 2000, "Cropland", "Wheat", "Irrigated", 5, 2, 0
+  )
+
+  out <- .add_national_n_balance(n_balance)
+  spain <- dplyr::filter(out, Province_name == "Spain")
+
+  expect_equal(nrow(spain), 1)
+  expect_equal(spain$Prod_MgN, 15)
+  expect_equal(spain$UsedResidue_MgN, 3)
+  # Provincial rows survive unchanged alongside the new Spain row.
+  expect_equal(nrow(out), 3)
+})
+
+
+# .compute_irrigation_shares ----------------------------------------------
+
+test_that(".compute_irrigation_shares falls back to 0.5 with no production", {
+  n_balance_full <- tibble::tribble(
+    ~Province_name, ~Year, ~LandUse, ~Name_biomass, ~Irrig_cat, ~Prod_MgN,
+    "Huesca", 2000, "Cropland", "Wheat", "Irrigated", 30,
+    "Huesca", 2000, "Cropland", "Wheat", "Rainfed", 10,
+    "Huesca", 2000, "Cropland", "Barley", "Irrigated", 0,
+    "Huesca", 2000, "Cropland", "Barley", "Rainfed", 0
+  )
+
+  out <- .compute_irrigation_shares(n_balance_full)
+  wheat_irrig <- out |>
+    dplyr::filter(Name_biomass == "Wheat", Irrig_cat == "Irrigated") |>
+    dplyr::pull(share)
+  barley_irrig <- out |>
+    dplyr::filter(Name_biomass == "Barley", Irrig_cat == "Irrigated") |>
+    dplyr::pull(share)
+
+  expect_equal(wheat_irrig, 0.75)
+  # Zero total production for Barley -> 50/50 fallback, not NaN or 0.
+  expect_equal(barley_irrig, 0.5)
 })
 
 
@@ -219,7 +576,15 @@ test_that("create_grafs_plot_df(example = TRUE) returns the documented schema", 
   expect_s3_class(out, "tbl_df")
   expect_setequal(
     names(out),
-    c("province", "year", "label", "data", "align", "arrowColor")
+    c(
+      "province",
+      "year",
+      "label",
+      "data",
+      "align",
+      "arrowColor",
+      "method_crop_allocation"
+    )
   )
   expect_type(out$data, "character")
 })
@@ -249,6 +614,7 @@ test_that(".create_n_import_df labels, aggregates and aligns import flows", {
     "Huesca", 2000, "Wheat and products", NA, "Cropland", "Deposition", "Cropland", 5,
     "Huesca", 2000, "Wheat and products", NA, "Cropland", "Fixation", "Cropland", 8,
     "Huesca", 2000, "Wheat and products", NA, "Cropland", "People", "Cropland", 3,
+    "Huesca", 2000, "Wheat and products", NA, "Cropland", "People", "population_other_uses", 7,
     "Huesca", 2000, "Wheat and products", NA, "Cropland", "Outside", "population_food", 12
   )
 
@@ -268,17 +634,22 @@ test_that(".create_n_import_df labels, aggregates and aligns import flows", {
   expect_equal(pick("{OXDEPCROPS}"), 5)
   expect_equal(pick("{FIXCR}"), 8)
   expect_equal(pick("{FIX_DEP_CR}"), 13)
-  expect_equal(pick("{WASTEWATER}"), 3)
+  # People-origin N to Cropland specifically is {ORGOT} (organic-other reuse).
+  # {WASTEWATER} is not a destiny lookup at all -- it's the residual
+  # .create_wastewater_surplus_df() computes -- so a People-origin row to any
+  # other destiny (population_other_uses here) is simply unclassified.
+  expect_equal(pick("{ORGOT}"), 3)
   expect_equal(pick("{CROP_POPIMPORT}"), 12)
 
   expect_equal(align_of("{CROP_POPIMPORT}"), "R")
   expect_equal(align_of("{IMANOTR}"), "R")
   expect_equal(align_of("{IMPORT_ANIMALCR}"), "R")
   expect_equal(align_of("{SYNTHF}"), "L")
-  expect_equal(align_of("{WASTEWATER}"), "L")
+  expect_equal(align_of("{ORGOT}"), "R")
   expect_equal(align_of("{IMPHUMANMEAT}"), "L")
 
   expect_false("{IMPORT_ANIMALCR_MONOG}" %in% out$label)
+  expect_false("{WASTEWATER}" %in% out$label)
 })
 
 
@@ -354,12 +725,20 @@ test_that(".create_n_input_df aggregates greenhouse, grass, area and km2", {
     "Huesca", 2000, "Cropland", "Irrigated", 100, 8, 2, 0,
     "Huesca", 2000, "Forest_low", NA, 500, 0, 0, 0
   )
+  # {GREHN} now comes from prov_destiny_df (Origin == Cropland, Irrig_cat ==
+  # Greenhouse), not from n_balance's Prod/Residue/Grazed columns.
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Irrig_cat, ~Destiny, ~MgN,
+    "Huesca", 2000, "Cropland", "Greenhouse", "population_food", 9,
+    "Huesca", 2000, "Cropland", "Greenhouse", "aquaculture", 2,
+    "Huesca", 2000, "Cropland", "Irrigated", "population_food", 999
+  )
 
-  out <- .create_n_input_df(n_balance)
+  out <- .create_n_input_df(n_balance, prov_destiny_df)
   pick <- function(l) dplyr::pull(dplyr::filter(out, label == l), data)
 
   expect_equal(pick("{GREHha}"), 50)
-  expect_equal(pick("{GREHN}"), 5)
+  expect_equal(pick("{GREHN}"), 9)
   expect_equal(pick("{HAGRASS}"), 500)
   expect_equal(pick("{HACULT}"), 150)
   expect_equal(pick("{KM2_PROVINCE}"), 6.5)
@@ -457,10 +836,94 @@ test_that(".create_livestock_surplus_df computes LIVGASLOSS as inputs - outputs"
   expect_equal(out$align, "R")
 })
 
+test_that(".create_livestock_surplus_df counts LVSTCK_INEDIBLE as output", {
+  # LVSTCK_INEDIBLE (.create_livestock_inedible_df()) is the non-edible
+  # remainder .split_food_inedible_loss() (n_prov_destiny.R) split out of
+  # population_food -- it left Livestock like any other named output, so it
+  # must count toward output or it would inflate LIVGASLOSS instead.
+  df_all_flows <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CROPS_TO_LIVESTOCK}", "50", "L",
+    "Huesca", 2000, "{LIVESTOCK_TO_HUMAN}", "20", "L",
+    "Huesca", 2000, "{LVSTCK_INEDIBLE}", "5", "L"
+  )
+
+  out <- .create_livestock_surplus_df(df_all_flows)
+
+  # input 50 - output (20 + 5 inedible) = 25, not 30.
+  expect_equal(out$data, 25)
+})
+
+
+# .create_wastewater_surplus_df -------------------------------------------------
+
+test_that(".create_wastewater_surplus_df computes consumption minus returned N", {
+  df_all_flows <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CROPS_TO_POP}", "80", "L",
+    "Huesca", 2000, "{LIVESTOCK_TO_HUMAN}", "20", "L",
+    "Huesca", 2000, "{CROP_EXPORT}", "999", "L"
+  )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "People", "Cropland", 30,
+    "Huesca", 2000, "People", "semi_natural_agroecosystems", 5,
+    "Huesca", 2000, "People", "population_other_uses", 999,
+    "Huesca", 2000, "Synthetic", "Cropland", 999
+  )
+
+  out <- .create_wastewater_surplus_df(df_all_flows, prov_destiny_df)
+
+  # input totals 100 (80 crops-to-pop plus 20 livestock-to-human); returned
+  # totals 35 (30 Cropland plus 5 semi_natural), leaving a residual of 65.
+  expect_equal(unique(out$label), "{WASTEWATER}")
+  expect_equal(out$data, 65)
+  expect_equal(out$align, "R")
+})
+
+test_that(".create_wastewater_surplus_df ignores population_food_inedible", {
+  # The inedible remainder now has its own arrows ({CRP_PROCLOSS},
+  # {LVSTCK_INEDIBLE}) leaving Cropland/Livestock directly, so it must not
+  # also inflate this residual -- it never reaches the population in the
+  # model at all.
+  df_all_flows <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CROPS_TO_POP}", "80", "L"
+  )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Cropland", "population_food_inedible", 999,
+    "Huesca", 2000, "Livestock", "population_food_inedible", 999
+  )
+
+  out <- .create_wastewater_surplus_df(df_all_flows, prov_destiny_df)
+
+  expect_equal(out$data, 80)
+})
+
+test_that(".create_wastewater_surplus_df treats a missing side as zero", {
+  df_all_flows <- tibble::tibble(
+    province = character(),
+    year = numeric(),
+    label = character(),
+    data = character(),
+    align = character()
+  )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "People", "Cropland", 12
+  )
+
+  out <- .create_wastewater_surplus_df(df_all_flows, prov_destiny_df)
+
+  # No consumption labels at all -> input = 0, returned = 12 -> data = -12.
+  expect_equal(out$data, -12)
+})
+
 
 # .create_cropland_total_df ----------------------------------------------------
 
-test_that(".create_cropland_total_df sums the three cropland-output labels", {
+test_that(".create_cropland_total_df sums the four cropland-output labels", {
   df_flow <- tibble::tribble(
     ~province, ~year, ~label, ~data, ~align,
     "Huesca", 2000, "{CROP_EXPORT}", 100, "L",
@@ -469,8 +932,12 @@ test_that(".create_cropland_total_df sums the three cropland-output labels", {
     "Huesca", 2000, "{LIVESTOCK_TO_HUMAN}", 15, "L",
     "Spain", 2000, "{CROP_EXPORT}", 10, "L"
   )
+  df_processing_losses <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CRP_PROCLOSS}", 20, "L"
+  )
 
-  out <- .create_cropland_total_df(df_flow)
+  out <- .create_cropland_total_df(df_flow, df_processing_losses)
   pick <- function(prov) {
     dplyr::pull(
       dplyr::filter(out, province == prov, label == "{CRPLNDTOTN}"),
@@ -478,10 +945,29 @@ test_that(".create_cropland_total_df sums the three cropland-output labels", {
     )
   }
 
-  expect_equal(pick("Huesca"), 190)
+  # Huesca: export + pop + livestock + processing losses.
+  expect_equal(pick("Huesca"), 210)
   expect_equal(pick("Spain"), 10)
   expect_true(all(out$align == "R"))
   expect_equal(unique(out$label), "{CRPLNDTOTN}")
+})
+
+test_that(".create_cropland_total_df counts CRP_PROCLOSS as-is", {
+  # {CRP_PROCLOSS} (.create_processing_losses_df()) already folds in the
+  # population_food_inedible remainder for Cropland-origin items, so
+  # {CRPLNDTOTN} does not need its own separate add-back any more.
+  df_flow <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CROPS_TO_POP}", 40, "L"
+  )
+  df_processing_losses <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CRP_PROCLOSS}", 10, "L"
+  )
+
+  out <- .create_cropland_total_df(df_flow, df_processing_losses)
+
+  expect_equal(out$data[out$province == "Huesca"], 50)
 })
 
 
@@ -538,10 +1024,12 @@ test_that(".combine_and_finalize_df binds flow dfs and finalizes", {
     df_livestock = f2,
     df_lv_r_m = empty,
     df_crop_losses = empty,
+    df_processing_losses = empty,
     df_animal_losses = empty,
     df_livestock_total = empty,
     df_livestock_surplus = empty,
-    df_land_surplus = empty
+    df_land_surplus = empty,
+    df_livestock_inedible = empty
   )
   pick <- function(l) dplyr::pull(dplyr::filter(out, label == l), data)
 
@@ -580,6 +1068,45 @@ test_that(".create_livestock_export_df sums exported livestock N", {
 
   expect_equal(unique(out$label), "{LIVESTOCK_EXPORTED}")
   expect_equal(out$data, 8)
+  expect_equal(out$align, "L")
+})
+
+
+# .create_livestock_inedible_df -------------------------------------------------
+
+test_that(".create_livestock_inedible_df sums the non-edible remainder", {
+  prov <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Bovine Meat", NA, "Livestock", "Livestock", "population_food_inedible", 6,
+    "Huesca", 2000, "Bovine Meat", NA, "Livestock", "Livestock", "population_food", 40,
+    # A Cropland-origin inedible row must not leak into the livestock total.
+    "Huesca", 2000, "Wheat and products", NA, "Cropland", "Cropland", "population_food_inedible", 999
+  )
+
+  out <- .create_livestock_inedible_df(prov)
+
+  expect_equal(unique(out$label), "{LVSTCK_INEDIBLE}")
+  expect_equal(out$data, 6)
+  expect_equal(out$align, "L")
+})
+
+
+# .create_processing_losses_df ---------------------------------------------------
+
+test_that(".create_processing_losses_df sums processing losses and the inedible remainder", {
+  prov <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Olives", NA, "Cropland", "Cropland", "processing_losses", 20,
+    "Huesca", 2000, "Potato", NA, "Cropland", "Cropland", "population_food_inedible", 10,
+    "Huesca", 2000, "Wheat and products", NA, "Cropland", "Cropland", "population_food", 40,
+    # A Livestock-origin inedible row must not leak into the crop total.
+    "Huesca", 2000, "Bovine Meat", NA, "Livestock", "Livestock", "population_food_inedible", 999
+  )
+
+  out <- .create_processing_losses_df(prov)
+
+  expect_equal(unique(out$label), "{CRP_PROCLOSS}")
+  expect_equal(out$data, 30)
   expect_equal(out$align, "L")
 })
 
@@ -654,6 +1181,7 @@ test_that("create_n_nat_destiny(example) stays within the grafs filter vocab", {
         "population_other_uses",
         "livestock_rum",
         "livestock_mono",
+        "aquaculture",
         "export",
         "Cropland",
         "semi_natural_agroecosystems"
@@ -799,4 +1327,335 @@ test_that(".create_livestock_lu_df tolerates a single livestock system", {
   expect_equal(pick("{RUMIANTSLU}"), 800000)
   expect_equal(pick("{MONOGLU}"), 0)
   expect_equal(pick("{MONOGMLU}"), 0)
+})
+
+.test_crop_support <- function(item, biomass, n_balance) {
+  local_mocked_bindings(
+    whep_read_file = function(...) {
+      tibble::tibble(item = item, Name_biomass = biomass)
+    },
+    .processing_item_shares = function(item_lookup, exclude_items) {
+      tibble::tibble(Item = item, Name_biomass = "Wheat", share = 1) |>
+        dplyr::filter(!Item %in% exclude_items)
+    }
+  )
+  .create_crop_type_n_df(
+    tibble::tibble(
+      Province_name = "Huesca",
+      Year = 2000,
+      Item = item,
+      Irrig_cat = NA_character_,
+      Origin = "Cropland",
+      Destiny = "export",
+      MgN = 20
+    ),
+    tibble::tibble(crop_type = "non_permanent", Name_biomass = "Wheat"),
+    n_balance
+  )
+}
+
+test_that("one observed irrigation regime cannot create byproduct nitrogen", {
+  balance <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2000,
+    LandUse = "Cropland",
+    Name_biomass = "Wheat",
+    Irrig_cat = "Irrigated",
+    Prod_MgN = 50,
+    UsedResidue_MgN = 0,
+    GrazedWeeds_MgN = 0
+  )
+  out <- .test_crop_support("Wheat flour", "Flour", balance)
+  expect_equal(sum(out$data[out$province == "Huesca"]), 20)
+})
+
+test_that("positive residue targets cannot disappear without local support", {
+  balance <- tibble::tibble(
+    Province_name = "Teruel",
+    Year = 2000,
+    LandUse = "Cropland",
+    Name_biomass = "Wheat",
+    Irrig_cat = "Irrigated",
+    Prod_MgN = 50,
+    UsedResidue_MgN = 5,
+    GrazedWeeds_MgN = 0
+  )
+  expect_error(
+    .test_crop_support("Straw", "Straw", balance),
+    class = "whep_grafs_missing_support"
+  )
+})
+
+test_that("GRAFS support joins resolve province aliases to period-valid codes", {
+  targets <- tibble::tibble(Province_name = "Araba", Year = 2000, value = 2)
+  support <- tibble::tibble(
+    Province_name = "Araba/\u00c1lava (province of Spain)",
+    Year = 2000,
+    share = 1
+  )
+  out <- .grafs_join_support(targets, support)
+  expect_equal(out$share, 1)
+  expect_equal(out$Province_name, "Araba")
+  keys <- .grafs_province_keys(tibble::tibble(
+    Province_name = c("Tenerife", "Tenerife"),
+    Year = c(1926, 1927)
+  ))
+  expect_true(is.na(keys$reporting_polity_code[1]))
+  expect_identical(keys$reporting_polity_code[2], "ESP-38-1927-2025")
+})
+
+test_that("GRAFS rejects duplicate territorial support and invalid years", {
+  target <- tibble::tibble(Province_name = "Araba", Year = 2000)
+  support <- tibble::tibble(
+    Province_name = c("Araba", "Araba/\u00c1lava (province of Spain)"),
+    Year = 2000,
+    share = c(0.5, 0.5)
+  )
+  expect_error(
+    .grafs_join_support(target, support),
+    class = "dplyr_error_join_relationship_many_to_one"
+  )
+  expect_error(
+    .grafs_join_support(dplyr::mutate(target, Year = NA_real_), support),
+    class = "whep_grafs_geography"
+  )
+})
+
+test_that("residue allocation matches two names for the same province", {
+  balance <- tibble::tibble(
+    Province_name = "Huesca (province of Spain)",
+    Year = 2000,
+    LandUse = "Cropland",
+    Name_biomass = "Wheat",
+    Irrig_cat = "Irrigated",
+    Prod_MgN = 50,
+    UsedResidue_MgN = 5,
+    GrazedWeeds_MgN = 0
+  )
+  out <- .test_crop_support("Straw", "Straw", balance)
+  expect_equal(sum(out$data[out$province == "Huesca"]), 20)
+})
+
+test_that("crop processing allocation requires local year-specific support", {
+  targets <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~MgN,
+    "Huesca", 2020, "Flour", NA_character_, 12
+  )
+  support <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Name_biomass, ~Irrig_cat, ~support_n,
+    "Huesca", 2020, "Flour", "Wheat", "Rainfed", 3,
+    "Huesca", 2020, "Flour", "Maize", "Irrigated", 1,
+    "Huesca", 2015, "Flour", "Maize", "Irrigated", 100
+  )
+  result <- whep:::.allocate_processing_origin(targets, support)
+  expect_equal(sum(result$MgN), 12)
+  expect_equal(
+    result |> dplyr::filter(Name_biomass == "Wheat") |> dplyr::pull(MgN),
+    9
+  )
+  expect_error(
+    whep:::.allocate_processing_origin(
+      dplyr::mutate(targets, Year = 2019),
+      support
+    ),
+    class = "whep_grafs_missing_support"
+  )
+})
+
+test_that("crop diagram retains supported greenhouse processing nitrogen", {
+  local_mocked_bindings(whep_read_file = function(...) {
+    tibble::tibble(item = "Flour", Name_biomass = "Flour")
+  })
+  flows <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2020,
+    Item = "Flour",
+    Irrig_cat = NA_character_,
+    Origin = "Cropland",
+    Destiny = "export",
+    MgN = 12
+  )
+  balance <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2020,
+    LandUse = "Cropland",
+    Name_biomass = "Wheat",
+    Irrig_cat = "Rainfed",
+    Prod_MgN = 100,
+    UsedResidue_MgN = 0,
+    GrazedWeeds_MgN = 0
+  )
+  support <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Name_biomass, ~Irrig_cat, ~support_n,
+    "Huesca", 2020, "Flour", "Wheat", "Rainfed", 3,
+    "Huesca", 2020, "Flour", "Wheat", "Greenhouse", 1
+  )
+  lookup <- tibble::tibble(Name_biomass = "Wheat", crop_type = "non_permanent")
+  out <- .create_crop_type_n_df(
+    flows,
+    lookup,
+    balance,
+    support,
+    "processing_origin"
+  )
+  expect_equal(sum(out$data), 12)
+  expect_equal(out |> dplyr::filter(label == "{GREHN}") |> dplyr::pull(data), 3)
+  expect_error(
+    .create_crop_type_n_df(
+      flows,
+      lookup,
+      balance,
+      dplyr::mutate(support, Year = 2019),
+      "processing_origin"
+    ),
+    class = "whep_grafs_missing_support"
+  )
+})
+
+test_that("crop category coverage cannot silently omit a positive target", {
+  targets <- tibble::tribble(
+    ~Province_name, ~Year, ~MgN,
+    "Huesca", 2020, 12,
+    "Teruel", 2020, 5
+  )
+  booked <- tibble::tribble(
+    ~Province_name, ~Year, ~data,
+    "Huesca", 2020, 9,
+    "Huesca", 2020, 3
+  )
+  expect_error(
+    whep:::.check_crop_type_coverage(targets, booked),
+    class = "whep_grafs_missing_support"
+  )
+  expect_no_error(whep:::.check_crop_type_coverage(
+    dplyr::filter(targets, Province_name == "Huesca"),
+    booked
+  ))
+})
+testthat::test_that("known crop regimes are retained in origin allocation", {
+  targets <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2020,
+    Item = "Straw",
+    Irrig_cat = "Rainfed",
+    MgN = 12
+  )
+  support <- tibble::tribble(
+    ~Province_name, ~Year, ~Item,   ~Name_biomass, ~Irrig_cat, ~support_n,
+    "Huesca",       2020,  "Straw", "Wheat",       "Rainfed",   3,
+    "Huesca",       2020,  "Straw", "Maize",       "Irrigated", 1
+  )
+  out <- whep:::.allocate_processing_origin(targets, support)
+  testthat::expect_equal(out$Irrig_cat, "Rainfed")
+  testthat::expect_equal(out$MgN, 12)
+})
+
+testthat::test_that("crop categories retain each residue item origin", {
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      tibble::tribble(
+        ~item,      ~Name_biomass,
+        "Straw",    "Straw",
+        "Firewood", "Average wood",
+        "Brans",    "Brans"
+      )
+    },
+    .package = "whep"
+  )
+  flows <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2020, "Straw",    "Rainfed",     "Cropland", "export", 10,
+    "Huesca", 2020, "Firewood", "Rainfed",     "Cropland", "export", 20,
+    "Huesca", 2020, "Brans",    NA_character_, "Cropland", "export",  6
+  )
+  support <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Name_biomass, ~Irrig_cat, ~support_n,
+    "Huesca", 2020, "Straw",    "Wheat", "Rainfed", 10,
+    "Huesca", 2020, "Firewood", "Olive", "Rainfed", 20,
+    "Huesca", 2020, "Brans",    "Wheat", "Rainfed",  6
+  )
+  balance <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2020,
+    LandUse = "Cropland",
+    Name_biomass = "Olive",
+    Irrig_cat = "Rainfed",
+    Prod_MgN = 100,
+    UsedResidue_MgN = 100,
+    GrazedWeeds_MgN = 0
+  )
+  lookup <- tibble::tribble(
+    ~Name_biomass, ~crop_type,
+    "Wheat",      "non_permanent",
+    "Olive",      "permanent"
+  )
+  out <- whep:::.create_crop_type_n_df(
+    flows,
+    lookup,
+    balance,
+    support,
+    "processing_origin"
+  )
+  testthat::expect_equal(
+    out |> dplyr::filter(label == "{NPErN}") |> dplyr::pull(data),
+    16
+  )
+  testthat::expect_equal(
+    out |> dplyr::filter(label == "{PERrN}") |> dplyr::pull(data),
+    20
+  )
+  testthat::expect_equal(sum(out$data), 36)
+})
+testthat::test_that("historical chicory root residue has a crop category", {
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      tibble::tibble(
+        item = "Other crop residues",
+        Name_biomass = "Other residues"
+      )
+    },
+    .package = "whep"
+  )
+  flows <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2000,
+    Item = "Other crop residues",
+    Irrig_cat = "Rainfed",
+    Origin = "Cropland",
+    Destiny = "export",
+    MgN = 12
+  )
+  support <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2000,
+    Item = "Other crop residues",
+    Name_biomass = "Chicory roots",
+    Irrig_cat = "Rainfed",
+    support_n = 12
+  )
+  balance <- tibble::tibble(
+    Province_name = "Huesca",
+    Year = 2000,
+    LandUse = "Cropland",
+    Name_biomass = "Chicory roots",
+    Irrig_cat = "Rainfed",
+    Prod_MgN = 12,
+    UsedResidue_MgN = 12,
+    GrazedWeeds_MgN = 0
+  )
+  lookup <- tibble::tibble(
+    Name_biomass = "Roots, other",
+    crop_type = "non_permanent"
+  )
+  out <- whep:::.create_crop_type_n_df(
+    flows,
+    lookup,
+    balance,
+    support,
+    "processing_origin"
+  )
+  testthat::expect_equal(
+    out |> dplyr::filter(label == "{NPErN}") |> dplyr::pull(data),
+    12
+  )
 })

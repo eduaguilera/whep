@@ -11,7 +11,8 @@ read_level_country_grid(
   reference_year = NULL,
   grid_vintage = c("year_aware", "snapshot_2015"),
   containers = NULL,
-  double_claim = c("co_presence", "measured")
+  double_claim = c("co_presence", "measured"),
+  geographic_key = c("reporting_area", "polity")
 )
 }
 \arguments{
@@ -19,7 +20,9 @@ read_level_country_grid(
 is today's cell-to-\code{area_code} grid.}
 
 \item{support}{Polycell support table in the \code{\link[=build_polycell_support]{build_polycell_support()}}
-grain, overriding \code{\link[=read_polycell_support]{read_polycell_support()}}. Not read at \code{level = 0L}
+grain, overriding \code{\link[=read_polycell_support]{read_polycell_support()}}. For \code{geographic_key = "polity"}, a \code{\link[=build_reporting_support]{build_reporting_support()}} bundle retains its complete
+physical denominator. Default-loaded native support must carry explicit
+reporting-partition provenance. Not read at \code{level = 0L}
 with \code{grid_vintage = "snapshot_2015"}, which resolves the support itself.}
 
 \item{containment}{Containment edge table in the \link{polity_containment}
@@ -45,9 +48,22 @@ depth. \code{NULL} (default) reads every admitted edge. Only read at
 \item{double_claim}{Which clashes the double-claim gate refuses, one of
 \code{"co_presence"} (default) or \code{"measured"}. See \emph{Which double claims are
 refused}. Only read at \code{level >= 1L}.}
+
+\item{geographic_key}{Geographic identity for the level-0 year-aware read.
+\code{"polity"} retains each supplied \code{polity_code}, including territories
+without a FAOSTAT code. It neither folds source codes nor assigns land
+to modern owners. \code{"reporting_area"} retains the legacy interface for
+consumers not yet migrated. Polity mode requires explicit validity
+intervals and a partition without duplicate or measured excess claims.
+It cannot establish absence of geometric overlap from area totals alone;
+validate the source partition before supplying it. Use its result with
+polity-keyed inputs to \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}.}
 }
 \value{
-A \code{tibble} with \code{lon}, \code{lat}, \code{area_code} (integer, the container's
+With \code{geographic_key = "polity"}, a \code{tibble} with \code{polity_code},
+\code{lon}, \code{lat}, \code{start_year}, \code{end_year}, \code{cell_area_ha}, \code{land_area_ha}
+and \code{cell_area_frac}. Source numeric codes are not used or returned.
+Otherwise a \code{tibble} with \code{lon}, \code{lat}, \code{area_code} (integer, the container's
 reporting code), \code{level_polity_code} (character, \code{NA} at level 0),
 \code{level} (integer), \code{cell_area_frac}, \code{polycell_id}, \code{start_year},
 \code{end_year}, \code{cell_area_ha} and \code{land_area_ha}. At level 0 with

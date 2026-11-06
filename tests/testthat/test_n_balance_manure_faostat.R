@@ -116,15 +116,18 @@
     list(
       cell_polity = .nmf_cell_polity(),
       livestock_spatial = .nmf_livestock_spatial(),
-      crop_patterns = tibble::tribble(
-        ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
-        0.25, 50.25, 15L, 1,
-        0.75, 50.25, 56L, 1
-      ),
-      type_cropland = tibble::tribble(
-        ~lon, ~lat, ~year, ~luh2_type, ~type_ha,
-        0.25, 50.25, 2010L, "c3ann", 100,
-        0.75, 50.25, 2010L, "c3ann", 300
+      crop_allocation = .ca_static_allocation(
+        .nmf_cell_polity(),
+        tibble::tribble(
+          ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+          0.25, 50.25, 15L, 1,
+          0.75, 50.25, 56L, 1
+        ),
+        tibble::tribble(
+          ~lon, ~lat, ~year, ~luh2_type, ~type_ha,
+          0.25, 50.25, 2010L, "c3ann", 100,
+          0.75, 50.25, 2010L, "c3ann", 300
+        )
       ),
       nhx = tibble::tribble(
         ~lon, ~lat, ~year, ~value_g,

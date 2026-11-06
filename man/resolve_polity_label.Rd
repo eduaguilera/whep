@@ -113,6 +113,19 @@ so the answer is \code{NA}, while \code{"PAN"} in 2000 resolves to \code{PAN-197
 naming an area the crosswalk leaves unmapped is refused outright.
 }
 
+\strong{A label's bracketed qualifier is part of the label.} \code{"british india (excl burma)"} and \code{"australia (excl victoria)"} are not spellings of
+\code{"british india"} and \code{"australia"}: no alias written for the bare label
+applies to them, and the name route matches them only to a polity name that
+carries the same qualifier, so a part or a remainder is never resolved to its
+whole. Such a label resolves through an alias written for it, or not at all.
+A polity name's own qualifier is still dropped for an unqualified label, so
+\code{"zimbabwe"} reaches \code{"Zimbabwe (1900-1953)"}. This is the key
+\code{whep-polities} builds (\code{matchlib.label_key}), and its manifest states it
+(\code{label_alias_map$label_key_why}). It applies to an alias map published
+under that key, which the build records on \link{polity_label_aliases}; a
+snapshot built from an earlier revision keeps the stripped key its rules
+were written against.
+
 Returns \code{NA} when neither route resolves, which is a real answer rather than a
 failure. Some labels are aggregates a source keeps reporting after the
 territory stopped existing -- \code{"FSU"} runs to 2009 though nothing has held
@@ -149,8 +162,9 @@ when the caller's \code{unit} / \code{indicator} equals it; a row it would
 otherwise match but whose scoped value is missing is an error of class
 \code{whep_error_unscoped_label_item_correction}, not a silent miss.
 \item \strong{\code{country}: the reporting country, as an ISO3 code.} The name route
-compares normalised names, and normalisation drops parenthesised
-qualifiers, so a bare subnational name meets another country's unit:
+compares normalised names, and a polity name's own parenthesised
+qualifier is dropped, so a bare subnational name meets another country's
+unit:
 \code{"Santa Cruz (department of Bolivia)"} normalises to \code{"santa cruz"}, and so
 does Argentina's province. Given \code{country}, the name and ISO3 routes only
 consider polities whose \code{iso3_code} (its code prefix where that is

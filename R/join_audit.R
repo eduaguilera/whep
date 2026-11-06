@@ -55,6 +55,29 @@
 .territorial_join_baseline <- function() {
   tibble::tribble(
     ~owner, ~join_fn, ~key, ~n, ~class, ~why,
+    ".redistribute_countries_dt", "[", "polity_code", 2L, "single_year",
+    "Selects one polity's allocation and capacity within one simulation year;
+     literal native key preserves audit coverage alongside the legacy arm.",
+    ".check_crop_polity_support", "anti_join", "polity_code", 1L,
+    "single_year",
+    "Checks one year's targets against that year's support. Missing polity
+     identities abort rather than being reassigned through numeric buckets.",
+    ".spatialize_year", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Native polity allocation matches exact identities within the caller's
+     simulation year; it never folds FAOSTAT codes or follows lineage.",
+    ".check_fishstat_area_iso3", "inner_join", "area_code", 1L,
+    "identity_lookup",
+    "Compares a FishStat reporter's ISO3 with the ISO3 its FAOSTAT area code
+     carries, to catch a code-space divergence before any year is resolved.",
+    ".check_fishstat_containment", "inner_join", "polity_code, member_polity",
+    1L, "identity_lookup",
+    "Keys on the year-scoped polity a row already resolved to; the edge's own
+     span is then filtered against the row's year (whep#1618).",
+    ".fishstat_reporter_areas", "left_join", "area_code, fishstat_identifier",
+    1L, "time_invariant",
+    "FishStat identifier -> FAOSTAT area code override table; a code-space
+     correspondence with no time dimension. Polity resolution follows by year.",
     ".add_federation_land_rows", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 names the territory, not one of its periods; the year rides along in
      the joined land rows.",
@@ -279,12 +302,6 @@
     ".n_country_to_polity", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, checked against the year-aware route over
      the real pins to 0 differences.",
-    ".n_manure_crop_layer", "inner_join", "crop, area_code, item_prod_code",
-    1L, "time_invariant",
-    "Spreads a polity-crop's harvested area onto cells by the crop-pattern
-     weights (whep#1300). The weights are the SAME single-vintage map the
-     `.sci_join_weights` row rests on, so there is no year to key them on; the
-     harvested area itself carries `year` into and out of the join.",
     ".pop_overlap_pairs", "inner_join", "reporting_polity_code", 1L,
     "identity_lookup",
     "Attaches a polity's transitive successors so `read_population()` can see
@@ -358,6 +375,11 @@
      whep#1518). The region is published once per area in `regions_full`, as
      for `.sci_crop_regions`; the production rows carry `year` through the
      join.",
+    ".residue_basis_values", "left_join", "area_code", 1L, "time_invariant",
+    "The same HANPP-region attach, for the pre-1961 production the cereal
+     residue back-cast spends the estimator on (whep#1508). The region is
+     published once per area in `regions_full`; the production rows carry
+     `year` through the join.",
     ".residue_cereal_wirsenius", "left_join", "item_prod, area_code", 1L,
     "time_invariant",
     "Attaches the Wirsenius (2000) Table 3.16 residue:product ratios of a
@@ -645,6 +667,29 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".annual_water_polity", "summarise", "polity_code", 1L, "year_axis",
+    "Reduces canonical reporting-year metadata to each polity's final
+     reporting year; no water observations are pooled (whep#107, whep#116).",
+    ".check_fishstat_area_iso3", "distinct", "area_code, <dynamic>, area_iso3c",
+    1L, "identity_lookup",
+    "One row per FAOSTAT area code and its ISO3, the vocabulary a FishStat
+     reporter's ISO3 is checked against (whep#1618).",
+    ".zero_pattern_underflow", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Diagnoses one year's native polity-crop pattern after tiny signals are
+     removed; a separate identity cannot supply a missing pattern.",
+    ".spatialize_year", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Native polity allocation's within-year crop group; separate polity
+     strings never share a denominator merely through a numeric source code.",
+    ".spatialize_type_cropland", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Native polity allocation's within-year crop group; separate polity
+     strings never share a denominator merely through a numeric source code.",
+    ".warn_unallocated_crops", "[", "polity_code, item_prod_code", 1L,
+    "single_year",
+    "Native polity allocation's within-year crop group; separate polity
+     strings never share a denominator merely through a numeric source code.",
     ".alloc_bridge_report", "summarise",
     "area_code, item_prod_code, treatment, run_id", 1L, "year_axis",
     "The length of one contiguous run of bridged years: the reduction over
@@ -1011,6 +1056,10 @@
     ".missing_denominator_areas", "summarise", "area_code", 1L, "diagnostic",
     "Totals the mass and the area-year count that have no population
      denominator, for the warning that names them.",
+    ".sjr_warn_untraded_food", "summarise", "area_code", 1L, "diagnostic",
+    "Totals the food and the area-year count whose balance imports nothing,
+     for the warning that names them (whep#1514). The rows it reports are
+     dropped on (year, area_code) by its caller.",
     ".n_check_area_key", "count", "lon, lat, area_code", 1L, "diagnostic",
     "The same duplicate-cell guard as the carbon one, for the gridded nitrogen
      support; it aborts rather than fold two polities into one cell.",
@@ -1120,6 +1169,14 @@
     "The (crop, area) pairs the pin carries, so the residue:product ratio is
      looked up once per pair rather than once per year; the ratio has no
      year (whep#1448).",
+    ".sci_areas_to_bucket", "distinct", "area_code, polity_area_code", 1L,
+    "identity_lookup",
+    "The source-code/bucket dictionary, not observations. Used only to reject
+     shared bucket adapters; source observations retain their year.",
+    ".sci_areas_to_bucket", "count", "polity_area_code", 1L,
+    "identity_lookup",
+    "Counts distinct source codes in that static dictionary to reject
+     expanding one source territory over a shared bucket support.",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",

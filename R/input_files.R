@@ -170,8 +170,13 @@
 #' `item_cbs_code`. On the tonnes that do reach a trade matrix the two
 #' versions differ by 0.056%. `.clean_bilateral_trade()` reads either schema.
 #'
+#' @inheritSection whep_data_access_status Restricted access
+#'
 #' @param file_alias Internal name of the requested file. You can find the
 #'   possible values in the `alias` column of the [`whep_inputs`] dataset.
+#'   An alias whose `access` is `"restricted"` needs restricted access
+#'   `r .restricted_label()`: it is read from the restricted board or the
+#'   call aborts, and the result carries `data_access = "restricted"`.
 #' @param type The extension of the file that must be read. Possible values:
 #'   - `parquet`: This is the default value for code efficiency reasons.
 #'   - `csv`: Mainly available for those who want a more human-readable option.
@@ -241,27 +246,11 @@ whep_read_file <- function(
 ) {
   cli::cli_alert_info("Fetching files for {file_alias}...")
 
-  own_inputs <- is.null(registry)
-  file_info <- .fetch_file_info(file_alias, .resolve_registry(registry))
-  if (own_inputs) {
-    .warn_legacy_reference(file_alias)
-  }
-  version <- .choose_version(file_info$version, version)
-
-  paths <- if (own_inputs) {
-    tryCatch(
-      .get_local_board() |>
-        pins::pin_download(file_alias, version = version),
-      error = function(e) {
-        .download_remote_pin(file_info, file_alias, version)
-      }
-    )
-  } else {
-    .download_remote_pin(file_info, file_alias, version)
-  }
+  paths <- .download_input(file_alias, version, registry, warn_legacy = TRUE)
 
   paths |>
-    .read_file(type, years, year_col)
+    .read_file(type, years, year_col) |>
+    .mark_access(attr(paths, "data_access"))
 }
 
 #' Input file versions
@@ -282,16 +271,93 @@ whep_read_file <- function(
 #' @examples
 #' whep_list_file_versions("read_example")
 whep_list_file_versions <- function(file_alias, registry = NULL) {
-  board <- if (is.null(registry) && file_alias == "read_example") {
+  access <- file_alias |>
+    .fetch_file_info(.resolve_registry(registry)) |>
+    .resolve_access()
+  board <- if (!is.null(access$board)) {
+    access$board
+  } else if (is.null(registry) && file_alias == "read_example") {
     .get_local_board()
   } else {
-    file_alias |>
-      .fetch_file_info(.resolve_registry(registry)) |>
-      .get_remote_board()
+    .get_remote_board(access$file_info)
+  }
+  .input_versions(board, access)
+}
+
+# The registry every reader resolves aliases against. A function rather than a
+# direct `whep::whep_inputs` so tests can point the readers at a fixture row.
+.whep_registry <- function() {
+  whep::whep_inputs
+}
+
+# Local paths of an input's files, downloading them if needed. A restricted
+# input is read from the restricted board or not at all (#1386), and its paths
+# carry `data_access = "restricted"` as an attribute.
+.download_input <- function(
+  file_alias,
+  version = NULL,
+  registry = NULL,
+  warn_legacy = FALSE
+) {
+  file_info <- .fetch_file_info(file_alias, .resolve_registry(registry))
+  if (is.null(registry) && warn_legacy) {
+    .warn_legacy_reference(file_alias)
+  }
+  access <- .resolve_access(file_info)
+  file_info <- access$file_info
+  version <- .choose_version(file_info$version, version)
+
+  paths <- if (is.null(access$board)) {
+    .download_public(file_info, version, is.null(registry))
+  } else {
+    .download_restricted(access, version)
   }
 
-  board |>
-    pins::pin_versions(file_alias)
+  attr(paths, "data_access") <- access$data_access
+  paths
+}
+
+# The public path: the packaged example board, then the remote board, then
+# the local pins cache.
+.download_public <- function(file_info, version, own_inputs = TRUE) {
+  file_alias <- file_info$alias
+  if (!own_inputs) {
+    return(.download_remote_pin(file_info, file_alias, version))
+  }
+  tryCatch(
+    .get_local_board() |>
+      pins::pin_download(file_alias, version = version),
+    error = function(e) {
+      .download_remote_pin(file_info, file_alias, version)
+    }
+  )
+}
+
+.download_restricted <- function(access, version) {
+  tryCatch(
+    pins::pin_download(access$board, access$file_info$alias, version = version),
+    error = function(e) {
+      .abort_restricted_unavailable(
+        access$file_info,
+        .restricted_error_reason(e)
+      )
+    }
+  )
+}
+
+.input_versions <- function(board, access) {
+  if (is.null(access$data_access)) {
+    return(pins::pin_versions(board, access$file_info$alias))
+  }
+  tryCatch(
+    pins::pin_versions(board, access$file_info$alias),
+    error = function(e) {
+      .abort_restricted_unavailable(
+        access$file_info,
+        .restricted_error_reason(e)
+      )
+    }
+  )
 }
 
 #' Read a registry of pinned input files
@@ -306,10 +372,18 @@ whep_list_file_versions <- function(file_alias, registry = NULL) {
 #' - `board_url`: the public link to the `_pins.yaml` manifest of the
 #'   [`pins`](https://pins.rstudio.com/index.html) board holding it. It must be
 #'   an `https://saco.csic.es/public.php/dav/files/` public link ending in
-#'   `/_pins.yaml`, as every board in [`whep_inputs`] is.
+#'   `/_pins.yaml` for public rows. Restricted rows instead store a relative
+#'   path such as `restricted:folder/_pins.yaml`, resolved against the user's
+#'   configured restricted board.
 #' - `version`: the frozen pins version read by default, such as
 #'   `"20250714T123343Z-114b5"`. A blank cell or `"latest"` reads the newest
 #'   version on the board.
+#'
+#' Optional `access` is `"public"` or `"restricted"`; omitting the column
+#' retains the public registry interface. `public_alternative` may suggest
+#' another alias but never causes an automatic fallback. Restricted reads
+#' and version listings use the supplied registry, including when its alias
+#' also exists in this package. See [whep_data_access_status()] for setup.
 #'
 #' Further columns, such as a description, are kept. Every column is read as
 #' text, so a version string is never reinterpreted.
@@ -726,7 +800,7 @@ whep_registry <- function(path) {
       length(frozen_version) == 0L ||
         is.na(frozen_version) ||
         !nzchar(frozen_version) ||
-        identical(frozen_version, "latest")
+        isTRUE(frozen_version == "latest")
     ) {
       NULL
     } else {
@@ -766,7 +840,7 @@ whep_registry <- function(path) {
 # `whep_registry()`.
 .resolve_registry <- function(registry) {
   if (is.null(registry)) {
-    whep::whep_inputs
+    .whep_registry()
   } else {
     .validate_registry(registry)
   }
@@ -791,7 +865,7 @@ whep_registry <- function(path) {
 }
 
 # A registry row is only usable if its alias selects exactly one row, its board
-# is a public pins manifest on the same host as every `whep_inputs` board, and
+# is a public saco pins manifest or a declared restricted relative path, and
 # its version is one `.choose_version()` understands. Each check names the rows
 # that fail it, because a registry is edited by hand.
 .validate_registry <- function(registry, source = NULL) {
@@ -820,6 +894,7 @@ whep_registry <- function(path) {
   checked$version <- .registry_version_text(checked$version, source)
 
   .check_registry_aliases(checked$alias, source)
+  .check_registry_access(checked, source)
   .check_registry_boards(checked, source)
   .check_registry_versions(checked, source)
 
@@ -879,8 +954,17 @@ whep_registry <- function(path) {
     )
   }
   board_url <- registry$board_url
+  restricted <- if (rlang::has_name(registry, "access")) {
+    registry$access == "restricted"
+  } else {
+    rep(FALSE, nrow(registry))
+  }
   valid <- !is.na(board_url) &
-    stringr::str_detect(board_url, .registry_board_regex())
+    ifelse(
+      restricted,
+      .valid_restricted_path(board_url),
+      stringr::str_detect(board_url, .registry_board_regex())
+    )
   bad <- registry$alias[!valid]
   if (length(bad) > 0L) {
     .abort_registry(
@@ -888,7 +972,8 @@ whep_registry <- function(path) {
         "The registry has an invalid {.field board_url} for {.val {bad}}.",
         i = "A board is a public link of the form
              {.url https://saco.csic.es/public.php/dav/files/<share>/_pins.yaml},
-             optionally with folders before {.file _pins.yaml}."
+             optionally with folders before {.file _pins.yaml}.
+             Restricted rows use {.val restricted:<folder>/_pins.yaml}."
       ),
       source
     )
@@ -944,8 +1029,12 @@ whep_registry <- function(path) {
   )
 }
 
-.build_board_with_progress <- function(board_url) {
-  board <- pins::board_url(board_url)
+.build_board_with_progress <- function(board_url, headers = NULL) {
+  board <- if (is.null(headers)) {
+    pins::board_url(board_url)
+  } else {
+    pins::board_url(board_url, headers = headers, use_cache_on_failure = FALSE)
+  }
   # Make our own pin_fetch method to include progress bar
   # https://github.com/rstudio/pins-r/issues/873
   class(board) <- c("pins_with_progress", class(board))

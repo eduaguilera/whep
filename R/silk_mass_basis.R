@@ -91,11 +91,11 @@
     c(.silk_cocoon_code, .silk_raw_code) &
     dt$year >= .silk_basis_first_year
   silk <- dt[in_scope]
-  rest <- dt[!in_scope & !element %in% c("Processed", "Residuals")]
+  rest <- dt[!in_scope & element != "Processed"]
   if (drop_duplicate_use) {
     silk <- .silk_drop_duplicate_use(silk, duplicate_use)
   }
-  silk <- silk[element != "Residuals"]
+  silk <- silk[!element %in% c("Residuals", "residuals")]
 
   silk <- switch(
     method,
@@ -103,7 +103,10 @@
     cocoon = .silk_cocoon_basis(silk, rate),
     raw_silk = .silk_scale_links(.silk_cocoon_basis(silk, rate), rate)
   )
-  data.table::rbindlist(list(rest, silk), use.names = TRUE, fill = TRUE)
+  out <- data.table::rbindlist(list(rest, silk), use.names = TRUE, fill = TRUE)
+  # Recombining commodity rows must not erase their reporting population.
+  data.table::setattr(out, "bucket_members", attr(cbs_new, "bucket_members"))
+  out
 }
 
 # Tolerance of the duplicate match below, in tonnes. In the pinned release
@@ -199,7 +202,10 @@
     .(
       processed = sum(value[element == "Processed"], na.rm = TRUE),
       other_uses = sum(value[element == "other_uses"], na.rm = TRUE),
-      residual = sum(value[element == "Residuals"], na.rm = TRUE)
+      residual = sum(
+        value[element %in% c("Residuals", "residuals")],
+        na.rm = TRUE
+      )
     ),
     by = key
   ]

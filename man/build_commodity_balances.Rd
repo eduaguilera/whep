@@ -25,7 +25,10 @@ build_commodity_balances(
   silk_basis = .silk_basis_choices(),
   silk_duplicate_use = .silk_duplicate_use_choices(),
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
-  nut_basis = .nut_basis_choices(),
+  fbs_trade_basis = .fbs_trade_basis_choices(),
+  residue_backcast = .cbs_residue_backcast_choices(),
+  bucket_coverage = .cbs_coverage_choices(),
+  method_cbs_account = c("source", "balance_residual"),
   .fixed_data = NULL
 )
 }
@@ -355,17 +358,20 @@ it directly. Its rows are crop residues from the \code{crop_residues} pin,
 which books all of FABIO's Rest-of-World members on one label.
 
 \code{"member_sum"} grows it on the summed population and agricultural land
-of those members, the territory its rows describe. This holds whatever
-\code{options(whep.unfold_rest_of_world)} is set to. \code{"none"} gives it no
-proxy, so its series starts in 1961.
+of those members, the territory its rows describe, and grows its residue
+along the summed crops of those members (see \code{residue_backcast}). This
+holds whatever \code{options(whep.unfold_rest_of_world)} is set to. \code{"none"}
+gives it no proxy, so its series starts in 1961.
 
 \strong{The default moves published values}, for area 999 before 1961 only.
-Measured on a real 1955-1965 build, 66 rows are added and no other
-value changes: 83.5 Mt of residue \code{domestic_supply} over 1955-1960
-(13.0 Mt in 1955, 14.9 Mt in 1960, then 15.3 Mt observed in 1961), of
-which 68.3 Mt is \code{other_uses} and 15.3 Mt \code{feed}. That raises world
-residue use by 0.74-0.78\% in those years. Under \code{"none"} the build is
-identical to the one before this argument existed.}
+Measured on a real 1955-1965 build with the default \code{residue_backcast},
+73 rows differ from \code{"none"} and no other value changes: 75.0 Mt of
+residue \code{production} and \code{domestic_supply} over 1955-1960 (11.7 Mt in
+1955, 13.3 Mt in 1960, then 21.2 Mt in 1961), of which 44.1 Mt is
+\code{other_uses} and 31.0 Mt \code{feed}. That raises world residue use by
+0.44-0.46\% in those years. The step at 1961 is the members' crops: six
+of the eleven report no production before 1961. Under \code{"none"} area 999
+carries no rows before 1961.}
 
 \item{unmatched_processing}{One of \code{"other_uses"} (default),
 \code{"processing"} or \code{"redistribute"}, selecting where a \code{processing}
@@ -463,52 +469,236 @@ product was found, and a cigarette also holds paper and filter. Where the
 products outweigh the leaf use (Ukraine 2019: 56 kt against 29.7 kt) the
 remainder stays as stock change. Only Tobacco rows from 2014 on move.}
 
-\item{nut_basis}{One of \code{"rebased"} (default) or \code{"as_published"},
-selecting how the trade of FBS item 2551 \verb{Nuts and products} is taken
-from FAOSTAT's new food balance sheets, 2010 on (whep#1495). Their nut
-trade is not one mass basis: at 2010 world imports are 13.57 Mt against
-7.69 Mt of world exports (1.76x; 1.65x at 2022), and the excess goes on
-into food, 19.47 Mt against 14.29 Mt of nuts the world grew in shell,
-with about the old vintage's protein. Regressed on species-level trade,
-importers convert kernels and prepared nuts to in-shell equivalent with
-factors 2.5-6x their exporters' (cashew kernels 9.8 vs 3.8), so one
-flow lands on two bases. The old vintage closes (6.45 vs 6.51 Mt).
+\item{fbs_trade_basis}{One of \code{"rebased"} (default), \code{"rebased_with_milk"},
+\code{"nuts_only"} or \code{"as_published"}, selecting how the trade of the FBS
+items whose import side FAOSTAT's new food balance sheets put on a
+different mass basis than the export side is taken, 2010 on (whep#1495,
+whep#1550). Regressions on product-level trade suggest different
+primary-equivalent factors on the import and export sides
+(preserved olives 3.15 vs 0.98, canned pineapples 3.1 vs about 0, peeled
+tomatoes 5.9 vs 1.3, cheese 31.0 vs 7.7, dry whey 30.6 vs 2.3), so one
+flow lands on two bases and world imports exceed world exports at 2010:
+nuts (2551) 1.76x, pineapples (2618) 1.75x, olives (2563) 2.53x,
+tomatoes (2601) 1.29x, lemons and limes (2612) 1.25x, milk excluding
+butter (2848) 1.93x. The old vintage converts both sides alike and
+closes (0.87x to 1.07x), as does product-level trade (2010 world cheese
+imports 4.73 Mt against 4.96 Mt of exports, dry whey 1.86 against 2.04
+Mt).
 
-\code{"rebased"} multiplies each area's import and export by its median
-old/new ratio over 2010-2013, clamped to \verb{[0.2, 1]} -- the old
-vintage's level with the new one's change over time, as the palm-kernel
-fix already joins them -- and takes the net trade removed out of food
-and domestic supply, so every row keeps its supply-use identity and
-production and stock change do not move. A row whose net cut is not
-positive or exceeds its food is left as published. The moved rows are
-labelled \code{"FAOSTAT_FBS_New_rebased"}, and the ratio is read from the
-pins whatever years are built. \code{"as_published"} keeps FAOSTAT's figures,
-the behaviour before whep#1495; the old vintage is scaled to whichever
-level is chosen, so 1961-2009 follows it. \strong{The default moves published
-values}, all of them in item 2551. Measured on a real 2009-2016
-build at 2010, world imports fall from 13.85 to 7.16 Mt and exports
-from 7.83 to 6.51 Mt (imports/exports 1.77x to 1.10x; 1.61x to 1.02x
-at 2016), and food from 19.79 to 14.43 Mt against 14.60 Mt of
-production; the 5.37 Mt drop is 0.11\% of the 4,692 Mt of all-item food.
-Production and stock change do not move from 2010 on. FBS's own 2551
-protein over the pin's food rises from 45.6 to 62.9 g/kg, against FAO's
-in-shell basket of 64.7 that \code{\link[=build_food_supply]{build_food_supply()}} applies.}
+\code{"rebased"} multiplies each area's import and export of nuts,
+pineapples, olives, tomatoes and lemons by its median old/new ratio over
+2010-2013 -- the old vintage's level with the new one's change over
+time, as the palm-kernel fix already joins them -- and takes the net
+trade removed out of domestic supply and food. The ratio is clamped to
+\verb{[0.2, 1]}, bounds that are methodological assumptions, not sourced
+values. A row whose net cut is not positive, or is not smaller than its
+food, is left as published. The old vintage is scaled to the published
+new one and the same correction is then applied to the scaled years, so
+1961-2009 follows the corrected level. At this selected-row rebase
+stage, each row keeps its incoming supply gap; production, stock change
+and other destinations are not directly changed. Later processing and
+gapfilling can change final outputs, as quantified below. Moved rows use
+\code{"FAOSTAT_FBS_New_rebased"} or \code{"FAOSTAT_FBS_Old_rebased"}, and the
+ratios are read from the pins whatever years are built.
+
+This nonmilk default is a provisional model, not an observed allocation
+or proof of the old vintage's level. National accounts support its
+direction but also show counter-evidence. US pineapple food in the
+frozen 2010 build changes from 6.710 to 2.034006 Mt; USDA ERS's Fruit
+and Tree Nuts Supply and Availability workbook (tables G-43 and G-45,
+retrieved 2026-11-03) implies 1.793194 Mt fresh-weight availability.
+ERS discontinues domestic production in these tables. Adding all
+0.170 Mt of WHEP domestic production gives 1.963194 Mt: an analyst's
+generous sensitivity, not an observation or confidence bound.
+German tomato food changes from 3.282 to 1.564497 Mt in calendar 2011,
+against BLE table 4040500-0000's 2.049547 Mt for April 2011-March 2012
+(fresh and processed products in fresh weight). The correction moves
+toward that benchmark but undershoots it; the different annual periods
+prevent an exact matched-year error claim. These are compiled food
+availability accounts, not intake measurements, and can share national
+production/customs inputs with FAO. They do not establish country-level
+conversion factors, the old anchor or the bounds as measured truth.
+Sources: USDA ERS, \emph{Fruit and Tree Nuts Yearbook Tables}, Supply and
+Availability, G-43 row 33 and G-45 C33:
+\url{https://www.ers.usda.gov/data-products/fruit-and-tree-nuts-data}.
+BLE/BZL, \emph{Verbrauch von Gemüse nach Arten}, data status 2026-07-27,
+table 4040500-0000, C25 and
+Vorbemerkung A10:
+\url{https://www.bmel-statistik.de/fileadmin/daten/4040500-0000.xlsx}.
+
+Milk stays as published unless \code{"rebased_with_milk"} is asked for
+(whep#1583). Converting each country's product trade with one factor
+per product on both sides closes the world, but puts 2010 imports
+anywhere from 61 to 128 Mt depending on the milk-equivalent basis
+(published 188.6 Mt, old vintage 94.3 Mt). Where the excess went is not
+observed: a cross-country regression associates about 30 Mt with
+imported whey entering feed, and nothing locates the rest.
+\code{"rebased_with_milk"} adds milk, taking its cut out of feed first, down
+to the area's old-vintage feed level, then out of food. That order is
+provisional. \code{"nuts_only"} rebases item 2551 alone; \code{"as_published"}
+keeps FAOSTAT's figures for every item, the behaviour before whep#1495.
+
+\strong{The default moves published values}, in the four fruit and vegetable
+items and, before 2010, in nuts. Measured on a real 2009-2011 build at
+2010, against \code{"nuts_only"}: imports/exports 2.54x to 1.06x for olives,
+1.77x to 0.94x for pineapples, 1.32x to 0.89x for tomatoes, 1.27x to
+1.04x for lemons; their food falls from 4.26 to 2.71, 27.57 to 18.64,
+142.58 to 133.79 and 13.26 to 12.53 Mt. All-item food falls from
+4,686.80 to 4,666.80 Mt (-0.43\%) at 2010 and from 4,532.36 to 4,513.39
+Mt (-0.42\%) at 2009. Milk rows do not change in this frozen comparison.
+Final feed increases by about 0.000215 Mt in 2010 and 0.000719 Mt over
+2009-2011 (0.000717 Mt is tomato feed). Olive-oil production
+increases by 2.743 kt over those years
+(2.557 kt in area 299), with processing and other-use spillovers too.
+Thus final production/feed invariance is not claimed. The repaired
+\code{"nuts_only"} is not the previous main ordering: rebasing after the
+vintage scaling also moves 2009 nuts against the rebase it replaces:
+food 13.72 to 13.29 Mt, and production and stock
+change back to their unrebased values in that comparison. FBS protein
+is derived from related standardized quantities, not an independent
+validation of the allocation. Its value over the rebased food moves
+to the old vintage's density (pineapples 1.9 to 2.8
+g/kg, old 2.7). \code{"rebased_with_milk"} further takes 2010 milk imports
+from 191.36 to 100.13 Mt (exports 97.76 to 86.64 Mt), milk food from
+520.32 to 477.95 Mt and milk feed from 79.68 to 41.85 Mt.}
+
+\item{residue_backcast}{One of \code{"own_method"} (default),
+\code{"production_ratio"} or \code{"area_rate"}, selecting what crop residue
+(Straw, Other crop residues, Firewood) grows back along before the first
+year of the \code{crop_residues} pin, 1961 (whep#1508). Each (area, crop,
+residue item) keeps the ratio of its 1961 gross residue to a basis taken
+from the crop's primary production, and is then recovered and split into
+\code{production}, \code{feed} and \code{other_uses} as every 1961+ row is, so
+production equals feed plus other uses in every year. Rows carry the
+source \code{"historical_residue_<method>"}.
+
+\code{"own_method"} grows each row along the basis its 1961 value was built
+on: residue computed from yield (cereals, and the non-cereals with an
+IPCC Table 11.2 line, whep#1561) along \code{\link[=calculate_crop_residues]{calculate_crop_residues()}}
+applied to the year's production and harvested area, the estimator that
+computes it from 1961 on, and every other row along its crop's
+production, since the pin's remaining residue is a residue:product
+ratio. \code{"production_ratio"} grows
+every row along production, holding residue per tonne of crop; it puts
+1955-1960 residue computed from yield 1.5-5.7\% below the estimator.
+\code{"area_rate"} grows every row along harvested area, holding residue per
+hectare; it puts it 0.3-2.6\% above.
+
+\strong{The default moves published values}, for residue items before 1961
+only. Before it, the extension grew residue uses along population and
+agricultural land and gave the residue no production, so the whole use
+was booked as a stock draw. Measured on a real 1955-1965 build, world
+residue production in 1955 / 1960 goes from none to 2,301 / 2,486 Mt
+(\code{"production_ratio"} 2,209 / 2,454, \code{"area_rate"} 2,392 / 2,506),
+against 3,038 Mt in 1961, and residue \code{stock_variation} from
+-2,681 / -2,906 Mt to -375 / -407 Mt under all three. What remains is
+the Soviet Union, Yugoslavia, Czechoslovakia and Belgium-Luxembourg,
+whose crop production does not reach before 1961 either (whep#102):
+their residue keeps the population and land fill, like their crops.
+World \code{stock_variation} over all items moves from -3,057 / -3,222 Mt to
+-751 / -723 Mt. No 1961-or-later value and no other item moves.}
+
+\item{bucket_coverage}{How to handle a balance source reporting only some
+active members of a bucket: \code{"complete_sources"} (default) excludes that
+source's bucket-year before selection. The existing interpolation of the
+bucket's complete-territory destiny shares, then world-share estimation,
+supplies the balance. \code{"world_shares"} also excludes partial sources but
+explicitly uses the same-year/item world destiny shares for the affected
+bucket-years instead of their temporal anchors. Affected bucket-years
+are excluded from the donors; this method aborts when no positive
+same-year/item donor profile exists. Both methods retain the structural
+feed allocation for processing residues. The default is provisional:
+FAO (2017), \emph{Guidelines for the Compilation of Food Balance Sheets}
+(140-page UNSIAP edition), sections 3.4.2.1-2, pp. 53-54,
+supports imputation and source flags but does not prescribe this bucket
+policy. Both methods retain production and the published geography.
+\code{method_cbs_coverage} records the policy on affected bucket-years;
+\code{"reported_members"} means no partial source was detected. The
+\code{cbs_coverage_log} attribute records each partial source and member sets.
+\code{"not_checked"} marks inputs without member metadata, including
+\code{.fixed_data}. This is a bucket-year coverage check, not an item-level
+completeness guarantee. The world-share estimate clears non-production
+FAOSTAT flags on affected bucket-years: a source status is not an
+observation status for the estimated bucket.}
+
+\item{method_cbs_account}{How the published balance books FAOSTAT's
+stock change, losses, residuals and tourist consumption. The
+calibration never sees the last three; they are parked before source
+selection and restored afterwards.
+\itemize{
+\item \code{"source"} (default) publishes each as the source reported it, keyed
+on the dated reporting polity: a supplied stock change, zero included,
+is kept; one no source reports is \code{NA} (\code{source = "unobserved_stock"}),
+never a zero. \code{domestic_supply} is total physical domestic use: the
+calibrated destinies plus \code{losses} and \code{tourist_consumption}.
+FAOSTAT's \code{residuals} are statistical, not a use. The rest of the gap is
+\code{balance_discrepancy}, so on every key
+\code{production + import - export - stock_variation = domestic_supply +   residuals + balance_discrepancy}, an \code{NA} stock counting as none.
+FABIO's balance formula also leaves \code{residuals} out of \code{domestic_use}
+(fineprint-global/fabio commit 66a9298, \verb{R/03_1a_build_cbs.R}), but
+its later rebalancing (\verb{R/03_1b_balance_cbs.R}) folds residuals into its
+\code{balancing} term and reallocates a negative one into stock, other uses,
+processing and food. That shifts a statistical quantity into the uses,
+so it is not done here; the residual stays visible instead.
+\item \code{"balance_residual"} is the earlier contract: \code{stock_variation} is
+whatever closes the calibrated balance, so losses, residuals and any
+statistical gap read as inventory change, and none of the three is
+published.
+}
+
+Measured on 2015-2020 (all areas, all years summed): \code{"source"}
+publishes 3,570 Mt of \code{losses}, 33.6 Mt of \code{tourist_consumption},
+-181 Mt of \code{residuals} (1,188 Mt in absolute value) and -233 Mt of
+\code{balance_discrepancy} (1,728 Mt). Net \code{stock_variation} falls from
+3,764 Mt to 543 Mt, and 56,903 of 133,957 keys carry an unobserved one.
+\code{domestic_supply} rises from 130,312 Mt to 133,913 Mt (+2.8\%), the
+losses and tourist use it now includes. Spain's olives at 2015 publish
+FAOSTAT's zero stock change and its -3,113 kt residual where the old
+contract booked a -2,709 kt stock draw.
+
+Independently of this choice, the older FAOSTAT balances (the FBS before
+2014 and both old commodity balances) sign stock change as a withdrawal
+(FAO 2001, \emph{Food Balance Sheets: A Handbook}, ch. II, "Changes in
+Stocks"), the current ones as an addition. Measured on the pins, the
+balance closes under those conventions on 99.8\% to 100\% of the old
+rows with a nonzero stock and 99.7\% of the current FBS ones. Old stocks
+are now negated on read. The production imputed for a row that reports
+none therefore adds the stock change instead of subtracting it. That
+moves 2,945 production keys at 2015-2020 (49.4 Mt in absolute value, net
+-35 Mt of 132,479 Mt). For example, Indonesia's 2015 wheat goes from
+1,984 kt to none, and Malaysia's 2020 palm kernel oil from 760 kt to
+2,178 kt.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
 supplied, \code{primary_all} is ignored and the pipeline skips directly
-to \code{.qc_cbs()}. Default \code{NULL}.}
+to \code{.qc_cbs()}. Its \code{source_accounts} attribute, or else its own
+\code{stock_variation}, \code{losses}, \code{residuals} and \code{tourist_consumption} rows,
+are the account observations \code{method_cbs_account} restores. Default
+\code{NULL}.}
 }
 \value{
 For \code{format = "long"}, a tibble with columns: \code{year}, legacy numeric
 \code{area_code}, numeric \code{polity_area_code}, \code{reporting_polity_code},
 \code{reporting_polity_name}, \code{reporting_polity_has_geometry},
 \code{item_cbs_code}, \code{element} (e.g. \code{"production"}, \code{"import"}, \code{"food"}),
-\code{value}, \code{source}, and \code{fao_flag}. For \code{format = "wide"}, the elements
+\code{value}, \code{source}, \code{fao_flag} and \code{method_cbs_account}. The elements
+include \code{losses}, \code{residuals}, \code{tourist_consumption} and
+\code{balance_discrepancy} under \code{method_cbs_account = "source"}; see that
+argument for the identity they close. For \code{format = "wide"}, the elements
 become one column each, \code{stock_variation} is split into the non-negative
-\code{stock_addition} and \code{stock_withdrawal}, and \code{domestic_supply} is total use
-excluding \code{export}. A \code{unit} column says each row's denomination:
+\code{stock_addition} and \code{stock_withdrawal} (both \code{NA} where the stock change
+is unobserved), and \code{domestic_supply} is total physical use excluding
+\code{export}. The \code{source_accounts} attribute holds the selected account
+observations; \code{input_accounts} the raw ones, in each source's own code,
+unit, sign and pin version; and \code{unmatched_source_accounts} any
+observation on a key the balance does not carry. A \code{unit} column says each row's denomination:
 \code{"tonnes"}, or \code{"heads"} for the live-animal rows (see \code{\link[=get_wide_cbs]{get_wide_cbs()}}).
+
+The \code{palm_kernel_support} attribute records the queried old-vintage
+history and annual new-vintage oil proxy support, including supplied
+empty inputs, row counts and partial-member exclusions. Reading that
+support does not expand the requested output years.
 
 \code{fao_flag} is FAOSTAT's own observation-status code for the value, taken
 from the source that \code{source} names (\code{"A"} official, \code{"E"} estimated,
@@ -521,6 +711,12 @@ value, so it is dropped rather than guessed when the parts do not agree.
 Rows sourced from \code{"FAOSTAT_prod"} are \code{NA} today because
 \code{\link[=build_primary_production]{build_primary_production()}} does not carry the flag out of the
 production pin.
+
+Both formats retain a \code{residue_feed_kgdm} attribute with the crop-mix
+dry-matter content behind their residue feed, including the selected
+historical back-cast. The feed allocator uses this provenance; formats
+such as CSV that discard attributes cannot preserve it. Custom balances
+without it retain the residue reader and warn on uncovered feed rows.
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data.

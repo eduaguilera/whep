@@ -1764,6 +1764,7 @@ utils::globalVariables(
     "period_years",
     "contribution_per_yr_mgn",
     "rolling_mgn",
+    "net_mgn",
     # input_output_plots.R (per-ha normalization + accumulation term)
     "Input_Total",
     "Use_Total",
@@ -2587,6 +2588,31 @@ utils::globalVariables(
     # build_trade.R (issue 232) -- fill_linear()'s provenance column, read to
     # keep observed trade rows when the time extension is scoped to CBS cells
     "source_country_share",
+    # n_prov_destiny.R -- build_food_protein_destiny() NSE columns
+    "Edible_portion",
+    "edible_fraction",
+    # n_soil_inputs_nue.R -- .calculate_n_production()'s pivoted destiny
+    # column for the inedible remainder .split_food_inedible_loss()
+    # (n_prov_destiny.R) split out of population_food
+    "population_food_inedible",
+    # n_prov_destiny.R -- N_kgN_kgFM (the tabulated fresh-matter nitrogen
+    # density three item-conversion helpers coalesce ahead of the
+    # Product-derived value) and the processing-excess allocation/shortfall
+    # columns built and consumed across the processing-excess-shares,
+    # by-province, import-shortfall and shortfall-routing helpers
+    "N_kgN_kgFM",
+    "alloc_share",
+    "combined_demand",
+    "national_demand",
+    "shortfall_fm",
+    # grafs_plot_df.R -- .create_crop_type_n_df()'s primary-crop/byproduct
+    # split and its residue aggregate, and .create_wastewater_surplus_df()'s
+    # returned-to-source share
+    "is_primary_crop",
+    "is_byproduct",
+    "residue_mgn",
+    "residue",
+    "returned",
     # n_human.R (whep#1301) -- the human-population N term's renamed columns
     "human_n_gg",
     "human_kgn_cap",
@@ -2594,6 +2620,17 @@ utils::globalVariables(
     "human_n_t",
     "method_human",
     "human",
+    # typologies_uaa_sensitivity.R -- the UAA area join column and the
+    # left_join(suffix)-generated Typology_base name for the UAA-basis
+    # reclassification, compared against the baseline's own Typology_base
+    "Area_ha_uaa",
+    "Typology_base_uaa",
+    # n_prov_destiny.R (#379) -- the aquaculture feed intake/share .add_feed()
+    # computes as a third Livestock_type alongside ruminant/monogastric, and
+    # its resulting destiny column in the local/import consumption split
+    # helpers
+    "aquaculture",
+    "share_aqua",
     # arable_permanent_land.R (#937) -- which source supplied the temporary
     # grassland netted out of each country-year's arable target
     "temp_grassland_source",
@@ -2639,6 +2676,14 @@ utils::globalVariables(
     "value_dm",
     "feed_fm_t",
     "feed_true_dm_t",
+    # n_prov_destiny.R (#379) -- .assemble_n_nat_destiny()'s national-level
+    # aquaculture feed term and its share, alongside the provincial
+    # aquaculture/share_aqua pair above
+    "feed_aqua",
+    "share_feed_aqua",
+    # typologies_uaa_sensitivity.R -- the specialized-livestock province-year
+    # count .compute_uaa_agreement() returns alongside agreement_pct
+    "n_specialized_livestock",
     # hist_trade_scale.R (whep#1085) -- per-row evidence of the "correct"
     # historical trade screen
     "flagged",
@@ -2752,9 +2797,63 @@ utils::globalVariables(
     "r_export",
     "r_import",
     "rebase_old_new",
+    # fbs_vintage_rebase.R (whep#1550) -- rebase destinies beyond food
+    "in_food",
+    "in_feed",
+    "room_food",
+    "room_feed",
+    "cut_feed",
+    "cut_food",
+    "r_feed",
+    # livestock_manure.R (whep#601) -- the 2019 Tier 1 N excretion table
+    "ipcc_n_excretion_tier1",
+    # grafs_plot_df.R: resolved source-geography joins and support coverage.
+    "grafs_geography_key",
+    "support_n",
+    "target_n",
+    "booked_n",
+    "regime_share",
+    "total_share",
+    "residue_mgn",
+    # polity_source_targets.R -- source-specific territorial interval join.
+    "source_area_code",
+    # reporting_support.R -- source footprints and physical domain audit.
+    "domain_area_ha",
+    "domain_land_area_ha",
+    "domain_water_ha",
+    "domain_ice_free_ha",
+    "domain_water_excess_ha",
+    "water_fraction_ice_free",
+    "reporting_land_ha",
+    "unrepresented_land_ha",
+    "measured_land_area_ha",
+    "measured_reporting_land_ha",
+    "area_adjustment_ha",
+    "overlap_ha",
+    # typologies_uaa_sensitivity.R -- duplicate source aliases.
+    "uaa_source_labels",
+    # Append sentinel. Keeps every entry above it comma-terminated, so two
+    # branches appending at once merge into valid R; `c()` drops it.
+    # cbs_coverage.R — bucket source-policy stamp (whep#1481).
+    "method_cbs_coverage",
+    # cbs_source_accounts.R, conservation.R (whep#412) -- source accounts
+    "accounting_balanced",
+    "accounting_diff",
+    "balance_discrepancy",
+    "flow_use",
+    "losses",
+    "method_cbs_account",
+    "residuals",
+    "source_alias",
+    "source_element",
+    "source_item_code",
+    "source_rank",
+    "source_stock_convention",
+    "source_unit",
+    "tourist_consumption",
+    "version",
     # n_prov_destiny.R (whep#1014) -- crush of imported feedstock booked on
     # the primary item (`import_processing = "feedstock"`)
-    "net_import_fm",
     "import_fed_fm",
     "primary_item",
     "output_n",
@@ -2771,9 +2870,6 @@ utils::globalVariables(
     "processing_losses",
     "absorbed_n",
     "surplus_n",
-    "replaced_n",
-    # Append sentinel. Keeps every entry above it comma-terminated, so two
-    # branches appending at once merge into valid R; `c()` drops it.
     NULL
   )
 )

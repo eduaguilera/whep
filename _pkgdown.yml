@@ -16,6 +16,11 @@ authors:
     href: "https://erc.europa.eu/homepage"
 
 reference:
+- title: Direct livestock water
+  contents:
+  - as_annual_livestock_water
+  - calculate_livestock_water
+  - estimate_dairy_drinking
 - title: Build datasets
   desc: >
     Build full datasets from raw FAOSTAT inputs. These functions
@@ -39,6 +44,7 @@ reference:
     cross-model comparison.
   contents:
   - run_spatialize
+  - prepare_polity_crop_inputs
   - build_gridded_landuse
   - build_gridded_livestock
   - read_glw_density
@@ -74,6 +80,8 @@ reference:
   contents:
   - build_polycell_land_uses
   - build_polycell_support
+  - build_reporting_support
+  - read_reporting_support
   - expand_polycell_years
   - polycell_example_geometries
   - read_polycell_support
@@ -174,6 +182,9 @@ reference:
   - som_ranges
   - n_attenuation_constants
   - ipcc_2019_soil_n_ef
+  - fao56_root_depth
+  - image_gnm_leaching_factors
+  - image_gnm_runoff_factors
 
 - title: Human-population nitrogen coefficient tables
   desc: >
@@ -276,9 +287,12 @@ reference:
   - calculate_nh3
   - calculate_soil_n2o
   - calculate_n_leaching
+  - read_image_gnm_runoff
   - calculate_indirect_n2o_nh3
   - read_lpjml_wind
   - read_soil_ph
+  - read_soil_drainage
+  - read_soil_texture_fao
   - build_cell_polity
   - spatialize_country_n_to_crops
   - build_ag_land_support
@@ -364,6 +378,7 @@ reference:
   - read_lpjml_crop_cover
   - read_lpjml_natural_cover
   - read_hwsd_topsoil_soc
+  - read_hwsd_topsoil_mass
 
 - title: Crop NPP, BNF and coefficient tables
   desc: >
@@ -418,10 +433,14 @@ reference:
   - calculate_nue_livestock
   - calculate_system_nue
   - create_n_nat_destiny
+  - build_food_protein_destiny
   - create_grafs_plot_df
   - plot_input_output
   - plot_input_output_livestock
   - plot_input_output_system
+  - plot_input_output_land_panel
+  - plot_input_output_total_panel
+  - plot_input_output_four_panel
 
 - title: Download large input datasets
   desc: >
@@ -432,6 +451,8 @@ reference:
   - whep_list_file_versions
   - whep_registry
   - whep_clear_cache
+  - whep_data_access_status
+  - whep_assert_publishable
 
 - title: Code namings
   desc: >
@@ -531,6 +552,7 @@ reference:
   - calculate_system_nue
   - create_n_nat_destiny
   - run_typology_sensitivity
+  - run_typology_area_sensitivity
   - plot_typology_indicators_panel
   - plot_typology_periods_panel
 
@@ -634,6 +656,14 @@ reference:
   - plot_national_trade_flows_raw
   - plot_national_trade_validation
   - europe_fao_spain_trade
+
+- title: Grazing-water methods
+  desc: >
+    Build native grassland evapotranspiration and compare explicitly supplied
+    biomass, occupation and economic attribution bases.
+  contents:
+  - build_grazing_water_lpjml
+  - calculate_grazing_water
 
 - title: Multi-regional input-output model
   desc: >
@@ -807,6 +837,7 @@ reference:
   - ipcc_2019_n2o_ef_direct
   - ipcc_enteric_ef_tier1
   - ipcc_manure_ef3
+  - ipcc_n_excretion_tier1
   - ipcc_2019_ym
   - ipcc_2019_bo
   - ipcc_2019_cfi

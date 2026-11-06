@@ -75,7 +75,8 @@ equivalent of the products actually eaten: a whole-grain nitrogen density on
 that mass counts milling offal as food. Five cereal rows carried the
 agronomic value instead, and others a bare literal; \link{biomass_coefs} names
 both sets and what became of each (#1096: \code{Olive}, \code{Rye} and \code{Honey} now
-follow their food-composition rows, \code{Oats}, \code{Maize} and \code{Rice} do not).
+follow their food-composition rows, \code{Maize} and \code{Oats} carry FAOSTAT's
+FBS density, \code{Rice} is unchanged).
 \code{Wheat} was the largest, at 1.27x FAOSTAT FBS world
 protein until #796, and now ships on the \strong{flour basis}, 93 g of protein
 per kg, sourced and measured in \link{biomass_coefs}. Energy per kilogram
@@ -94,7 +95,7 @@ representative: on FAO's own food-composition factors for the FBS, protein
 per 100 g of nut in shell runs from 1.8 g (chestnuts) to 10.3 g
 (pistachios), and almonds sit near the top at 8.0 (FAO, \emph{Food balance
 sheets: a handbook}, Rome, 2001, Annex I, PDF page 65,
-\url{https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf}). With
+\url{https://www.fao.org/4/x9892e/x9892e00.pdf}). With
 \code{basket = "fao_composition"} (default) the protein density of 2551 is those
 ten factors weighted by 2010 world production of each species (FAOSTAT
 production, element 5510, area 351 excluded), 64.7 g per kg against 80 for

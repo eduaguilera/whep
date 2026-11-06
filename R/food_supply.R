@@ -38,7 +38,8 @@
 #' that mass counts milling offal as food. Five cereal rows carried the
 #' agronomic value instead, and others a bare literal; [biomass_coefs] names
 #' both sets and what became of each (#1096: `Olive`, `Rye` and `Honey` now
-#' follow their food-composition rows, `Oats`, `Maize` and `Rice` do not).
+#' follow their food-composition rows, `Maize` and `Oats` carry FAOSTAT's
+#' FBS density, `Rice` is unchanged).
 #' `Wheat` was the largest, at 1.27x FAOSTAT FBS world
 #' protein until #796, and now ships on the **flour basis**, 93 g of protein
 #' per kg, sourced and measured in [biomass_coefs]. Energy per kilogram
@@ -58,7 +59,7 @@
 #' per 100 g of nut in shell runs from 1.8 g (chestnuts) to 10.3 g
 #' (pistachios), and almonds sit near the top at 8.0 (FAO, *Food balance
 #' sheets: a handbook*, Rome, 2001, Annex I, PDF page 65,
-#' <https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf>). With
+#' <https://www.fao.org/4/x9892e/x9892e00.pdf>). With
 #' `basket = "fao_composition"` (default) the protein density of 2551 is those
 #' ten factors weighted by 2010 world production of each species (FAOSTAT
 #' production, element 5510, area 351 excluded), 64.7 g per kg against 80 for
@@ -420,7 +421,7 @@ build_food_supply <- function(
 # protein_g_100g: FAO, Food balance sheets: a handbook, Rome, 2001, Annex I
 # "Food composition in terms of retail weight", PDF page 65, the in-shell
 # (primary) rows, the factors FBS itself applies to these items. Read from the
-# scanned table; https://www.fao.org/docrep/pdf/011/x9892e/x9892e00.pdf.
+# scanned table; https://www.fao.org/4/x9892e/x9892e00.pdf.
 # prod_2010_t: FAOSTAT world production 2010 (faostat-production pin, element
 # 5510, tonnes), summed over areas below 5000 with 351 China (the aggregate of
 # 41, 96, 128 and 214) excluded.

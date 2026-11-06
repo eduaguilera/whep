@@ -367,3 +367,22 @@ test_that("the repo .Rprofile sources the user profile as well", {
     info = paste(probe$out, collapse = "\n")
   )
 })
+
+test_that("pak workers do not autoload the project before dependency setup", {
+  profile <- .repo_rprofile_path()
+  skip_if_not(file.exists(profile), "Repository profile is not in tarball")
+  skip_if_not(.child_can_load_devtools(), "Child cannot load devtools")
+  dir <- tempfile("whep-pak-profile-")
+  dir.create(dir)
+  withr::defer(unlink(dir, recursive = TRUE))
+  .write_fake_pkg(dir)
+  copied <- file.path(dir, ".Rprofile")
+  file.copy(profile, copied)
+  withr::local_envvar(R_PKG_PKG_WORKER = "true")
+
+  out <- withr::with_dir(dir, .run_rscript_sentinel(copied))
+
+  expect_true(any(grepl("SENTINEL-REACHED", out, fixed = TRUE)))
+  expect_false(any(grepl("Loading whepfakepkg", out, fixed = TRUE)))
+  expect_false(any(grepl(.fake_missing_import(), out, fixed = TRUE)))
+})

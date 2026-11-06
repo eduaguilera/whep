@@ -1565,3 +1565,57 @@ testthat::test_that(".extract_cb() keeps the member record of its source", {
   whep:::.strip_bucket_members(list(out))
   testthat::expect_null(attr(out, "bucket_members"))
 })
+
+# Source coverage dates do not establish territorial validity (whep#1633).
+test_that("off-window diagnostics separate source coverage from polity validity", {
+  withr::local_options(whep.warn_area_vintage = TRUE)
+  # A synthetic FishStat-shaped row: the shipped map already resolves Palau
+  # in 1995, although its recorded FAOSTAT coverage starts at 2000.
+  input <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    180L, 1995L, 1
+  )
+  resolved <- whep::add_polity_code(input, backcast_anchor = -Inf)
+  expect_false(is.na(resolved$polity_code))
+  expect_lte(resolved$polity_start_year, resolved$year)
+  expect_gt(resolved$polity_end_year, resolved$year)
+  before <- serialize(resolved, NULL)
+  off <- whep:::.off_window_area_years(resolved)
+  expect_equal(off$area_code, 180L)
+  expect_equal(off$window_start, 2000L)
+  cnd <- rlang::catch_cnd(
+    whep:::.warn_off_window_area_years(resolved, "fishstat-trade fixture"),
+    classes = "warning"
+  )
+  expect_s3_class(cnd, "warning")
+  text <- stringr::str_squish(conditionMessage(cnd))
+  expect_match(text, "recorded FAOSTAT reporting window")
+  expect_match(text, "does not establish")
+  expect_match(text, "180")
+  expect_match(text, "1995-1995")
+  expect_false(stringr::str_detect(
+    text,
+    "cannot join|would duplicate|reports under a different"
+  ))
+  expect_identical(serialize(resolved, NULL), before)
+})
+
+test_that("the off-window CBS guard retains its policy without inferring territory", {
+  input <- tibble::tribble(~area_code, ~year, ~value, 180L, 1995L, 1)
+  cnd <- rlang::catch_cnd(whep:::.abort_if_off_window_areas(input))
+  expect_s3_class(cnd, "whep_error_off_window_area_year")
+  text <- stringr::str_squish(conditionMessage(cnd))
+  expect_match(text, "recorded FAOSTAT reporting window")
+  expect_false(stringr::str_detect(
+    text,
+    "already reports under another|would duplicate"
+  ))
+  # The established Belgium/Belgium-Luxembourg mismatch remains detectable.
+  belgium <- tibble::tribble(~area_code, ~year, ~value, 255L, 1990L, 1)
+  expect_equal(whep:::.off_window_area_years(belgium)$area_code, 255L)
+  expect_warning(whep:::.warn_off_window_area_years(belgium), "255")
+  expect_error(
+    whep:::.abort_if_off_window_areas(belgium),
+    class = "whep_error_off_window_area_year"
+  )
+})

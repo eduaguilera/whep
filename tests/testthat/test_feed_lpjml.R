@@ -1,3 +1,66 @@
+testthat::test_that("band reads preserve cell values in supported layouts", {
+  testthat::skip_if_not_installed("ncdf4")
+  purrr::walk(c(1L, 2L, 3L), function(n_lat) {
+    path <- .test_lpjml_band_file(n_lat = n_lat)
+    out <- whep:::.read_lpjml_bands(
+      path,
+      "depth",
+      "rainfed grassland",
+      1750L,
+      1750L
+    ) |>
+      tibble::as_tibble()
+    expected <- tidyr::expand_grid(
+      lat = 0.25 + (seq_len(n_lat) - 1) * 0.5,
+      lon = c(0.25, 0.75)
+    ) |>
+      dplyr::mutate(value = as.numeric(seq_len(2L * n_lat))) |>
+      dplyr::select(lon, lat, value)
+    testthat::expect_identical(out$lon, expected$lon)
+    testthat::expect_identical(out$lat, expected$lat)
+    testthat::expect_identical(out$value, expected$value)
+    testthat::expect_true(all(out$year == 1750L))
+    testthat::expect_true(all(out$band == "rainfed grassland"))
+  })
+})
+
+testthat::test_that("band reads reject reordered or unrecognized axes", {
+  testthat::skip_if_not_installed("ncdf4")
+  layouts <- list(
+    c("lat", "lon", "pft", "time"),
+    c("lon", "lat", "time", "pft"),
+    c("lon", "lat", "pft"),
+    c("x", "lat", "pft", "time")
+  )
+  purrr::walk(layouts, function(layout) {
+    path <- .test_lpjml_band_file(layout)
+    testthat::expect_error(
+      whep:::.read_lpjml_bands(
+        path,
+        "depth",
+        "rainfed grassland",
+        1750L,
+        1750L
+      ),
+      class = "whep_lpjml_band_dimensions"
+    )
+  })
+  path <- .test_lpjml_band_file(
+    c("lat", "lon", "pft", "time"),
+    n_lat = 3L
+  )
+  testthat::expect_error(
+    whep:::.read_lpjml_bands(
+      path,
+      "depth",
+      "rainfed grassland",
+      1750L,
+      1750L
+    ),
+    class = "whep_lpjml_band_dimensions"
+  )
+})
+
 test_that("grass_access_shares returns the documented defaults", {
   s <- whep::grass_access_shares()
   expect_equal(s$aboveground, 0.46)

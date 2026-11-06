@@ -153,18 +153,31 @@ test_that("build_commodity_balances returns expected columns", {
     "element",
     "value",
     "source",
-    "fao_flag"
+    "fao_flag",
+    "method_cbs_account",
+    "method_cbs_coverage"
   )
   expect_equal(names(result), expected_cols)
 })
 
-test_that("build_commodity_balances warns that nut_basis is unused", {
+test_that("fixed CBS data reports an unused coverage method", {
   expect_warning(
-    whep::build_commodity_balances(
-      nut_basis = "as_published",
+    out <- whep::build_commodity_balances(
+      bucket_coverage = "world_shares",
       .fixed_data = cbs_fixed_fixture()
     ),
-    "nut_basis"
+    "bucket_coverage.*ignored"
+  )
+  expect_equal(unique(out$method_cbs_coverage), "not_checked")
+})
+
+test_that("build_commodity_balances warns that fbs_trade_basis is unused", {
+  expect_warning(
+    whep::build_commodity_balances(
+      fbs_trade_basis = "as_published",
+      .fixed_data = cbs_fixed_fixture()
+    ),
+    "fbs_trade_basis"
   )
 })
 
@@ -184,7 +197,8 @@ test_that("build_commodity_balances has no duplicate keys", {
 
 test_that("build_commodity_balances preserves row count", {
   result <- whep::build_commodity_balances(
-    .fixed_data = cbs_fixed_fixture()
+    .fixed_data = cbs_fixed_fixture(),
+    method_cbs_account = "balance_residual"
   )
   expected <- cbs_expected_fixture()
   expect_equal(nrow(result), nrow(expected))
@@ -204,7 +218,11 @@ test_that("build_commodity_balances elements are valid", {
     "feed",
     "seed",
     "other_uses",
-    "processing"
+    "processing",
+    "losses",
+    "residuals",
+    "tourist_consumption",
+    "balance_discrepancy"
   )
   actual <- unique(result$element)
   expect_true(all(actual %in% valid_elements))
@@ -220,12 +238,15 @@ test_that("build_commodity_balances sources are from known set", {
     "FAOSTAT_FBS_New_rebased",
     "FAOSTAT_FBS_Old",
     "FAOSTAT_FBS_Old_scaled",
+    "FAOSTAT_FBS_Old_rebased",
     "FAOSTAT_CBS",
     "FAOSTAT_trade",
     "mean",
     "historical_fill",
     "Processed",
     "Processed_round2",
+    "unobserved_stock",
+    "WHEP_account_reconciliation",
     NA_character_
   )
   actual <- unique(result$source)
@@ -237,7 +258,11 @@ test_that("build_commodity_balances value column is finite", {
   result <- whep::build_commodity_balances(
     .fixed_data = cbs_fixed_fixture()
   )
-  expect_true(all(is.finite(result$value)))
+  unobserved <- result$source %in% "unobserved_stock"
+  expect_true(all(is.finite(result$value[!unobserved])))
+  # An unobserved stock change is published as missing, never as zero.
+  expect_true(all(is.na(result$value[unobserved])))
+  expect_true(all(result$element[unobserved] == "stock_variation"))
 })
 
 # The invariant the golden master below cannot supply. `cbs_expected.rds`
@@ -257,8 +282,21 @@ test_that("build_commodity_balances output balances supply against use", {
 
   # Every key must reach the report: a dropped row balances vacuously.
   expect_equal(nrow(balance), nrow(wide))
-  expect_false(any(is.na(balance$rel_diff)))
-  expect_lt(max(balance$rel_diff), 1e-6)
+  # The accounting identity closes everywhere, the unobserved stocks
+  # included; the physical one can only be judged where stock is known.
+  expect_true(all(balance$accounting_balanced))
+  known <- !is.na(balance$rel_diff)
+  expect_true(any(known))
+  expect_lt(max(balance$rel_diff[known]), 1e-6)
+
+  # Under the earlier contract stock closes every row physically.
+  old <- whep::build_commodity_balances(
+    .fixed_data = cbs_fixed_fixture(),
+    method_cbs_account = "balance_residual"
+  )
+  old_balance <- whep::check_supply_use_balance(whep:::.pivot_cbs_wide(old))
+  expect_false(any(is.na(old_balance$rel_diff)))
+  expect_lt(max(old_balance$rel_diff), 1e-6)
 })
 
 # Golden master: `cbs_expected.rds` encodes what the pipeline currently
@@ -267,12 +305,26 @@ test_that("build_commodity_balances output balances supply against use", {
 # the before/after in the PR -- so keep the invariant test above as the check
 # that does not move with it.
 test_that("build_commodity_balances matches expected output", {
+  # The golden master predates the source-account contract (whep#412);
+  # the "balance_residual" alternative must still reproduce it exactly.
   result <- whep::build_commodity_balances(
-    .fixed_data = cbs_fixed_fixture()
+    .fixed_data = cbs_fixed_fixture(),
+    method_cbs_account = "balance_residual"
   )
   expected <- cbs_expected_fixture() |>
-    whep:::.add_reporting_polity_columns()
-  expect_equal(result, expected)
+    whep:::.add_reporting_polity_columns() |>
+    dplyr::mutate(
+      method_cbs_account = "balance_residual",
+      method_cbs_coverage = "not_checked"
+    )
+  expect_equal(
+    result,
+    expected,
+    ignore_attr = c(
+      "source_accounts",
+      "input_accounts"
+    )
+  )
 })
 
 test_that("build_commodity_balances spot-check ESP wheat", {

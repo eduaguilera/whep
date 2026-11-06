@@ -1,0 +1,11 @@
+symbol_column,symbol,label,source
+su_symbol74,O,Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 31, soil units of the FAO-74 legend"
+su_symbol74,Oe,Eutric Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 31, soil units of the FAO-74 legend"
+su_symbol74,Od,Dystric Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 31, soil units of the FAO-74 legend"
+su_symbol74,Ox,Gelic Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 31, soil units of the FAO-74 legend"
+su_symbol90,HS,Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 29, soil units of the FAO-90 legend; p. 30, HISTOSOLS: soils which are composed of organic materials"
+su_symbol90,HSl,Folic Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 29, soil units of the FAO-90 legend"
+su_symbol90,HSs,Terric Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 29, soil units of the FAO-90 legend"
+su_symbol90,HSf,Fibric Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 29, soil units of the FAO-90 legend"
+su_symbol90,HSt,Thionic Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 29, soil units of the FAO-90 legend"
+su_symbol90,HSi,Gelic Histosols,"FAO/IIASA/ISRIC/ISSCAS/JRC (2012) HWSD v1.2 documentation, p. 29, soil units of the FAO-90 legend"

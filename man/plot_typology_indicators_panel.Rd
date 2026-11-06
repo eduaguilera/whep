@@ -18,8 +18,11 @@ If \code{NULL}, computed automatically (slow).}
 \item{n_prov_destiny}{Nitrogen flows tibble from \code{\link[=create_n_prov_destiny]{create_n_prov_destiny()}}.
 If \code{NULL}, loaded automatically.}
 
-\item{area_df}{Cropland area per year and province, with columns \code{year},
-\code{province_name} and \code{area_ha}. If \code{NULL}, read from the \code{npp_ygpit} pin.}
+\item{area_df}{Total agricultural area per year and province (cropland
+plus the semi-natural land uses dehesa, high/low forest,
+pasture-shrubland and other -- see \code{.semi_natural_landuse_cats()}), with
+columns \code{year}, \code{province_name} and \code{area_ha}. If \code{NULL}, read from the
+\code{npp_ygpit} pin.}
 
 \item{typo_df}{Typology assignment per year and province, with columns
 \code{year}, \code{province_name} and \code{Typology_base}. If \code{NULL}, derived from

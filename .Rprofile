@@ -38,7 +38,16 @@ local({
 # the moment a new Import lands (#616). The failure is reported rather than
 # swallowed -- a silent try() would let a developer believe the package is
 # loaded when it is not.
-if (requireNamespace("devtools", quietly = TRUE)) {
+# pak reads the project profile in its dependency-install worker, marked by
+# R_PKG_PKG_WORKER. Loading the package being installed there can fail on
+# missing Imports and consume pak's five-second worker startup allowance.
+# Keep the user-profile chain above (including repository configuration), but
+# leave project autoloading to ordinary developer sessions (#1610).
+# Source: https://github.com/r-lib/pak/blob/main/R/subprocess.R
+if (
+  !identical(Sys.getenv("R_PKG_PKG_WORKER"), "true") &&
+    requireNamespace("devtools", quietly = TRUE)
+) {
   tryCatch(
     devtools::load_all(),
     error = function(e) {

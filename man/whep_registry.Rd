@@ -24,11 +24,19 @@ A registry has one row per input and the same columns as \code{\link{whep_inputs
 \item \code{board_url}: the public link to the \verb{_pins.yaml} manifest of the
 \href{https://pins.rstudio.com/index.html}{\code{pins}} board holding it. It must be
 an \verb{https://saco.csic.es/public.php/dav/files/} public link ending in
-\verb{/_pins.yaml}, as every board in \code{\link{whep_inputs}} is.
+\verb{/_pins.yaml} for public rows. Restricted rows instead store a relative
+path such as \verb{restricted:folder/_pins.yaml}, resolved against the user's
+configured restricted board.
 \item \code{version}: the frozen pins version read by default, such as
 \code{"20250714T123343Z-114b5"}. A blank cell or \code{"latest"} reads the newest
 version on the board.
 }
+
+Optional \code{access} is \code{"public"} or \code{"restricted"}; omitting the column
+retains the public registry interface. \code{public_alternative} may suggest
+another alias but never causes an automatic fallback. Restricted reads
+and version listings use the supplied registry, including when its alias
+also exists in this package. See \code{\link[=whep_data_access_status]{whep_data_access_status()}} for setup.
 
 Further columns, such as a description, are kept. Every column is read as
 text, so a version string is never reinterpreted.

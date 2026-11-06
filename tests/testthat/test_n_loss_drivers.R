@@ -103,14 +103,49 @@ testthat::test_that("crop rows take the class build_cell_moisture_regime gives",
       ref$method_moisture_regime
     )
   }
-  # A's irrigated maize: 600 mm + 120 mm over 1000 mm of PET, still dry.
+  # A's irrigated maize: 600 mm over 1000 mm of PET, dry.
   irrigated <- .nld_row(out, 9.25, 2514L, "irrigated")
   testthat::expect_identical(irrigated$moisture_regime, "dry")
   testthat::expect_identical(
     irrigated$method_moisture_regime,
-    "ipcc2019_wet_dry;annual;precip_irrig"
+    "ipcc2019_wet_dry;annual;precip"
   )
   testthat::expect_true(is.na(irrigated$climate_fill_km))
+})
+
+# Issue #1531: irrigated land in a cell dry on precipitation stays on the
+# dry factors by default (IPCC 2019 Vol 4 Ch 11 Table 11.1 footnote 4, p.
+# 11.13), and on the Mediterranean irrigated drivers; 500 mm of irrigation
+# would otherwise lift A's maize to 1100 mm over 1000 mm of PET, wet.
+testthat::test_that("irrigation does not move a dry row to wet by default", {
+  inputs <- .nld_inputs(2010L)
+  inputs$crop_depth$irrig_mm_irrigated[inputs$crop_depth$lon == 9.25] <- 500
+  build <- function(...) {
+    suppressMessages(whep::build_n_loss_drivers(
+      .nld_rows(),
+      window = "annual",
+      data = inputs,
+      ...
+    ))
+  }
+  default <- build()$n_balance_drivers |>
+    .nld_row(9.25, 2514L, "irrigated") |>
+    dplyr::distinct(
+      .data$moisture_regime,
+      .data$climate,
+      .data$irrig_type,
+      .data$method_moisture_regime
+    )
+  testthat::expect_identical(default$moisture_regime, "dry")
+  testthat::expect_identical(default$climate, "MED")
+  testthat::expect_identical(default$irrig_type, "Med_average")
+  testthat::expect_identical(
+    default$method_moisture_regime,
+    "ipcc2019_wet_dry;annual;precip"
+  )
+  with_irrig <- build(water = "precip_irrig")$n_balance_leaching_drivers |>
+    .nld_row(9.25, 2514L, "irrigated")
+  testthat::expect_identical(with_irrig$moisture_regime, "wet")
 })
 
 testthat::test_that("rows without a crop take the cell's rainfed class", {
@@ -194,7 +229,7 @@ testthat::test_that("a cell without CRU climate takes its nearest CRU cell's", {
   testthat::expect_identical(
     c_row$method_moisture_regime,
     paste0(
-      "ipcc2019_wet_dry;annual;precip_irrig;",
+      "ipcc2019_wet_dry;annual;precip;",
       "nearest_cru_cell=mat_c+frost_days+prec_mm+pet_mm"
     )
   )
@@ -272,18 +307,23 @@ testthat::test_that("the trailing 30-year default runs on a full window", {
   )
   testthat::expect_identical(
     irrigated$method_moisture_regime,
-    "ipcc2019_wet_dry;trailing_30;precip_irrig"
+    "ipcc2019_wet_dry;trailing_30;precip"
   )
   testthat::expect_false(anyNA(out$n_balance_leaching_drivers$moisture_regime))
 })
 
 testthat::test_that("a row the classifier cannot class aborts", {
   # No regime areas for 1985: whether A's maize was irrigated that year is
-  # unknown, so its irrigated row's 30-year water term is missing.
+  # unknown, so its irrigated row's 30-year water term (with irrigation) is
+  # missing.
   data <- .nld_inputs(1981:2010)
   data$regime_areas <- data$regime_areas[data$regime_areas$year != 1985L, ]
   err <- testthat::expect_error(
-    suppressMessages(whep::build_n_loss_drivers(.nld_rows(), data = data)),
+    suppressMessages(whep::build_n_loss_drivers(
+      .nld_rows(),
+      water = "precip_irrig",
+      data = data
+    )),
     class = "whep_n_loss_drivers_unclassified"
   )
   msg <- cli::ansi_strip(conditionMessage(err))

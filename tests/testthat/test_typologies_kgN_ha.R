@@ -138,7 +138,9 @@ test_that("typology_area_stacked_bars returns both totals and shares", {
     whep_read_file = function(name, ...) kgn_npp_fixture()
   )
 
-  out <- typology_area_stacked_bars()
+  out <- typology_area_stacked_bars(
+    n_prov_destiny = whep::create_n_prov_destiny(example = TRUE)
+  )
 
   expect_named(out, c("df", "p_total", "p_pct"))
   expect_equal(sum(out$df$Total_ha), 1400)
