@@ -2852,6 +2852,9 @@ utils::globalVariables(
     "source_unit",
     "tourist_consumption",
     "version",
+    # R/cbs_trade_provenance.R: per-key distinct source count (whep#1647)
+    ".source_bit",
+    ".source_mask",
     NULL
   )
 )

@@ -659,6 +659,11 @@
 #'   extension), a row whose source carries no flag, and a row summed or
 #'   averaged from parts whose flags disagree. The flag is a claim about the
 #'   value, so it is dropped rather than guessed when the parts do not agree.
+#'   Trade filled from a standalone record carries that record's source and
+#'   flag, including an unknown flag for the legacy FishStat input. A mixed
+#'   or partly unflagged trade sum has no single observation flag. Trade
+#'   derived from the balance is labelled `"trade_balance_residual"`;
+#'   an unsupported working zero is labelled `"trade_default_zero"`.
 #'   Rows sourced from `"FAOSTAT_prod"` are `NA` today because
 #'   [build_primary_production()] does not carry the flag out of the
 #'   production pin.
@@ -1233,36 +1238,10 @@ build_commodity_balances <- function(
   # Both aggregates are reduced to their mass rows first: this attribute is the
   # tonnes-denominated trade the imputation reads, and the FAOSTAT record also
   # carries live-animal head counts (whep#865).
-  fao_trade_agg <- .mass_only_trade(
-    .aggregate_fao_trade_to_cbs(inputs$fao_trade),
-    "faostat-trade-totals"
+  attr(cbs_raw, ".fao_trade") <- .cbs_all_trade(
+    inputs$fao_trade,
+    inputs$fishstat_trade
   )
-  fishstat_agg <- inputs$fishstat_trade # already aggregated to CBS level
-  # FishStat is all tonnes today, but it goes through the same gate so a future
-  # non-mass unit cannot slip in silently. The gate can empty it, hence the
-  # second check rather than an `else if`.
-  if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
-    fishstat_agg <- .mass_only_trade(fishstat_agg, "fishstat-trade")
-  }
-  if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
-    # Keep only the columns common with fao_trade_agg
-    common_cols <- c("year", "area_code", "item_cbs_code", "element", "value")
-    all_trade <- data.table::rbindlist(
-      list(
-        fao_trade_agg[, common_cols, with = FALSE],
-        fishstat_agg[, common_cols, with = FALSE]
-      ),
-      use.names = TRUE
-    )
-    # Sum in case of overlaps (shouldn't happen: different item ranges)
-    all_trade <- all_trade[,
-      .(value = sum(value, na.rm = TRUE)),
-      by = .(year, area_code, item_cbs_code, element)
-    ]
-  } else {
-    all_trade <- fao_trade_agg
-  }
-  attr(cbs_raw, ".fao_trade") <- all_trade
   cbs_raw
 }
 
@@ -1367,6 +1346,9 @@ build_commodity_balances <- function(
     src_lookup = src_lookup,
     trade_zero = trade_zero
   )
+  # Step 7 may replace a CBS observation with a standalone trade record.
+  # Later pivot cycles must retain the winning source, not restore the old one.
+  src_lookup <- .extract_source_lookup(cbs_raw4)
 
   # 8. Fill destiny gaps
   cli::cli_progress_step("Filling destiny gaps")
@@ -1811,10 +1793,9 @@ build_processing_coefs <- function(
     value := data.table::fifelse(unit == "1000 An", value * 1000, value)
   ]
   dt[, unit := data.table::fifelse(unit == "1000 An", "An", unit)]
-  dt[,
-    .(value = sum(value, na.rm = TRUE)),
-    by = .(year, area_code, item_cbs_code, element, unit)
-  ]
+  dt[, source := "FAOSTAT_trade"]
+  .sum_trade_provenance(dt, c(.cbs_trade_keys(), "unit")) |>
+    data.table::as.data.table()
 }
 
 # The unit labels that denominate mass in WHEP's trade inputs. FAOSTAT trade
@@ -1838,10 +1819,8 @@ build_processing_coefs <- function(
 # `.abort_if_trade_key_duplicated()` requires to be unique.
 .mass_only_trade <- function(trade, source_label) {
   out <- .drop_non_mass_rows(trade, source_label)
-  out[,
-    .(value = sum(value, na.rm = TRUE)),
-    by = .(year, area_code, item_cbs_code, element)
-  ]
+  .sum_trade_provenance(out) |>
+    data.table::as.data.table()
 }
 
 # Keep only the mass rows of a unit-carrying frame, saying what went. `unit`
@@ -6702,15 +6681,7 @@ build_processing_coefs <- function(
       names_to = "element",
       values_to = "value"
     ) |>
-    dplyr::left_join(
-      src_lookup,
-      by = c(
-        "year",
-        "area_code",
-        "item_cbs_code",
-        "element"
-      )
-    )
+    .cbs_trade_sources(cbs_raw3, fao_trade_cbs, src_lookup, trade_zero)
 }
 
 .reestimate_domestic_supply <- function(df) {
