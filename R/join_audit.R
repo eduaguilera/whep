@@ -667,6 +667,11 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".prepare_cane_history", "group_by", "reporting_polity_code", 1L,
+    "year_axis",
+    "Interpolates or extrapolates along each canonical polity's year axis.
+     Rows and documented quantities stay separate by year; including year in
+     the group would prevent source anchors spanning missing years (whep#1580).",
     ".annual_water_polity", "summarise", "polity_code", 1L, "year_axis",
     "Reduces canonical reporting-year metadata to each polity's final
      reporting year; no water observations are pooled (whep#107, whep#116).",

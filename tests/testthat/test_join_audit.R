@@ -685,7 +685,10 @@ test_that("every year-free territorial grouping is classified", {
   # `sum(.territorial_grouping_baseline()$n)`.
   # 159: annual livestock water reduces canonical reporting-year metadata
   # to each polity's final reporting year (year_axis); measured on this tree.
-  expect_lte(sum(full$n), 159L)
+  # 160 with whep#1580: cane reconstruction groups each canonical polity's
+  # year axis to interpolate/extrapolate, retaining distinct yearly rows.
+  # Measured audit and registry totals are both160, not an inferred delta.
+  expect_lte(sum(full$n), 160L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
