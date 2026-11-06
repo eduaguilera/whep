@@ -164,3 +164,30 @@ testthat::test_that("withhold is the default of the CBS build", {
     "withhold"
   )
 })
+
+testthat::test_that("a supplied balance ignores fishstat_trade and says so", {
+  fixed <- tibble::tribble(
+    ~year, ~element,          ~value,
+    1962L, "production",         100,
+    1962L, "domestic_supply",    100,
+    1962L, "food",               100
+  ) |>
+    dplyr::mutate(
+      area = "United States",
+      area_code = 231L,
+      item_cbs = "Tobacco",
+      item_cbs_code = 2671L,
+      source = "historical_fill"
+    )
+  testthat::expect_warning(
+    whep::build_commodity_balances(
+      .fixed_data = fixed,
+      fishstat_trade = "as_live_weight"
+    ),
+    "fishstat_trade.*ignored"
+  )
+  testthat::expect_no_warning(
+    whep::build_commodity_balances(.fixed_data = fixed),
+    message = "fishstat_trade"
+  )
+})
