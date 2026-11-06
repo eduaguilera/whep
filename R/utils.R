@@ -2852,6 +2852,10 @@ utils::globalVariables(
     "source_unit",
     "tourist_consumption",
     "version",
+    # R/tomato_fresh_equivalent.R (whep#1631)
+    "factor_set",
+    "in_fbs_2601",
+    "kg_fresh_per_kg",
     NULL
   )
 )
