@@ -976,20 +976,106 @@ build_primary_production <- function(
   # The raw `area_code` is already a `polity_area_code`, matching the
   # production `area_code`. Key the proxy by code (not by the periodized
   # polity name) so the merge in `.add_historical_yields()` matches.
-  dt <- .read_input("international-yields", years = years, year_col = "year")
+  #
+  # The spike guard below judges each yield against the years around it, so
+  # a scoped read is widened by that window and trimmed back afterwards: a
+  # 1940 build must see 1935-1945 to damp 1940 exactly as a full build does.
+  read_years <- if (is.null(years)) {
+    NULL
+  } else {
+    (min(years) - .int_yield_half_window):(max(years) +
+      .int_yield_half_window)
+  }
+  dt <- .read_input(
+    "international-yields",
+    years = read_years,
+    year_col = "year"
+  )
   dt[, item_prod_code := as.character(item_code)]
   dt[, area_code := as.integer(area_code)]
   dt[, item_code := NULL]
 
-  dt <- dt[
-    year < 1962 & !is.na(yield) & yield != 0 & yield < 100
-  ]
+  dt <- dt[!is.na(yield) & yield != 0 & yield < 100]
   dt <- dt[,
     .(yield = mean(yield, na.rm = TRUE)),
     by = c("year", "area_code", "item_prod_code")
   ]
   dt <- dt[!is.nan(yield)]
+  keep <- dt$year < 1962
+  if (!is.null(years)) {
+    keep <- keep & dt$year >= min(years) & dt$year <= max(years)
+  }
+  .damp_int_yield_spikes(dt, which(keep))[keep]
+}
+
+# -- Yield spikes in the international-yields pin (whep#1652) -----------------
+
+# The pin holds isolated yields 5-40x the rest of their own series: Turkiye
+# wheat 1940 is 30.38 t/ha among ~0.78, India wheat 1905-1909 runs 6.2-12.1
+# t/ha among ~1.0 while its harvested area moves 1%. `.add_historical_yields()`
+# turns the yield's growth into the back-cast's growth, so each one became a
+# one-year tonnage spike: 177 Mt of Turkish wheat in 1940 against ~4.5 Mt.
+#
+# A yield above `.int_yield_spike_ratio` times the median of its own (area,
+# item) series over the centred window of +/- `.int_yield_half_window` years
+# is replaced by that median -- the Hampel filter's identify-and-replace, which
+# the AFE data-validation framework names for single-year spikes
+# (afse-wiki/wiki/decisions/afse-data-validation-framework.md, section 5).
+# Replacing rather than dropping matters: a missing proxy year breaks
+# `fill_proxy_growth()`'s chain, which would lose every earlier year of the
+# series instead of one.
+#
+# Only upward spikes are damped. A national yield cannot reach several times
+# its decade median and fall back the next year, but it can collapse in a
+# failed harvest or a war, so a low value is not evidence of an error on its
+# own.
+#
+# The ratio is a derived threshold, not a published one ("assumed, unverified"
+# as a literature value): it is the 99.99th percentile of the same ratio over
+# the pin's 1962-2021 rows (4.997, 523,487 yields), the framework's rule for an
+# empirical band. Measured on pin 20260325T112220Z-b6167 it replaces 13
+# pre-1962 yields in 9 series; 3 replaces 18 and 2.5 replaces 30, the extra
+# ones mixing pin errors with plausible alternate-bearing swings.
+.int_yield_spike_ratio <- 5
+.int_yield_half_window <- 5L
+
+# Damp the spikes among `rows` of `dt`, judging each against every row of its
+# series in `dt`: the window reaches past the rows the caller keeps.
+.damp_int_yield_spikes <- function(dt, rows = seq_len(nrow(dt))) {
+  window_median <- .int_yield_window_median(dt, rows)
+  spike <- !is.na(window_median) &
+    dt$yield[rows] > .int_yield_spike_ratio * window_median
+  if (any(spike)) {
+    n_spikes <- sum(spike)
+    ratio <- .int_yield_spike_ratio
+    width <- 2L * .int_yield_half_window + 1L
+    cli::cli_alert_warning(
+      "Replaced {n_spikes} international yield{?s} by the {width}-year
+       median of {cli::qty(n_spikes)}{?its/their} own series: each was more
+       than {ratio}x that median (whep#1652)."
+    )
+    data.table::set(dt, rows[spike], "yield", window_median[spike])
+  }
   dt
+}
+
+# The median yield of each of `rows`' own (area, item) series over the years
+# within `.int_yield_half_window` of it, in the order of `rows`.
+.int_yield_window_median <- function(dt, rows = seq_len(nrow(dt))) {
+  dt <- data.table::as.data.table(dt)
+  windows <- dt[rows, c("area_code", "item_prod_code", "year"), with = FALSE]
+  windows[, `:=`(
+    .row = .I,
+    .from = year - .int_yield_half_window,
+    .to = year + .int_yield_half_window
+  )]
+  medians <- dt[
+    windows,
+    on = c("area_code", "item_prod_code", "year>=.from", "year<=.to"),
+    list(.row = i..row, .median = stats::median(x.yield)),
+    by = .EACHI
+  ]
+  medians$.median[order(medians$.row)]
 }
 
 # -- Flax fibre basis (whep#1351) ---------------------------------------------

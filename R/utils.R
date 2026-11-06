@@ -2852,6 +2852,10 @@ utils::globalVariables(
     "source_unit",
     "tourist_consumption",
     "version",
+    # build_production.R -- international-yields spike window (whep#1652).
+    ".EACHI",
+    "i..row",
+    "x.yield",
     NULL
   )
 )
