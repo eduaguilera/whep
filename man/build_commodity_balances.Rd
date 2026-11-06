@@ -524,8 +524,10 @@ concentrate 5.6, triple 7.2 kg fresh per kg) gives 2.081 Mt domestic
 supply (2.056 Mt April-March), against 1.682 Mt rebased and 3.400 Mt
 published; the dry-matter bounds give 1.564 to 2.256 Mt. So the
 published import (3.585 Mt) is above any product-consistent conversion,
-as it is for the other large EU importers, while the anchor sits at the
-bottom of the range. These are compiled food availability accounts,
+while the anchor sits at the bottom of the range. This does not hold for
+every EU importer: Italy's and Spain's published imports fall below
+their low bounds, and the rebased anchor is below the low bound for the
+UK, Poland, Austria, Italy and Spain (#1654). These are compiled food availability accounts,
 not intake measurements, and can share national production/customs
 inputs with FAO; the grade mix behind the 2.081 Mt is assumed, not
 measured. See \code{inst/scripts/diagnose_tomato_trade_basis.R}.
