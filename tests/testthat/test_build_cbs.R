@@ -597,6 +597,8 @@ test_that(".cbs_impute_trade balances a net-exported item with no production", {
   )
 }
 
+# The record names its dataset, as `.cbs_all_trade()` does for the real one:
+# a recovered row's `source` is read from it, not assumed (whep#1650).
 .recovery_trade <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~element, ~value,
@@ -610,7 +612,8 @@ test_that(".cbs_impute_trade balances a net-exported item with no production", {
     2010, 200L, 1049, "import", 290549,
     2010, 13L, 2807, "import", 1000,
     2009, 200L, 2531, "import", 700
-  )
+  ) |>
+    dplyr::mutate(source = "FAOSTAT_trade")
 }
 
 test_that(".cbs_trade_recovery_rows creates the row the trade join cannot", {
@@ -735,9 +738,9 @@ test_that("a passed-through row balances with no supply of its own", {
   )
   attr(raw, ".years") <- 2010L
   attr(raw, ".fao_trade") <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
-    2010, 200L, 2633, "import", 132832,
-    2010, 200L, 2633, "export", 155467
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source,
+    2010, 200L, 2633, "import", 132832, "FAOSTAT_trade",
+    2010, 200L, 2633, "export", 155467, "FAOSTAT_trade"
   )
 
   cocoa <- suppressMessages(whep:::.fix_cbs(raw)) |>
@@ -748,7 +751,11 @@ test_that("a passed-through row balances with no supply of its own", {
   expect_equal(nrow(skipped), 0L)
   expect_setequal(cocoa$element, c("import", "export"))
   expect_equal(cocoa$value, c(132832, 132832))
-  expect_equal(unique(cocoa$source), "FAOSTAT_trade")
+  # The capped export is no longer the record's number (whep#1650).
+  expect_equal(
+    cocoa$source[order(cocoa$element)],
+    c("FAOSTAT_trade_capped_at_import", "FAOSTAT_trade")
+  )
 })
 
 test_that("by-product recovery keeps Meat Meal's export beyond its import", {
@@ -984,12 +991,13 @@ test_that("recovered rows bind onto a CBS carrying fao_flag", {
 
   expect_true("fao_flag" %in% names(bound))
   expect_equal(nrow(bound), nrow(cbs) + nrow(recovered))
-  # The flag is NA on the created rows and untouched on the existing ones.
-  created <- dplyr::filter(bound, source == "FAOSTAT_trade")
+  # The flag is NA on the created rows (their record supplies none) and
+  # untouched on the existing ones.
+  created <- dplyr::filter(bound, source != "FAOSTAT_prod")
   expect_equal(nrow(created), nrow(recovered))
   expect_true(all(is.na(created$fao_flag)))
   expect_true(all(
-    dplyr::filter(bound, source != "FAOSTAT_trade")$fao_flag == "A"
+    dplyr::filter(bound, source == "FAOSTAT_prod")$fao_flag == "A"
   ))
 })
 
@@ -1007,7 +1015,7 @@ test_that("recovered sources reach the frozen source lookup", {
   expect_equal(sum(duplicated(result[, key])), 0L)
   expect_equal(
     sort(unique(result$source)),
-    c("FAOSTAT_prod", "FAOSTAT_trade")
+    c("FAOSTAT_prod", "FAOSTAT_trade", "FAOSTAT_trade_capped_at_import")
   )
   expect_equal(whep:::.add_recovered_sources(src, recovered[0, ]), src)
 })
@@ -1025,8 +1033,277 @@ test_that("recovered sources reach a lookup carrying fao_flag", {
 
   expect_equal(nrow(result), nrow(src) + nrow(recovered))
   expect_true(all(
-    is.na(dplyr::filter(result, source == "FAOSTAT_trade")$fao_flag)
+    is.na(dplyr::filter(result, source != "FAOSTAT_prod")$fao_flag)
   ))
+})
+
+# -- provenance of recovered rows (#1650) --------------------------------------
+
+# Peru carries wheat and no Marine Fish, Other (2764), the issue's fixture:
+# FishStat supplies the fish trade, FAOSTAT the maize, and Meat Meal (2112)
+# is the residual by-product whose export is kept beyond its import.
+.provenance_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2017L, "Peru", 170L, "Wheat and products", 2511, "production", 100, "FAOSTAT_prod", "A",
+    2017L, "Peru", 170L, "Wheat and products", 2511, "food", 100, "FAOSTAT_prod", "A"
+  )
+}
+
+.provenance_trade <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2017L, 170L, 2764, "import", 20, "FishStat_trade", NA,
+    2017L, 170L, 2764, "export", 10, "FishStat_trade", NA,
+    2017L, 170L, 2514, "import", 50, "FAOSTAT_trade", "A",
+    2017L, 170L, 2514, "export", 80, "FAOSTAT_trade", "A",
+    2017L, 170L, 2112, "import", 5, "FAOSTAT_trade", "E",
+    2017L, 170L, 2112, "export", 40, "FAOSTAT_trade", "E"
+  )
+}
+
+.provenance_of <- function(rows, item, el) {
+  rows |>
+    dplyr::filter(item_cbs_code == item, element == el) |>
+    dplyr::select(value, source, fao_flag) |>
+    as.list()
+}
+
+test_that("a recovered row names the dataset and flag that supplied it", {
+  # The defect: every recovered row was labelled `"FAOSTAT_trade"` with no
+  # flag, so FishStat's fish trade read as a FAOSTAT observation.
+  rows <- suppressMessages(whep:::.cbs_trade_recovery_rows(
+    .provenance_cbs(),
+    .provenance_trade(),
+    2017L
+  ))
+
+  # Net importer, unchanged: FishStat, and no flag because FishStat has none.
+  expect_equal(
+    .provenance_of(rows, 2764, "import"),
+    list(value = 20, source = "FishStat_trade", fao_flag = NA_character_)
+  )
+  expect_equal(
+    .provenance_of(rows, 2764, "export"),
+    list(value = 10, source = "FishStat_trade", fao_flag = NA_character_)
+  )
+  # An unchanged FAOSTAT import keeps its supplied flag.
+  expect_equal(
+    .provenance_of(rows, 2514, "import"),
+    list(value = 50, source = "FAOSTAT_trade", fao_flag = "A")
+  )
+  # The residual by-product's export is kept in full, so it is still the
+  # record's observation, flag included.
+  expect_equal(
+    .provenance_of(rows, 2112, "export"),
+    list(value = 40, source = "FAOSTAT_trade", fao_flag = "E")
+  )
+})
+
+test_that("a capped recovered export is labelled derived, without a flag", {
+  # Maize exports 80 against an import of 50: the 50 kept is not the number
+  # FAOSTAT published, so it keeps the lineage but drops the claim of being an
+  # observation. The import beside it is untouched.
+  for (method in c("byproduct_residual", "pass_through")) {
+    rows <- suppressMessages(whep:::.cbs_trade_recovery_rows(
+      .provenance_cbs(),
+      .provenance_trade(),
+      2017L,
+      method = method
+    ))
+    expect_equal(
+      .provenance_of(rows, 2514, "export"),
+      list(
+        value = 50,
+        source = "FAOSTAT_trade_capped_at_import",
+        fao_flag = NA_character_
+      )
+    )
+    expect_equal(.provenance_of(rows, 2514, "import")$fao_flag, "A")
+  }
+  # The issue's capped FishStat case: 30 t of export against 20 t of import.
+  trade <- dplyr::mutate(
+    .provenance_trade(),
+    value = dplyr::if_else(
+      item_cbs_code == 2764 & element == "export",
+      30,
+      value
+    )
+  )
+  rows <- suppressMessages(
+    whep:::.cbs_trade_recovery_rows(.provenance_cbs(), trade, 2017L)
+  )
+  expect_equal(
+    .provenance_of(rows, 2764, "export"),
+    list(
+      value = 20,
+      source = "FishStat_trade_capped_at_import",
+      fao_flag = NA_character_
+    )
+  )
+  # Under `"pass_through"` Meat Meal is capped like any other net exporter.
+  capped <- suppressMessages(whep:::.cbs_trade_recovery_rows(
+    .provenance_cbs(),
+    .provenance_trade(),
+    2017L,
+    method = "pass_through"
+  ))
+  expect_equal(
+    .provenance_of(capped, 2112, "export")$source,
+    "FAOSTAT_trade_capped_at_import"
+  )
+})
+
+test_that("net-import recovery carries the record's provenance unchanged", {
+  rows <- whep:::.cbs_trade_recovery_rows(
+    .provenance_cbs(),
+    .provenance_trade(),
+    2017L,
+    method = "net_import"
+  )
+
+  expect_equal(unique(rows$item_cbs_code), 2764)
+  expect_equal(unique(rows$source), "FishStat_trade")
+  expect_true(all(is.na(rows$fao_flag)))
+})
+
+test_that("absent or mixed trade metadata is not invented", {
+  bare <- dplyr::select(.provenance_trade(), -source, -fao_flag)
+  rows <- suppressMessages(
+    whep:::.cbs_trade_recovery_rows(.provenance_cbs(), bare, 2017L)
+  )
+  # An unlabelled record is unknown, not FAOSTAT; a changed value from it is
+  # still declared derived.
+  expect_true(all(is.na(rows$fao_flag)))
+  expect_true(all(is.na(rows$source[
+    rows$item_cbs_code != 2514 |
+      rows$element == "import"
+  ])))
+  expect_equal(
+    .provenance_of(rows, 2514, "export")$source,
+    "trade_capped_at_import"
+  )
+  # Provenance moves no quantity: the same rows and values either way.
+  labelled <- suppressMessages(whep:::.cbs_trade_recovery_rows(
+    .provenance_cbs(),
+    .provenance_trade(),
+    2017L
+  ))
+  expect_equal(
+    dplyr::select(rows, -source, -fao_flag),
+    dplyr::select(labelled, -source, -fao_flag)
+  )
+
+  # A key summed from two datasets names both, each with its own suffix.
+  mixed <- dplyr::mutate(
+    .provenance_trade(),
+    source = "FAOSTAT_trade + FishStat_trade"
+  )
+  rows <- suppressMessages(
+    whep:::.cbs_trade_recovery_rows(.provenance_cbs(), mixed, 2017L)
+  )
+  expect_equal(
+    .provenance_of(rows, 2764, "import")$source,
+    "FAOSTAT_trade + FishStat_trade"
+  )
+  expect_equal(
+    .provenance_of(rows, 2514, "export")$source,
+    "FAOSTAT_trade_capped_at_import + FishStat_trade_capped_at_import"
+  )
+})
+
+test_that("recovered rows bind onto a CBS without fao_flag", {
+  # The recovered rows now carry a flag column; a flagless CBS frame must still
+  # take them rather than abort on the column it lacks.
+  cbs <- dplyr::select(.provenance_cbs(), -fao_flag)
+  rows <- suppressMessages(
+    whep:::.cbs_trade_recovery_rows(cbs, .provenance_trade(), 2017L)
+  )
+  bound <- tibble::as_tibble(suppressMessages(
+    whep:::.cbs_bind_recovered(cbs, rows)
+  ))
+
+  expect_equal(nrow(bound), nrow(cbs) + nrow(rows))
+  expect_setequal(names(bound), names(cbs))
+})
+
+test_that("recovered provenance survives the whole fixing cascade", {
+  # Every balancing step pivots and rejoins the source lookup, so a label set
+  # at recovery has to reach the published rows intact.
+  raw <- .provenance_cbs()
+  attr(raw, ".years") <- 2017L
+  attr(raw, ".fao_trade") <- .provenance_trade()
+  bare <- raw
+  attr(bare, ".fao_trade") <- dplyr::select(
+    .provenance_trade(),
+    -source,
+    -fao_flag
+  )
+
+  out <- suppressMessages(whep:::.fix_cbs(raw))
+  traded <- dplyr::filter(
+    out,
+    item_cbs_code %in% c(2764, 2514, 2112),
+    element %in% c("import", "export")
+  )
+  expect_equal(
+    .provenance_of(traded, 2764, "import"),
+    list(value = 20, source = "FishStat_trade", fao_flag = NA_character_)
+  )
+  expect_equal(
+    .provenance_of(traded, 2514, "export"),
+    list(
+      value = 50,
+      source = "FAOSTAT_trade_capped_at_import",
+      fao_flag = NA_character_
+    )
+  )
+  expect_equal(
+    .provenance_of(traded, 2112, "export"),
+    list(value = 40, source = "FAOSTAT_trade", fao_flag = "E")
+  )
+  # And moves no quantity anywhere in the cascade.
+  unlabelled <- suppressMessages(whep:::.fix_cbs(bare))
+  expect_equal(
+    dplyr::select(out, -source, -fao_flag),
+    dplyr::select(unlabelled, -source, -fao_flag)
+  )
+})
+
+test_that(".cbs_all_trade names each dataset it combines", {
+  fao <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~unit,
+    2017L, 170L, 2514, "import", 50, "t"
+  )
+  fish <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~unit,
+    2017L, 170L, 2764, "import", 20, "t",
+    2017L, 170L, 2514, "import", 1, "t"
+  )
+  # The stub stands in for the item bridge only. It stamps the dataset label
+  # the real aggregator stamps (whep#1647), which
+  # test_cbs_trade_provenance.R checks against the unstubbed function.
+  testthat::local_mocked_bindings(
+    .aggregate_fao_trade_to_cbs = function(x) {
+      data.table::as.data.table(x)[, source := "FAOSTAT_trade"][]
+    },
+    .package = "whep"
+  )
+
+  only_fao <- tibble::as_tibble(whep:::.cbs_all_trade(fao, NULL))
+  expect_equal(only_fao$source, "FAOSTAT_trade")
+  # The record carries no flag, so the aggregate states none rather than
+  # inventing one (whep#1647 carries the column; it stays NA here).
+  expect_identical(only_fao$fao_flag, NA_character_)
+
+  both <- suppressMessages(whep:::.cbs_all_trade(fao, fish)) |>
+    tibble::as_tibble() |>
+    dplyr::arrange(item_cbs_code)
+  expect_equal(both$value, c(51, 20))
+  expect_equal(
+    both$source,
+    c("FAOSTAT_trade + FishStat_trade", "FishStat_trade")
+  )
 })
 
 test_that(".fix_cbs wires trade recovery through the whole cascade", {
@@ -1045,9 +1322,9 @@ test_that(".fix_cbs wires trade recovery through the whole cascade", {
   )
   attr(raw, ".years") <- 2010L
   attr(raw, ".fao_trade") <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
-    2010, 200L, 2807, "import", 620863,
-    2010, 200L, 2807, "export", 91318
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source,
+    2010, 200L, 2807, "import", 620863, "FAOSTAT_trade",
+    2010, 200L, 2807, "export", 91318, "FAOSTAT_trade"
   )
 
   off <- whep:::.fix_cbs(raw, trade_recovery = "none")
@@ -1099,9 +1376,9 @@ test_that("a recovered row takes the item's world-average destiny split", {
   )
   attr(raw, ".years") <- 2010L
   attr(raw, ".fao_trade") <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
-    2010, 200L, 2807, "import", 620863,
-    2010, 200L, 2807, "export", 91318
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source,
+    2010, 200L, 2807, "import", 620863, "FAOSTAT_trade",
+    2010, 200L, 2807, "export", 91318, "FAOSTAT_trade"
   )
 
   rice <- whep:::.fix_cbs(raw, trade_recovery = "net_import") |>

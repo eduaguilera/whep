@@ -101,7 +101,12 @@ Meal, whep#1450) is dropped. It moves no food supply: the largest change
 in protein supply against \code{"net_import"} is 0.0003 g/cap/day.
 \code{\link[=get_wide_cbs]{get_wide_cbs()}}, \code{\link[=get_processing_coefs]{get_processing_coefs()}} and \code{\link[=build_io_model]{build_io_model()}} take the
 same argument and pass it into the shared build chain, each method under
-its own cache slot, so a downstream build can be run either way.}
+its own cache slot, so a downstream build can be run either way.
+A created row names the trade dataset that supplied it in \code{source}
+(\code{"FAOSTAT_trade"} or \code{"FishStat_trade"}) with that record's \code{fao_flag},
+\code{NA} where the record has none; an export capped at its import is no
+longer the record's number, so its \code{source} carries a
+\code{"_capped_at_import"} suffix and its \code{fao_flag} is \code{NA}.}
 
 \item{trade_zero}{One of \code{"prefer_record"} (default) or \code{"keep"},
 selecting what happens when the CBS carries a \strong{zero} import or export

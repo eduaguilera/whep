@@ -71,6 +71,11 @@
 #'   [get_wide_cbs()], [get_processing_coefs()] and [build_io_model()] take the
 #'   same argument and pass it into the shared build chain, each method under
 #'   its own cache slot, so a downstream build can be run either way.
+#'   A created row names the trade dataset that supplied it in `source`
+#'   (`"FAOSTAT_trade"` or `"FishStat_trade"`) with that record's `fao_flag`,
+#'   `NA` where the record has none; an export capped at its import is no
+#'   longer the record's number, so its `source` carries a
+#'   `"_capped_at_import"` suffix and its `fao_flag` is `NA`.
 #' @param trade_zero One of `"prefer_record"` (default) or `"keep"`,
 #'   selecting what happens when the CBS carries a **zero** import or export
 #'   and the trade record for the same `(year, area_code, item_cbs_code)`
@@ -6071,7 +6076,7 @@ build_processing_coefs <- function(
       values_to = "value"
     ) |>
     dplyr::filter(.data$value > 0) |>
-    dplyr::mutate(source = "FAOSTAT_trade") |>
+    .cbs_recovery_provenance(fao_trade_cbs) |>
     dplyr::select(
       year,
       area_code,
@@ -6080,8 +6085,70 @@ build_processing_coefs <- function(
       area,
       item_cbs,
       value,
-      source
+      source,
+      fao_flag
     )
+}
+
+# The provenance of a recovered row is the provenance of the trade record that
+# supplied it (whep#1650). It used to be the literal `"FAOSTAT_trade"` with no
+# flag, whatever the dataset, so FishStat rows were booked as FAOSTAT ones and
+# an export the recovery had capped read as the record's own number.
+#
+# * A value equal to the record's carries the record's `source` and
+#   `fao_flag`, as supplied. Absent metadata stays NA: an unlabelled record is
+#   unknown, not FAOSTAT.
+# * A value that differs from the record's -- only an export capped at its
+#   import by `.cbs_recovery_net_exports()` -- is no longer the observation.
+#   Its `source` keeps the lineage with a `_capped_at_import` suffix, the
+#   suffix convention of the derived `FAOSTAT_FBS_Old_scaled` and
+#   `FAOSTAT_FBS_New_rebased`, and it carries no observation flag.
+#
+# The join is on the numeric `area_code` bucket, the same transitional adapter
+# the recovery itself keys on (whep#458); it adds no territorial matching of
+# its own. Each candidate key is unique in the record, which
+# `.abort_if_trade_key_duplicated()` has already enforced.
+.cbs_recovery_provenance <- function(rows, fao_trade_cbs) {
+  if (nrow(rows) == 0L) {
+    return(dplyr::mutate(rows, source = character(), fao_flag = character()))
+  }
+  keys <- c("year", "area_code", "item_cbs_code", "element")
+  record <- tibble::as_tibble(fao_trade_cbs) |>
+    ensure_columns(
+      tibble::tibble(source = character(), fao_flag = character())
+    ) |>
+    dplyr::semi_join(rows, by = keys) |>
+    dplyr::select(
+      dplyr::all_of(c(keys, "source", "fao_flag")),
+      record_value = "value"
+    )
+  rows |>
+    dplyr::left_join(record, by = keys, relationship = "one-to-one") |>
+    dplyr::mutate(
+      changed = .data$value != .data$record_value,
+      source = dplyr::if_else(
+        .data$changed,
+        .capped_source_label(.data$source),
+        .data$source
+      ),
+      fao_flag = dplyr::if_else(.data$changed, NA_character_, .data$fao_flag)
+    ) |>
+    dplyr::select(-"changed", -"record_value")
+}
+
+# `"FishStat_trade"` -> `"FishStat_trade_capped_at_import"`, per dataset when
+# the record names several. An unlabelled record still yields a label that
+# says the value is derived, without claiming a dataset for it.
+.capped_source_label <- function(source) {
+  suffix <- "_capped_at_import"
+  dplyr::if_else(
+    is.na(source),
+    paste0("trade", suffix),
+    paste0(
+      stringr::str_replace_all(source, " \\+ ", paste0(suffix, " + ")),
+      suffix
+    )
+  )
 }
 
 # The (year, area, item) keys the trade record carries and the CBS does not,
@@ -6332,22 +6399,21 @@ build_processing_coefs <- function(
 # A created row can only carry what the trade record gives it, so every other
 # column of the frame it is bound onto has to be completed from that frame's
 # own prototype: `rbindlist()` aborts on a column one side lacks. `fao_flag`
-# is that column today -- it arrived on the CBS and on the source lookup in
+# was that column -- it arrived on the CBS and on the source lookup in
 # whep#1037, after the recovery step of whep#864, and turned
 # `trade_recovery = "net_import"` from working into an abort on the real frame
-# while every fixture (all flagless) stayed green. NA is also the right value,
-# not merely the convenient one: a recovered row is not a number FAOSTAT
-# published under an observation status, which is the rule
-# `build_commodity_balances()` documents for that column.
+# while every fixture (all flagless) stayed green. The recovered rows now carry
+# the flag their trade record supplied (whep#1650), so the reverse also holds:
+# a column the frame does not have, such as `fao_flag` on a flagless CBS, is
+# dropped rather than aborting the bind.
 .cbs_recovered_to_schema <- function(recovered, frame) {
+  recovered <- tibble::as_tibble(recovered)
+  recovered <- recovered[, intersect(names(recovered), names(frame))]
   absent <- setdiff(names(frame), names(recovered))
   if (length(absent) == 0L) {
     return(recovered)
   }
-  ensure_columns(
-    tibble::as_tibble(recovered),
-    tibble::as_tibble(frame)[0L, absent]
-  )
+  ensure_columns(recovered, tibble::as_tibble(frame)[0L, absent])
 }
 
 # The source lookup is frozen before the recovered rows exist, so their
