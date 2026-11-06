@@ -1828,50 +1828,6 @@ build_processing_coefs <- function(
     data.table::as.data.table()
 }
 
-# FAOSTAT + FishStat trade at CBS item level, the `.fao_trade` record the
-# imputation and the trade-only recovery read. Each dataset is named in
-# `source` before the two are combined, so a row recovered from it can say
-# which one supplied it (whep#1650): the record used to be bare tonnage, and the
-# recovery labelled every row `"FAOSTAT_trade"`, FishStat's included. Neither
-# aggregate carries an observation flag, so none is attached: `fao_flag` is
-# left absent and reads as unknown downstream, never invented.
-.cbs_all_trade <- function(fao_trade, fishstat_trade) {
-  fao <- .mass_only_trade(
-    .aggregate_fao_trade_to_cbs(fao_trade),
-    "faostat-trade-totals"
-  ) |>
-    data.table::as.data.table()
-  fao[, source := "FAOSTAT_trade"]
-  # FishStat is all tonnes today, but it goes through the same gate so a future
-  # non-mass unit cannot slip in silently. The gate can empty it.
-  if (is.null(fishstat_trade) || nrow(fishstat_trade) == 0L) {
-    return(fao)
-  }
-  fish <- .mass_only_trade(fishstat_trade, "fishstat-trade") |>
-    data.table::as.data.table()
-  if (nrow(fish) == 0L) {
-    return(fao)
-  }
-  fish[, source := "FishStat_trade"]
-  # Sum in case of overlaps (none today: the item ranges are disjoint). A
-  # summed key names both datasets rather than either one.
-  data.table::rbindlist(list(fao, fish), use.names = TRUE)[,
-    .(value = sum(value, na.rm = TRUE), source = .trade_source_label(source)),
-    by = .(year, area_code, item_cbs_code, element)
-  ]
-}
-
-# One provenance label for the trade rows summed into one key: the single
-# dataset when they agree, every dataset joined by `" + "` when they do not,
-# and NA when any part is unlabelled, because a partly unknown sum has no
-# known lineage.
-.trade_source_label <- function(source) {
-  if (anyNA(source) || any(!nzchar(source))) {
-    return(NA_character_)
-  }
-  paste(sort(unique(source)), collapse = " + ")
-}
-
 # Keep only the mass rows of a unit-carrying frame, saying what went. `unit`
 # survives, so the caller decides its own aggregation key -- the two CBS
 # callers keep `item_cbs` and `area`, which `.mass_only_trade()`'s fixed

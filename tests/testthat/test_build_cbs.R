@@ -1280,14 +1280,21 @@ test_that(".cbs_all_trade names each dataset it combines", {
     2017L, 170L, 2764, "import", 20, "t",
     2017L, 170L, 2514, "import", 1, "t"
   )
+  # The stub stands in for the item bridge only. It stamps the dataset label
+  # the real aggregator stamps (whep#1647), which
+  # test_cbs_trade_provenance.R checks against the unstubbed function.
   testthat::local_mocked_bindings(
-    .aggregate_fao_trade_to_cbs = function(x) data.table::as.data.table(x),
+    .aggregate_fao_trade_to_cbs = function(x) {
+      data.table::as.data.table(x)[, source := "FAOSTAT_trade"][]
+    },
     .package = "whep"
   )
 
   only_fao <- tibble::as_tibble(whep:::.cbs_all_trade(fao, NULL))
   expect_equal(only_fao$source, "FAOSTAT_trade")
-  expect_false("fao_flag" %in% names(only_fao))
+  # The record carries no flag, so the aggregate states none rather than
+  # inventing one (whep#1647 carries the column; it stays NA here).
+  expect_identical(only_fao$fao_flag, NA_character_)
 
   both <- suppressMessages(whep:::.cbs_all_trade(fao, fish)) |>
     tibble::as_tibble() |>
