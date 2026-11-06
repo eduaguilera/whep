@@ -54,8 +54,13 @@
 # * CULINARIA Europe, *Code of Practice Tomato Ketchup* (2015), technical
 #   annex: fresh tomatoes fixed at 5 g dry matter per 100 g; double
 #   concentrate (28 g dry matter) 5.6, triple concentrate (36 g) 7.2.
-# * LGL Bayern (2016), *Schwermetalle in Tomatenmark*: the trade grades single
-#   (14-22% dry matter), double (28-30%) and triple (36-40%) concentrate.
+# * LGL Bayern, *Ausgewählte chemische Elemente in Tomatenmark --
+#   Untersuchungsergebnisse 2016*: the trade grades single (14-22% dry
+#   matter), double (28-30%) and triple (36-40%) concentrate.
+#
+# All values above were read from the sources and independently re-checked
+# (fact cards of the whep#1631 report; decision
+# `whep-tomato-trade-anchor-product-equivalent`).
 #
 # The sets:
 #
