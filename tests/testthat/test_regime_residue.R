@@ -143,3 +143,27 @@ testthat::test_that("a crop with no residue or root in the model keeps factor 1"
   testthat::expect_identical(out$residue_factor, 1)
   testthat::expect_identical(out$root_factor, 1)
 })
+
+testthat::test_that("a lined non-cereal's regime evaluates the CBS's model", {
+  # Soybean has its own IPCC Table 11.2 line, so the soil chain prices it
+  # with get_primary_residues()'s `non_cereal_residue` default (whep#1609),
+  # and the regime split must evaluate that same model.
+  part <- tibble::tibble(
+    item_prod_code = "236",
+    area_code = 203L,
+    year = 2010L,
+    region_hanpp = "West Europe",
+    yield_t_ha = 2.5,
+    water_regime = "Irrigated"
+  )
+  out <- whep:::.rr_model_at(part, "yield_t_ha", with_regime = TRUE)
+  on_hectare <- dplyr::mutate(part, production_t = 2.5, area_ha = 1)
+  cbs <- whep::calculate_crop_npp(on_hectare, residue_method = "ipcc")
+  ensemble <- whep::calculate_crop_npp(on_hectare)
+  testthat::expect_equal(out$residue_dm_t, cbs$residue_dm_t)
+  testthat::expect_equal(out$root_dm_t, cbs$root_dm_t)
+  testthat::expect_false(isTRUE(all.equal(
+    out$residue_dm_t,
+    ensemble$residue_dm_t
+  )))
+})
