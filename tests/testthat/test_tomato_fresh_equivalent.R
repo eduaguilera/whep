@@ -19,7 +19,7 @@ testthat::test_that("each factor set converts every FBS 2601 product class", {
     dplyr::filter(in_fbs_2601) |>
     dplyr::pull(product_class) |>
     unique()
-  factors <- whep:::.tomato_fresh_equivalent_factors()
+  factors <- whep:::.tomato_fresh_eq_factors()
 
   for (set in unique(factors$factor_set)) {
     in_set <- factors |>
@@ -33,7 +33,7 @@ testthat::test_that("each factor set converts every FBS 2601 product class", {
 })
 
 testthat::test_that("the dry-matter bounds bracket the other sets", {
-  wide <- whep:::.tomato_fresh_equivalent_factors() |>
+  wide <- whep:::.tomato_fresh_eq_factors() |>
     tidyr::pivot_wider(
       names_from = factor_set,
       values_from = kg_fresh_per_kg
@@ -82,7 +82,12 @@ testthat::test_that("fresh equivalent sums product tonnes times factors", {
 
 testthat::test_that("an unknown CN8 code aborts instead of being dropped", {
   trade <- tomato_trade_fixture() |>
-    tibble::add_row(reporter = "DE", flow = "import", cn8 = "20019065", value = 5)
+    tibble::add_row(
+      reporter = "DE",
+      flow = "import",
+      cn8 = "20019065",
+      value = 5
+    )
 
   testthat::expect_error(
     whep:::.tomato_fresh_equivalent(trade),

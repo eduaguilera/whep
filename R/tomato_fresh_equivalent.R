@@ -78,7 +78,7 @@
 #   for passata, and Italy's FAO peeled and juice rates, Italy being the
 #   dominant supplier assumed, unverified. A point estimate inside the bounds,
 #   not a measured mix.
-.tomato_fresh_equivalent_factors <- function() {
+.tomato_fresh_eq_factors <- function() {
   tibble::tribble(
     ~product_class, ~factor_set,     ~kg_fresh_per_kg,
     "fresh",        "fao_tcf_modal", 1,
@@ -121,10 +121,10 @@
 # `fresh_equivalent` the fresh-tomato tonnes.
 .tomato_fresh_equivalent <- function(
   trade,
-  factor_sets = unique(.tomato_fresh_equivalent_factors()$factor_set)
+  factor_sets = unique(.tomato_fresh_eq_factors()$factor_set)
 ) {
   .check_tomato_trade(trade)
-  factors <- .tomato_fresh_equivalent_factors() |>
+  factors <- .tomato_fresh_eq_factors() |>
     dplyr::filter(factor_set %in% factor_sets)
   keys <- setdiff(names(trade), c("cn8", "value"))
   trade |>

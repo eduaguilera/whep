@@ -469,12 +469,23 @@
 #'   generous sensitivity, not an observation or confidence bound.
 #'   German tomato food changes from 3.282 to 1.564497 Mt in calendar 2011,
 #'   against BLE table 4040500-0000's 2.049547 Mt for April 2011-March 2012
-#'   (fresh and processed products in fresh weight). The correction moves
-#'   toward that benchmark but undershoots it; the different annual periods
-#'   prevent an exact matched-year error claim. These are compiled food
-#'   availability accounts, not intake measurements, and can share national
-#'   production/customs inputs with FAO. They do not establish country-level
-#'   conversion factors, the old anchor or the bounds as measured truth.
+#'   (fresh and processed products in fresh weight, ketchup included). The
+#'   period accounts for about 1% of the gap, and rebuilding the trade from
+#'   CN8 products (Eurostat Comext, which splits tomato paste by dry matter)
+#'   explains most of the rest (whep#1631). The tomato anchor is FAO's modal
+#'   technical conversion -- paste 30%, peeled tomatoes and juice 80% of the
+#'   fresh weight; 2010 old-vintage imports over HS6 trade so converted have
+#'   median 1.000 across 80 areas -- which counts concentrate as thin paste.
+#'   Germany's 2011 CN8 trade converted at the common trade grades (double
+#'   concentrate 5.6, triple 7.2 kg fresh per kg) gives 2.081 Mt domestic
+#'   supply (2.056 Mt April-March), against 1.682 Mt rebased and 3.400 Mt
+#'   published; the dry-matter bounds give 1.564 to 2.256 Mt. So the
+#'   published import (3.585 Mt) is above any product-consistent conversion,
+#'   as it is for the other large EU importers, while the anchor sits at the
+#'   bottom of the range. These are compiled food availability accounts,
+#'   not intake measurements, and can share national production/customs
+#'   inputs with FAO; the grade mix behind the 2.081 Mt is assumed, not
+#'   measured. See `inst/scripts/diagnose_tomato_trade_basis.R`.
 #'   Sources: USDA ERS, *Fruit and Tree Nuts Yearbook Tables*, Supply and
 #'   Availability, G-43 row 33 and G-45 C33:
 #'   <https://www.ers.usda.gov/data-products/fruit-and-tree-nuts-data>.

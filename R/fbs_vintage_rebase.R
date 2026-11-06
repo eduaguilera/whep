@@ -61,9 +61,14 @@
 # anchor, so it shows consistency, not independent evidence. The public
 # fbs_trade_basis documentation records the national-account appraisal:
 # US pineapple supports the direction, while German tomato evidence warns
-# that the old anchor overcorrects relative to a different annual period.
-# The nonmilk default remains provisional; neither comparison establishes
-# source-specific product conversion factors or validates the clamps.
+# that the old anchor overcorrects. For tomatoes the anchor is FAO's modal
+# technical conversion of product trade (paste 30%, peeled and juice 80%;
+# 2010 imports, median old / converted 1.000 over 80 areas), which counts
+# all paste as thin paste; CN8 trade split by dry matter puts German 2011
+# domestic supply at 1.56 to 2.26 Mt (2.08 at the common concentrate
+# grades) against 1.68 rebased and 3.40 published (whep#1631,
+# `R/tomato_fresh_equivalent.R`). The nonmilk default remains provisional;
+# neither comparison validates the clamps.
 #
 # Measured on the pins at 2010, world imports fall from 13.57 to 6.88 Mt
 # against exports of 6.37 Mt (1.08x; 1.01x at 2016) and food from 19.47 to
