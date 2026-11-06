@@ -634,10 +634,16 @@
 #'   2781/2782 "oil" items hold pearls, corals and sponges (ISSCAAP 81-83).
 #'   - `"withhold"` keeps it out: it fills no balance-sheet gap and creates
 #'   no trade-only row. The pin is still read, a raw candidate still aborts,
-#'   and the build states the tonnage withheld.
+#'   and the build states the tonnage withheld: the pin rows at keys where
+#'   the balance sheet books no trade, which is what `"as_live_weight"`
+#'   would fill, next to the pin's gross total.
 #'   - `"as_live_weight"` books the product weight as live weight, tonne for
 #'   tonne, as builds did before whep#1617. It reproduces them exactly and is
 #'   not a conversion.
+#'
+#'   The long output records the choice in `method_fish_trade` on the rows of
+#'   the fish items the pin can reach (2761-2767, 2769, 2775, 2781, 2782),
+#'   `NA` on every other item, and `"not_applied"` under `.fixed_data`.
 #'
 #'   **The default moves published values, fish items only.** Measured on
 #'   complete 2017 builds, `"as_live_weight"` fills 1,040 keys where the
@@ -668,7 +674,8 @@
 #'   `area_code`, numeric `polity_area_code`, `reporting_polity_code`,
 #'   `reporting_polity_name`, `reporting_polity_has_geometry`,
 #'   `item_cbs_code`, `element` (e.g. `"production"`, `"import"`, `"food"`),
-#'   `value`, `source`, `fao_flag` and `method_cbs_account`. The elements
+#'   `value`, `source`, `fao_flag`, `method_cbs_account`,
+#'   `method_cbs_coverage` and `method_fish_trade`. The elements
 #'   include `losses`, `residuals`, `tourist_consumption` and
 #'   `balance_discrepancy` under `method_cbs_account = "source"`; see that
 #'   argument for the identity they close. For `format = "wide"`, the elements
@@ -928,6 +935,10 @@ build_commodity_balances <- function(
   source_accounts <- .cbs_account_ledger(source_accounts)
   long <- .cbs_restore_accounts(long, source_accounts, method_cbs_account)
   long <- .cbs_stamp_coverage(long, coverage_log)
+  long <- .cbs_stamp_fish_trade(
+    long,
+    if (is.null(.fixed_data)) fishstat_trade else "not_applied"
+  )
   attr(long, "hist_trade_scale_log") <- scale_log
   # Keep the exact crop mix behind the feed rows, including the backcast
   # method selected above, for the downstream feed allocator (whep#1556).
@@ -1205,8 +1216,7 @@ build_commodity_balances <- function(
     tobacco_leaf_use = tobacco_leaf_use,
     fbs_trade_basis = fbs_trade_basis,
     residue_backcast = residue_backcast,
-    aggregate_proxy = aggregate_proxy,
-    fishstat_trade = fishstat_trade
+    aggregate_proxy = aggregate_proxy
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -1248,6 +1258,14 @@ build_commodity_balances <- function(
 
   # Trim to requested years and attach context for downstream
   cbs_raw <- .filter_years(cbs_raw, output_years)
+  # FishStat net product weight is withheld from the live-weight fish
+  # balances by default; the balance says how much would have entered it
+  # (whep#1617).
+  inputs$fishstat_trade <- .fishstat_weight_basis(
+    inputs$fishstat_trade,
+    fishstat_trade,
+    balance = cbs_raw
+  )
   attr(cbs_raw, ".cbs_coverage_log") <- coverage_log
   attr(cbs_raw, "source_accounts") <- source_accounts
   attr(cbs_raw, "input_accounts") <- dplyr::bind_rows(
@@ -1668,8 +1686,7 @@ build_processing_coefs <- function(
   tobacco_leaf_use = .tobacco_leaf_use_choices(),
   fbs_trade_basis = .fbs_trade_basis_choices(),
   residue_backcast = .cbs_residue_backcast_choices(),
-  aggregate_proxy = .cbs_aggregate_proxy_choices(),
-  fishstat_trade = .fishstat_trade_choices()
+  aggregate_proxy = .cbs_aggregate_proxy_choices()
 ) {
   hist_trade_scale <- rlang::arg_match(
     hist_trade_scale,
@@ -1735,10 +1752,7 @@ build_processing_coefs <- function(
   # Trade
   fao_trade <- .read_fao_trade(years = years) |>
     .trade_silk_mass_basis(silk_basis)
-  fishstat_rows <- .read_fishstat_trade(
-    years = years,
-    fishstat_trade = fishstat_trade
-  )
+  fishstat_trade <- .read_fishstat_trade(years = years)
   # The screen bounds a pre-1961 reporter flow by the largest world flow
   # FAOSTAT records for the same item, so it reads its reference from the
   # FAOSTAT trade this build has already loaded -- no extra pin read
@@ -1780,7 +1794,7 @@ build_processing_coefs <- function(
     cbs_animals = cbs_animals,
     cbs_new = cbs_new,
     fao_trade = fao_trade,
-    fishstat_trade = fishstat_rows,
+    fishstat_trade = fishstat_trade,
     trade_hist = trade_hist,
     gdp_pop = gdp_pop,
     primary_cbs = primary_cbs,
@@ -2006,15 +2020,11 @@ build_processing_coefs <- function(
 
 # Read FishStat trade data (pre-aggregated to CBS items) from pins.
 # Returns a data.table: year, area_code, item_cbs_code, element, value.
-# Returns NULL if the pin is not registered yet, or when it is withheld.
+# Returns NULL if the pin is not registered yet.
 #
-# `fishstat_trade` selects whether the pin's net product weight reaches the
-# live-weight fish balances at all; see `.fishstat_weight_basis()` (whep#1617).
-.read_fishstat_trade <- function(
-  years = NULL,
-  fishstat_trade = .fishstat_trade_choices()
-) {
-  fishstat_trade <- rlang::arg_match(fishstat_trade, .fishstat_trade_choices())
+# The rows are net product weight; `.read_cbs()` passes them through
+# `.fishstat_weight_basis()`, which withholds them by default (whep#1617).
+.read_fishstat_trade <- function(years = NULL) {
   # Check if fishstat-trade is registered in whep_inputs
   if (!"fishstat-trade" %in% whep::whep_inputs$alias) {
     cli::cli_alert_info("fishstat-trade pin not registered, skipping")
@@ -2036,10 +2046,6 @@ build_processing_coefs <- function(
     )
   ]
   dt <- dt[element %in% c("import", "export")]
-  dt <- .fishstat_weight_basis(dt, fishstat_trade)
-  if (is.null(dt)) {
-    return(NULL)
-  }
 
   .aggregate_to_polities(dt, item_cbs_code, source_label = "fishstat-trade")
 }

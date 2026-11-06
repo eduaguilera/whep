@@ -33,16 +33,19 @@
 #   a balance sheet books a fish trade as zero the commodity behind the
 #   FishStat figure is usually already in another item. Peru's 2017 exports
 #   of Marine Fish, Other (2764) are 0 in the balance sheet and 1,253,750 t in
-#   the pin, of which 1,030,540 t is "Fishmeals, nei" and 171,365 t fish body
-#   oil (FI_Trade 2025.1.0, reporter 604). The balance sheet already books
+#   the pin, of which 1,030,540 t is "Fishmeals, nei" and 171,087 t "Fish body
+#   oils, nei" (FI_Trade 2025.1.0, reporter 604, `TRADE_QUANTITY.csv`). The balance sheet already books
 #   that meal, converted, in its 4.53 Mt of Pelagic Fish (2763) exports, and
 #   the oil as 171,000 t of Fish, Body Oil (2781).
 #
 # So `"withhold"`, the default, keeps the pin out of the CBS: it supplies no
 # Tier-1 trade fill and no trade-only recovered row. It is still read, so
 # that a raw or weight-labelled candidate still aborts
-# (`.check_fishstat_cbs_basis()`) and the tonnage left out is stated on every
-# build. `"as_live_weight"` books the product weight as live weight, the
+# (`.check_fishstat_cbs_basis()`), and every build states the tonnage it
+# leaves out: the pin rows at keys where the balance sheet books no trade,
+# which is what `"as_live_weight"` fills. The rest of the pin, where the
+# balance sheet has its own figure, never reached the balance under either
+# option. The policy is stamped on the fish rows as `method_fish_trade`. `"as_live_weight"` books the product weight as live weight, the
 # behaviour before whep#1617, for reproducing an older build. It is not a
 # conversion.
 #
@@ -67,23 +70,31 @@
   c("withhold", "as_live_weight")
 }
 
-# Apply the selected policy to the pin rows `.read_fishstat_trade()` read.
-# `dt` has `year`, `area_code`, `item_cbs_code`, `element` (`"import"` or
-# `"export"`), `value` and `unit`. Returns `dt` under `"as_live_weight"` and
-# `NULL` under `"withhold"`, the value the reader already returns for an
-# unregistered pin, so the trade merge needs no second branch.
-.fishstat_weight_basis <- function(dt, method) {
+# The CBS items the `fishstat-trade` pin can reach (fishstat_cbs_bridge.csv).
+.fishstat_cbs_items <- function() {
+  c(2761:2767, 2769, 2775, 2781, 2782)
+}
+
+# Apply the selected policy to the aggregated pin rows `.read_fishstat_trade()`
+# read. `dt` has `year`, `area_code`, `item_cbs_code`, `element` (`"import"`
+# or `"export"`) and `value`; `balance` is the combined CBS before balancing,
+# with `year`, `area_code`, `item_cbs_code`, `element` and `value`. Returns
+# `dt` under `"as_live_weight"` and `NULL` under `"withhold"`, the value the
+# reader already returns for an unregistered pin, so the trade merge needs no
+# second branch.
+.fishstat_weight_basis <- function(dt, method, balance) {
   method <- rlang::arg_match(method, .fishstat_trade_choices())
-  if (nrow(dt) == 0L) {
+  if (is.null(dt) || nrow(dt) == 0L) {
     return(if (method == "withhold") NULL else dt)
   }
-  tonnes <- .fishstat_tonnes_by_flow(dt)
+  gross <- .fishstat_tonnes_by_flow(dt)
+  fills <- .fishstat_tonnes_by_flow(.fishstat_unbooked_rows(dt, balance))
   if (method == "as_live_weight") {
     cli::cli_inform(
       c(
-        "!" = "FishStat net product weight is booked as live weight \\
-               ({tonnes$import} t of imports, {tonnes$export} t of \\
-               exports).",
+        "!" = "FishStat net product weight is booked as live weight where \\
+               the balance sheet books no trade: {fills$import} t of \\
+               imports and {fills$export} t of exports.",
         "i" = "{.arg fishstat_trade} = {.val as_live_weight} reproduces \\
                builds made before whep#1617; it is not a conversion."
       ),
@@ -94,15 +105,40 @@
   cli::cli_inform(
     c(
       "i" = "FishStat trade withheld from the fish balances: \\
-             {tonnes$import} t of imports and {tonnes$export} t of exports \\
-             in net product weight, which FAO's live-weight fish balances \\
-             cannot take (whep#1617).",
+             {fills$import} t of imports and {fills$export} t of exports \\
+             in net product weight, at keys where the balance sheet books no \\
+             trade, which FAO's live-weight fish balances cannot take \\
+             (whep#1617).",
+      "i" = "The pin holds {gross$import} t and {gross$export} t in all; \\
+             the rest falls where the balance sheet has its own figure, \\
+             which takes precedence under either option.",
       "i" = "Set {.arg fishstat_trade} = {.val as_live_weight} to book \\
              them as live weight, as before."
     ),
     class = "whep_fishstat_withheld"
   )
   NULL
+}
+
+# The pin rows `"as_live_weight"` would book: a positive value at a key where
+# the balance has no trade row or a zero one. The tier-1 trade fill takes
+# both (`.fill_tier1_trade()` under the default `trade_zero`), and the
+# trade-only recovery takes the keys of an area with no row for the item.
+.fishstat_unbooked_rows <- function(dt, balance) {
+  keys <- c("year", "area_code", "item_cbs_code", "element")
+  booked <- balance |>
+    tibble::as_tibble() |>
+    dplyr::filter(
+      .data$element %in% c("import", "export"),
+      .data$value != 0
+    ) |>
+    dplyr::distinct(dplyr::across(dplyr::all_of(keys))) |>
+    dplyr::mutate(item_cbs_code = as.numeric(.data$item_cbs_code))
+  dt |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$value > 0) |>
+    dplyr::mutate(item_cbs_code = as.numeric(.data$item_cbs_code)) |>
+    dplyr::anti_join(booked, by = keys)
 }
 
 # Rounded import and export tonnage, formatted for a message.
@@ -114,4 +150,18 @@
     numeric(1)
   )
   as.list(format(round(totals), big.mark = ",", scientific = FALSE))
+}
+
+# Record the policy on the rows of the items the pin can reach; other items
+# carry `NA`. `"not_applied"` marks a `.fixed_data` balance, which never read
+# the pin.
+.cbs_stamp_fish_trade <- function(data, method) {
+  dplyr::mutate(
+    data,
+    method_fish_trade = dplyr::if_else(
+      .data$item_cbs_code %in% .fishstat_cbs_items(),
+      method,
+      NA_character_
+    )
+  )
 }

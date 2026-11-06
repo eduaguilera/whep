@@ -684,11 +684,17 @@ aggregated to CBS items, so it keeps no commodity to convert by, and its
 \itemize{
 \item \code{"withhold"} keeps it out: it fills no balance-sheet gap and creates
 no trade-only row. The pin is still read, a raw candidate still aborts,
-and the build states the tonnage withheld.
+and the build states the tonnage withheld: the pin rows at keys where
+the balance sheet books no trade, which is what \code{"as_live_weight"}
+would fill, next to the pin's gross total.
 \item \code{"as_live_weight"} books the product weight as live weight, tonne for
 tonne, as builds did before whep#1617. It reproduces them exactly and is
 not a conversion.
 }
+
+The long output records the choice in \code{method_fish_trade} on the rows of
+the fish items the pin can reach (2761-2767, 2769, 2775, 2781, 2782),
+\code{NA} on every other item, and \code{"not_applied"} under \code{.fixed_data}.
 
 \strong{The default moves published values, fish items only.} Measured on
 complete 2017 builds, \code{"as_live_weight"} fills 1,040 keys where the
@@ -721,7 +727,8 @@ For \code{format = "long"}, a tibble with columns: \code{year}, legacy numeric
 \code{area_code}, numeric \code{polity_area_code}, \code{reporting_polity_code},
 \code{reporting_polity_name}, \code{reporting_polity_has_geometry},
 \code{item_cbs_code}, \code{element} (e.g. \code{"production"}, \code{"import"}, \code{"food"}),
-\code{value}, \code{source}, \code{fao_flag} and \code{method_cbs_account}. The elements
+\code{value}, \code{source}, \code{fao_flag}, \code{method_cbs_account},
+\code{method_cbs_coverage} and \code{method_fish_trade}. The elements
 include \code{losses}, \code{residuals}, \code{tourist_consumption} and
 \code{balance_discrepancy} under \code{method_cbs_account = "source"}; see that
 argument for the identity they close. For \code{format = "wide"}, the elements
