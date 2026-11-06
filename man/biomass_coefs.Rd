@@ -144,6 +144,28 @@ matter; protein and carbohydrate from \code{Miel} sum to exactly that dry
 matter. At 5 g/kg honey is 1.69x FBS, where it was zero. Only the
 protein moves a computed number: nothing in the package reads the
 carbohydrate or calcium columns.
+
+5 g/kg is \strong{retained, provisionally}: honey is eaten as harvested, so a
+composition table applies directly, with no milling basis to choose. Three
+independent tables span 3-5.6 g/kg:
+\itemize{
+\item ANSES, Ciqual 2020, alim_code 31008 \code{Honey}: 0.56 g/100 g (crude
+protein, N x 6.25, also 0.56).
+\item FAO, \emph{Food balance sheets: a handbook} (2001), Annex I, PDF page 65
+(printed 61), row \code{HONEY}: 0.4 g/100 g, retail weight,
+\url{https://www.fao.org/4/x9892e/x9892e00.pdf}.
+\item USDA FoodData Central, SR Legacy (April 2018), fdc_id 169640 \code{Honey}:
+0.3 g/100 g (508 data points).
+}
+
+The workbook value is 11\% below Ciqual and 25\% above FAO 2001.
+FAOSTAT's new-method FBS implies 2.99 g/kg, the USDA figure. None of
+the three tables says why its honey differs from the others, so none is
+clearly better, and the row stays on the workbook's own \code{Miel} value,
+which keeps its protein-plus-carbohydrate identity. Moving it to
+3 g/kg would lower 2010 world food protein by about 3.2 kt (honey's
+7,940 t at 5 g/kg, as measured in #1096, scaled to 3 g/kg). That is
+under 0.002\% of the roughly 200 Mt total.
 \item \code{Maize} now carries \strong{0.009888} (61.8 g/kg) and \code{Oats} \strong{0.011584}
 (72.4 g/kg), replacing the agronomic 0.01248 and 0.013415 (78.0 and
 83.8 g/kg, a feed-table whole grain). Their own rows, 7 \verb{Harina de Maiz}

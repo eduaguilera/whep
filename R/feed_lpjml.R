@@ -552,6 +552,31 @@ read_lpjml_grass_productivity <- function(
   }
 }
 
+# Axis-order guard shared by the hydrology and all-PFT NPP readers (#1643).
+# Both read positionally as [lon, lat, (band,) time]; the band axis may carry
+# any name (pft, npft, layer, ...) but lon/lat/time must be named and ordered
+# as the decoders assume. `n_dims` lists the accepted ranks (3 = no band axis).
+.check_lpjml_axes <- function(nc, var_name, n_dims = c(3L, 4L)) {
+  dims <- vapply(nc$var[[var_name]]$dim, `[[`, character(1), "name")
+  n <- length(dims)
+  band <- if (n == 4L) dims[[3]] else character()
+  ok <- n %in%
+    n_dims &&
+    identical(dims[c(1L, 2L, n)], c("lon", "lat", "time")) &&
+    !any(band %in% c("lon", "lat", "time"))
+  if (!ok) {
+    cli::cli_abort(
+      c(
+        "LPJmL variable {.val {var_name}} has unsupported dimensions.",
+        i = "Expected lon, lat, then (for per-band cubes) a band axis, then
+             time, in that order; found {.val {dims}}."
+      ),
+      class = "whep_lpjml_band_dimensions"
+    )
+  }
+  invisible(dims)
+}
+
 # Restrict requested years to the run's output time axis, warning about (and
 # skipping) any outside it, so an out-of-coverage year does not abort the read
 # with an out-of-bounds index. Skipped years simply carry no LPJmL grass.

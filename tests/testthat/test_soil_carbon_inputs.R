@@ -1530,8 +1530,9 @@ testthat::test_that("the engine refuses a shared bucket and keeps source territo
 
 # -- The commodity balance's straw (whep#1519) ---------------------------------
 
-# Wheat and rice (cereals) and soybean (not), as get_primary_production()
-# carries them: rice on a milled-equivalent basis.
+# Wheat and rice (cereals), soybean (a non-cereal with its own IPCC Table
+# 11.2 line) and rapeseed (a non-cereal without one), as
+# get_primary_production() carries them: rice on a milled-equivalent basis.
 .sci_cbs_straw_fixture <- function() {
   tibble::tribble(
     ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
@@ -1541,7 +1542,9 @@ testthat::test_that("the engine refuses a shared bucket and keeps source territo
     203L, 27, 2807L, NA, 2010L, "tonnes", 67,
     203L, 27, 2807L, NA, 2010L, "ha", 20,
     203L, 236, 2555L, NA, 2010L, "tonnes", 60,
-    203L, 236, 2555L, NA, 2010L, "ha", 20
+    203L, 236, 2555L, NA, 2010L, "ha", 20,
+    203L, 270, 2558L, NA, 2010L, "tonnes", 30,
+    203L, 270, 2558L, NA, 2010L, "ha", 10
   )
 }
 
@@ -1564,13 +1567,70 @@ testthat::test_that("the soil chain prices cereal straw as the CBS does", {
     dplyr::mutate(production_t = 100) |>
     whep::calculate_crop_residues(method = "ipcc")
   testthat::expect_equal(by_crop(out, "27")$residue_dm_t, rice$residue_dm_t)
-  # Non-cereals are not the CBS's cereal line: they keep the ensemble.
-  soy <- whep::calculate_crop_residues(by_crop(wide, "236"))
-  testthat::expect_equal(by_crop(out, "236")$residue_dm_t, soy$residue_dm_t)
-  testthat::expect_identical(by_crop(out, "236")$method_residue, "ensemble")
 })
 
-testthat::test_that("soil-returned cereal residue C follows the CBS straw", {
+testthat::test_that("the soil chain prices lined non-cereals as the CBS does", {
+  wide <- whep:::.sci_crop_prod_wide(.sci_cbs_straw_fixture())
+  out <- whep:::.sci_crop_npp(wide)
+  by_crop <- function(d, code) d[d$item_prod_code == code, ]
+  # Soybean has its own IPCC Table 11.2 line, so the CBS prices it with
+  # get_primary_residues()'s `non_cereal_residue` default (whep#1609).
+  testthat::expect_identical(whep:::.cbs_non_cereal_residue_method(), "ipcc")
+  testthat::expect_true("236" %in% whep:::.residue_ipcc_line_codes())
+  soy <- whep::calculate_crop_npp(by_crop(wide, "236"), residue_method = "ipcc")
+  testthat::expect_equal(by_crop(out, "236")$residue_dm_t, soy$residue_dm_t)
+  testthat::expect_equal(by_crop(out, "236")$root_dm_t, soy$root_dm_t)
+  testthat::expect_identical(by_crop(out, "236")$method_residue, "ipcc")
+  # The two methods differ on this row, so the assertion above can fail.
+  ensemble <- whep::calculate_crop_residues(by_crop(wide, "236"))
+  testthat::expect_false(isTRUE(all.equal(
+    by_crop(out, "236")$residue_dm_t,
+    ensemble$residue_dm_t
+  )))
+  # Its product is untouched: only the residue model changes.
+  testthat::expect_equal(
+    by_crop(out, "236")$product_dm_t,
+    ensemble$product_dm_t
+  )
+  # Rapeseed has no Table 11.2 line (its coefficient row is assumed,
+  # unverified), so the CBS keeps the pin's ratio and the soil chain keeps
+  # the ensemble: "ipcc" would price it at zero.
+  testthat::expect_false("270" %in% whep:::.residue_ipcc_line_codes())
+  rape <- whep::calculate_crop_residues(by_crop(wide, "270"))
+  testthat::expect_equal(by_crop(out, "270")$residue_dm_t, rape$residue_dm_t)
+  testthat::expect_identical(by_crop(out, "270")$method_residue, "ensemble")
+  testthat::expect_equal(
+    out$crop_npp_dm_t,
+    out$product_dm_t + out$residue_dm_t + out$root_dm_t
+  )
+})
+
+testthat::test_that("the lined crops are the ones the CBS estimates by yield", {
+  codes <- whep:::.residue_ipcc_line_codes()
+  # No cereal: cereals take the cereal method first.
+  testthat::expect_length(intersect(codes, whep:::.residue_cereal_codes()), 0L)
+  # The CBS's own per-name test agrees with the code list.
+  names <- whep::items_prod_full |>
+    dplyr::filter(as.character(.data$item_prod_code) %in% codes) |>
+    dplyr::pull("item_prod")
+  testthat::expect_true(all(whep:::.residue_has_ipcc_line(names)))
+  testthat::expect_false(any(whep:::.residue_has_ipcc_line(
+    c("Rape or colza seed", "Wheat")
+  )))
+})
+
+testthat::test_that("a CBS non-cereal method the soil chain lacks aborts", {
+  testthat::local_mocked_bindings(
+    .cbs_non_cereal_residue_method = function() "pin"
+  )
+  wide <- whep:::.sci_crop_prod_wide(.sci_cbs_straw_fixture())
+  testthat::expect_error(
+    whep:::.sci_crop_npp(wide),
+    class = "whep_soil_residue_method"
+  )
+})
+
+testthat::test_that("soil-returned residue C follows the CBS straw", {
   prod <- .sci_cbs_straw_fixture()
   out <- suppressWarnings(whep:::.sci_npp_from_primary_prod(prod))
   wide <- whep:::.sci_crop_prod_wide(prod) |>
@@ -1589,11 +1649,14 @@ testthat::test_that("soil-returned cereal residue C follows the CBS straw", {
   }
   expected <- dplyr::bind_rows(
     wide |>
-      dplyr::filter(.data$item_prod_code != "236") |>
+      dplyr::filter(.data$item_prod_code %in% c("15", "27")) |>
       whep::calculate_crop_npp(residue_method = "ipcc") |>
       milled(),
     wide |>
       dplyr::filter(.data$item_prod_code == "236") |>
+      whep::calculate_crop_npp(residue_method = "ipcc"),
+    wide |>
+      dplyr::filter(.data$item_prod_code == "270") |>
       whep::calculate_crop_npp()
   ) |>
     whep::calculate_residue_destinies(method = "recovery_regional") |>

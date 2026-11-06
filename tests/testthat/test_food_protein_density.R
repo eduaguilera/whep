@@ -169,6 +169,21 @@ testthat::test_that("olive, rye and honey carry their food-composition row", {
   )
 })
 
+testthat::test_that("honey protein sits inside the composition tables", {
+  # whep#1096: honey is eaten as harvested, so a composition table applies
+  # directly. Three independent tables, in g protein per kg: USDA SR Legacy
+  # fdc_id 169640 3.0, FAO FBS handbook (2001) Annex I 4.0, ANSES Ciqual 2020
+  # alim_code 31008 5.6. The shipped `Miel` value (5) is retained inside that
+  # range; leaving it means either a new source or a deliberate decision.
+  tables <- c(usda_2018 = 3.0, fao_2001 = 4.0, ciqual_2020 = 5.6)
+  honey <- .fpd_whep() |>
+    dplyr::filter(.data$item_cbs_code == 2745L) |>
+    dplyr::pull(.data$whep_protein_g_kgfm)
+  testthat::expect_length(honey, 1)
+  testthat::expect_gte(honey, min(tables))
+  testthat::expect_lte(honey, max(tables))
+})
+
 testthat::test_that("foods FAOSTAT credits with protein but WHEP zeroes are known", {
   # The band test above cannot see a zero on a low-protein item: honey at
   # 0 g/kg against FBS 2.99 sat inside its 5 g/kg absolute floor (whep#1096).

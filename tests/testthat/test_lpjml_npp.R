@@ -168,3 +168,48 @@ testthat::test_that("real pft_npp read carries the expected PFT vocabulary", {
   testthat::expect_equal(length(unique(out$npft)), 46L)
   testthat::expect_true(all(out$year == 2000L))
 })
+
+test_that(".lpjml_npp_slice keeps each value at its own cell (#1643)", {
+  skip_if_not_installed("ncdf4")
+  purrr::walk(c(1L, 2L, 3L), function(n_lat) {
+    path <- .test_lpjml_band_file(n_lat = n_lat)
+    nc <- ncdf4::nc_open(path)
+    on.exit(ncdf4::nc_close(nc))
+    out <- whep:::.lpjml_npp_slice(
+      nc,
+      "depth",
+      c("rainfed grassland", "irrigated grassland"),
+      1750L,
+      1L
+    ) |>
+      dplyr::filter(npft == 1L)
+    expected <- tidyr::expand_grid(
+      lat = 0.25 + (seq_len(n_lat) - 1) * 0.5,
+      lon = c(0.25, 0.75)
+    )
+    expect_identical(out$lon, expected$lon)
+    expect_identical(out$lat, expected$lat)
+    expect_identical(out$value, as.numeric(seq_len(2L * n_lat)))
+    expect_identical(unique(out$name_pft), "rainfed grassland")
+  })
+})
+
+test_that(".lpjml_npp_slice rejects reordered or unrecognized axes (#1643)", {
+  skip_if_not_installed("ncdf4")
+  layouts <- list(
+    list(c("lat", "lon", "pft", "time"), 2L),
+    list(c("lat", "lon", "pft", "time"), 3L),
+    list(c("lon", "lat", "time", "pft"), 2L),
+    list(c("lon", "lat", "time"), 2L),
+    list(c("x", "lat", "pft", "time"), 2L)
+  )
+  purrr::walk(layouts, function(l) {
+    path <- .test_lpjml_band_file(l[[1]], n_lat = l[[2]])
+    nc <- ncdf4::nc_open(path)
+    on.exit(ncdf4::nc_close(nc))
+    expect_error(
+      whep:::.lpjml_npp_slice(nc, "depth", c("a", "b"), 1750L, 1L),
+      class = "whep_lpjml_band_dimensions"
+    )
+  })
+})

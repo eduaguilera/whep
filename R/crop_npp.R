@@ -46,8 +46,10 @@ calculate_potential_npp <- function(
 #' columns are present in `x`.
 #'
 #' @param x A tibble with `item_prod_code`, `production_t` (fresh matter) and
-#'   `area_ha`. Optional `water_regime` enables the irrigation adjustment;
-#'   optional `year` plus `region_hanpp` enable the modern-variety adjustment.
+#'   `area_ha`. Optional `water_regime` (`"Irrigated"`, `"Rainfed"` or
+#'   `"Mixed"`; any other value, including `NA`, aborts) enables the
+#'   irrigation adjustment; optional `year` plus `region_hanpp` enable the
+#'   modern-variety adjustment.
 #' @param method Residue method: `"ensemble"` (default, weighted IPCC + ratio),
 #'   `"ipcc"` (IPCC linear only) or `"ratio"` (`bio_coefs` ratio only).
 #' @param weights Named list; `w_ipcc` is the IPCC weight in the ensemble (0-1,
@@ -96,7 +98,8 @@ calculate_crop_residues <- function(
 #'
 #' @param x A tibble with `item_prod_code`, `product_dm_t`, `residue_dm_t` and
 #'   `area_ha`. Optional `n_input_kg_ha` enables the nitrogen adjustment;
-#'   optional `water_regime` enables the irrigation adjustment.
+#'   optional `water_regime` (`"Irrigated"`, `"Rainfed"` or `"Mixed"`; any
+#'   other value, including `NA`, aborts) enables the irrigation adjustment.
 #' @param method Root method: `"ensemble"` (default, weighted root:shoot +
 #'   reference), `"root_shoot"` (root:shoot ratio only) or `"reference"`
 #'   (reference below-ground biomass only).
@@ -485,6 +488,7 @@ calculate_npp_carbon_nitrogen <- function(x) {
   }
   irr <- whep::whep_coef_table("irrigation_adj") |>
     dplyr::select(water_regime, residue_ratio_factor)
+  .check_water_regime_labels(x, irr)
   sens <- whep::whep_coef_table("irr_residue_crop_adj") |>
     dplyr::select(crop_group, irr_residue_sensitivity)
   x |>
@@ -496,6 +500,33 @@ calculate_npp_carbon_nitrogen <- function(x) {
       residue_ratio_factor = 1 +
         irr_residue_sensitivity * (residue_ratio_factor - 1)
     )
+}
+
+# Every `water_regime` must be a label of the irrigation table. One it does
+# not carry -- a lower-case "irrigated", as WHEP's regime columns elsewhere
+# spell it, or a missing value -- joins nothing, and the
+# `replace_na(..., 1)` after the join then reads the row as rainfed: an
+# irrigated maize row lost its 0.9 residue and 0.85 root:shoot factors with no
+# message (whep#1034). The regime is a vocabulary contract, not an absent
+# quantity: no factor is a defensible estimate for a label the table does not
+# define, so the row is refused, as `.rr_model_regime()` refuses one. The
+# `replace_na()` fills below now reach only a row with no `crop_group`.
+.check_water_regime_labels <- function(x, irr) {
+  bad <- !x$water_regime %in% irr$water_regime
+  if (!any(bad)) {
+    return(invisible(x))
+  }
+  found <- unique(x$water_regime[bad])
+  cli::cli_abort(
+    c(
+      "{cli::qty(sum(bad))}{sum(bad)} row{?s} carr{?ies/y} a
+       {.field water_regime} the irrigation table does not define:
+       {.val {found}}.",
+      i = "Use one of {.val {irr$water_regime}}, or drop the column to apply
+           no irrigation adjustment."
+    ),
+    class = "whep_regime_label"
+  )
 }
 
 .residue_variety_factor <- function(x) {
@@ -707,6 +738,7 @@ calculate_npp_carbon_nitrogen <- function(x) {
   }
   irr <- whep::whep_coef_table("irrigation_adj") |>
     dplyr::select(water_regime, rs_ratio_factor)
+  .check_water_regime_labels(x, irr)
   x |>
     dplyr::left_join(irr, by = "water_regime") |>
     dplyr::mutate(
