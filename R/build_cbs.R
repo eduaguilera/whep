@@ -71,6 +71,11 @@
 #'   [get_wide_cbs()], [get_processing_coefs()] and [build_io_model()] take the
 #'   same argument and pass it into the shared build chain, each method under
 #'   its own cache slot, so a downstream build can be run either way.
+#'   A created row names the trade dataset that supplied it in `source`
+#'   (`"FAOSTAT_trade"` or `"FishStat_trade"`) with that record's `fao_flag`,
+#'   `NA` where the record has none; an export capped at its import is no
+#'   longer the record's number, so its `source` carries a
+#'   `"_capped_at_import"` suffix and its `fao_flag` is `NA`.
 #' @param trade_zero One of `"prefer_record"` (default) or `"keep"`,
 #'   selecting what happens when the CBS carries a **zero** import or export
 #'   and the trade record for the same `(year, area_code, item_cbs_code)`
@@ -1233,36 +1238,10 @@ build_commodity_balances <- function(
   # Both aggregates are reduced to their mass rows first: this attribute is the
   # tonnes-denominated trade the imputation reads, and the FAOSTAT record also
   # carries live-animal head counts (whep#865).
-  fao_trade_agg <- .mass_only_trade(
-    .aggregate_fao_trade_to_cbs(inputs$fao_trade),
-    "faostat-trade-totals"
+  attr(cbs_raw, ".fao_trade") <- .cbs_all_trade(
+    inputs$fao_trade,
+    inputs$fishstat_trade
   )
-  fishstat_agg <- inputs$fishstat_trade # already aggregated to CBS level
-  # FishStat is all tonnes today, but it goes through the same gate so a future
-  # non-mass unit cannot slip in silently. The gate can empty it, hence the
-  # second check rather than an `else if`.
-  if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
-    fishstat_agg <- .mass_only_trade(fishstat_agg, "fishstat-trade")
-  }
-  if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
-    # Keep only the columns common with fao_trade_agg
-    common_cols <- c("year", "area_code", "item_cbs_code", "element", "value")
-    all_trade <- data.table::rbindlist(
-      list(
-        fao_trade_agg[, common_cols, with = FALSE],
-        fishstat_agg[, common_cols, with = FALSE]
-      ),
-      use.names = TRUE
-    )
-    # Sum in case of overlaps (shouldn't happen: different item ranges)
-    all_trade <- all_trade[,
-      .(value = sum(value, na.rm = TRUE)),
-      by = .(year, area_code, item_cbs_code, element)
-    ]
-  } else {
-    all_trade <- fao_trade_agg
-  }
-  attr(cbs_raw, ".fao_trade") <- all_trade
   cbs_raw
 }
 
@@ -1842,6 +1821,48 @@ build_processing_coefs <- function(
     .(value = sum(value, na.rm = TRUE)),
     by = .(year, area_code, item_cbs_code, element)
   ]
+}
+
+# FAOSTAT + FishStat trade at CBS item level, the `.fao_trade` record the
+# imputation and the trade-only recovery read. Each dataset is named in
+# `source` before the two are combined, so a row recovered from it can say
+# which one supplied it (whep#1650): the record used to be bare tonnage, and the
+# recovery labelled every row `"FAOSTAT_trade"`, FishStat's included. Neither
+# aggregate carries an observation flag, so none is attached: `fao_flag` is
+# left absent and reads as unknown downstream, never invented.
+.cbs_all_trade <- function(fao_trade, fishstat_trade) {
+  fao <- .mass_only_trade(
+    .aggregate_fao_trade_to_cbs(fao_trade),
+    "faostat-trade-totals"
+  )
+  fao[, source := "FAOSTAT_trade"]
+  # FishStat is all tonnes today, but it goes through the same gate so a future
+  # non-mass unit cannot slip in silently. The gate can empty it.
+  if (is.null(fishstat_trade) || nrow(fishstat_trade) == 0L) {
+    return(fao)
+  }
+  fish <- .mass_only_trade(fishstat_trade, "fishstat-trade")
+  if (nrow(fish) == 0L) {
+    return(fao)
+  }
+  fish[, source := "FishStat_trade"]
+  # Sum in case of overlaps (none today: the item ranges are disjoint). A
+  # summed key names both datasets rather than either one.
+  data.table::rbindlist(list(fao, fish), use.names = TRUE)[,
+    .(value = sum(value, na.rm = TRUE), source = .trade_source_label(source)),
+    by = .(year, area_code, item_cbs_code, element)
+  ]
+}
+
+# One provenance label for the trade rows summed into one key: the single
+# dataset when they agree, every dataset joined by `" + "` when they do not,
+# and NA when any part is unlabelled, because a partly unknown sum has no
+# known lineage.
+.trade_source_label <- function(source) {
+  if (anyNA(source) || any(!nzchar(source))) {
+    return(NA_character_)
+  }
+  paste(sort(unique(source)), collapse = " + ")
 }
 
 # Keep only the mass rows of a unit-carrying frame, saying what went. `unit`
@@ -6092,7 +6113,7 @@ build_processing_coefs <- function(
       values_to = "value"
     ) |>
     dplyr::filter(.data$value > 0) |>
-    dplyr::mutate(source = "FAOSTAT_trade") |>
+    .cbs_recovery_provenance(fao_trade_cbs) |>
     dplyr::select(
       year,
       area_code,
@@ -6101,8 +6122,70 @@ build_processing_coefs <- function(
       area,
       item_cbs,
       value,
-      source
+      source,
+      fao_flag
     )
+}
+
+# The provenance of a recovered row is the provenance of the trade record that
+# supplied it (whep#1650). It used to be the literal `"FAOSTAT_trade"` with no
+# flag, whatever the dataset, so FishStat rows were booked as FAOSTAT ones and
+# an export the recovery had capped read as the record's own number.
+#
+# * A value equal to the record's carries the record's `source` and
+#   `fao_flag`, as supplied. Absent metadata stays NA: an unlabelled record is
+#   unknown, not FAOSTAT.
+# * A value that differs from the record's -- only an export capped at its
+#   import by `.cbs_recovery_net_exports()` -- is no longer the observation.
+#   Its `source` keeps the lineage with a `_capped_at_import` suffix, the
+#   suffix convention of the derived `FAOSTAT_FBS_Old_scaled` and
+#   `FAOSTAT_FBS_New_rebased`, and it carries no observation flag.
+#
+# The join is on the numeric `area_code` bucket, the same transitional adapter
+# the recovery itself keys on (whep#458); it adds no territorial matching of
+# its own. Each candidate key is unique in the record, which
+# `.abort_if_trade_key_duplicated()` has already enforced.
+.cbs_recovery_provenance <- function(rows, fao_trade_cbs) {
+  if (nrow(rows) == 0L) {
+    return(dplyr::mutate(rows, source = character(), fao_flag = character()))
+  }
+  keys <- c("year", "area_code", "item_cbs_code", "element")
+  record <- tibble::as_tibble(fao_trade_cbs) |>
+    ensure_columns(
+      tibble::tibble(source = character(), fao_flag = character())
+    ) |>
+    dplyr::semi_join(rows, by = keys) |>
+    dplyr::select(
+      dplyr::all_of(c(keys, "source", "fao_flag")),
+      record_value = "value"
+    )
+  rows |>
+    dplyr::left_join(record, by = keys, relationship = "one-to-one") |>
+    dplyr::mutate(
+      changed = .data$value != .data$record_value,
+      source = dplyr::if_else(
+        .data$changed,
+        .capped_source_label(.data$source),
+        .data$source
+      ),
+      fao_flag = dplyr::if_else(.data$changed, NA_character_, .data$fao_flag)
+    ) |>
+    dplyr::select(-"changed", -"record_value")
+}
+
+# `"FishStat_trade"` -> `"FishStat_trade_capped_at_import"`, per dataset when
+# the record names several. An unlabelled record still yields a label that
+# says the value is derived, without claiming a dataset for it.
+.capped_source_label <- function(source) {
+  suffix <- "_capped_at_import"
+  dplyr::if_else(
+    is.na(source),
+    paste0("trade", suffix),
+    paste0(
+      stringr::str_replace_all(source, " \\+ ", paste0(suffix, " + ")),
+      suffix
+    )
+  )
 }
 
 # The (year, area, item) keys the trade record carries and the CBS does not,
@@ -6353,22 +6436,21 @@ build_processing_coefs <- function(
 # A created row can only carry what the trade record gives it, so every other
 # column of the frame it is bound onto has to be completed from that frame's
 # own prototype: `rbindlist()` aborts on a column one side lacks. `fao_flag`
-# is that column today -- it arrived on the CBS and on the source lookup in
+# was that column -- it arrived on the CBS and on the source lookup in
 # whep#1037, after the recovery step of whep#864, and turned
 # `trade_recovery = "net_import"` from working into an abort on the real frame
-# while every fixture (all flagless) stayed green. NA is also the right value,
-# not merely the convenient one: a recovered row is not a number FAOSTAT
-# published under an observation status, which is the rule
-# `build_commodity_balances()` documents for that column.
+# while every fixture (all flagless) stayed green. The recovered rows now carry
+# the flag their trade record supplied (whep#1650), so the reverse also holds:
+# a column the frame does not have, such as `fao_flag` on a flagless CBS, is
+# dropped rather than aborting the bind.
 .cbs_recovered_to_schema <- function(recovered, frame) {
+  recovered <- tibble::as_tibble(recovered)
+  recovered <- recovered[, intersect(names(recovered), names(frame))]
   absent <- setdiff(names(frame), names(recovered))
   if (length(absent) == 0L) {
     return(recovered)
   }
-  ensure_columns(
-    tibble::as_tibble(recovered),
-    tibble::as_tibble(frame)[0L, absent]
-  )
+  ensure_columns(recovered, tibble::as_tibble(frame)[0L, absent])
 }
 
 # The source lookup is frozen before the recovered rows exist, so their
